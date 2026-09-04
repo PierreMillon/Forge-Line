@@ -281,7 +281,6 @@ let enemies = [];
 let projectiles = [];
 function pickNextSpawnDelay(){ return Math.max(18, 65 - wave*3) + Math.random()*55; }
 let spawnTimer = 0, spawnInterval = pickNextSpawnDelay(), enemiesThisWave = 2, spawned = 0;
-let lastShotAt = 0;
 const SHOT_INTERVAL_MS = 1000;
 const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 1.2; // tir des tours 20% plus rapide que le joueur
 const PLAYER_DMG = 12;
@@ -652,6 +651,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.6, text: "Correctif : le tir manuel ne se déclenche plus pendant un déplacement au joystick ; tir auto + manuel se cumulent au lieu de se bloquer" },
   { v: 17.5, text: "Plafond du tir manuel remonté à 20 taps/s (50ms, au lieu de 150ms)" },
   { v: 17.4, text: "Vague 1 réduite à 2 ennemis (au lieu de 5)" },
   { v: 17.3, text: "Deux cadences de tir manuel : taper vite = tir rapide (150ms), rester appuyé = rythme fixe plus lent (500ms)" },
@@ -698,6 +698,12 @@ const joyKnob = document.getElementById('joy-knob');
 let joyActive = false, joyOriginX = 0, joyOriginY = 0;
 let joyDX = 0, joyDY = 0; // vecteur de direction continu (mouvement fluide, pas 4 directions figées)
 let joyMagnitude = 0; // 0..1, proportionnel à la distance tirée (vitesse analogique)
+// vrai dès que CE geste a fait dépasser la zone morte au moins une fois —
+// sert à ce que le tir manuel (plus bas) ignore un doigt qui déplace
+// réellement le joueur, même s'il finit par se stabiliser près de son
+// point de départ (une petite déflexion tenue reste un déplacement, pas
+// une intention de tir)
+let joyEngagedThisTouch = false;
 const JOY_RADIUS = 40, JOY_DEADZONE = 12;
 
 // élan résiduel après un coup sec sur le joystick (relâché juste après un
@@ -714,6 +720,7 @@ function joyStart(x, y){
   joyActive = true; joyOriginX = x; joyOriginY = y;
   joyLastX = x; joyLastY = y; joyLastT = performance.now();
   joyFlickVX = 0; joyFlickVY = 0;
+  joyEngagedThisTouch = false;
   joyBase.style.left = x+'px'; joyBase.style.top = y+'px'; joyBase.style.display = 'block';
   joyKnob.style.left = x+'px'; joyKnob.style.top = y+'px'; joyKnob.style.display = 'block';
 }
@@ -735,6 +742,7 @@ function joyMove(x, y){
   if (dist > JOY_DEADZONE){
     joyDX = Math.cos(angle); joyDY = Math.sin(angle);
     joyMagnitude = Math.min(1, (dist-JOY_DEADZONE) / (JOY_RADIUS-JOY_DEADZONE));
+    joyEngagedThisTouch = true;
   } else {
     joyDX = 0; joyDY = 0; joyMagnitude = 0;
   }
@@ -765,25 +773,22 @@ const MANUAL_TAP_COOLDOWN_MS = 50;    // limite anti-spam d'un tap répété (20
 const MANUAL_HOLD_START_MS = 250;     // au-delà, un appui maintenu bascule en cadence fixe
 const MANUAL_HOLD_INTERVAL_MS = 500;  // rythme d'un tir toutes les 0,5s en restant appuyé
 let pointerIsDown = false, pointerDownAt = 0;
-let pointerDownX = 0, pointerDownY = 0, pointerLastX = 0, pointerLastY = 0;
 document.addEventListener('pointerdown', e => {
   if (isUiTarget(e.target)) return;
   pointerIsDown = true;
   pointerDownAt = Date.now();
-  pointerDownX = pointerLastX = e.clientX;
-  pointerDownY = pointerLastY = e.clientY;
-});
-document.addEventListener('pointermove', e => {
-  if (pointerIsDown){ pointerLastX = e.clientX; pointerLastY = e.clientY; }
 });
 document.addEventListener('pointerup', e => {
   if (!pointerIsDown) return;
   pointerIsDown = false;
   if (playerDead) return;
-  const dist = Math.hypot(pointerLastX-pointerDownX, pointerLastY-pointerDownY);
+  // si ce geste a fait bouger le joystick au-delà de sa zone morte, c'était
+  // un déplacement, pas une intention de tir — même s'il finit collé à son
+  // point de départ (ex: on relâche juste après avoir repoussé le joystick)
+  if (joyEngagedThisTouch) return;
   const heldMs = Date.now() - pointerDownAt;
   // relâché avant le seuil de maintien : un tap, cadence courte (répéter vite = tirer vite)
-  if (dist < 15 && heldMs < MANUAL_HOLD_START_MS) playerShoot(performance.now(), MANUAL_TAP_COOLDOWN_MS);
+  if (heldMs < MANUAL_HOLD_START_MS) playerShoot(performance.now(), MANUAL_TAP_COOLDOWN_MS);
 });
 joyzone.addEventListener('touchcancel', e => { e.preventDefault(); joyEnd(); });
 
@@ -844,25 +849,31 @@ function spawnEnemy(now){
 
 // manualInterval : appelé depuis un tap/tenu du joueur (tir manuel, gratuit
 // dès le début) avec la cadence à utiliser (MANUAL_TAP_COOLDOWN_MS ou
-// MANUAL_HOLD_INTERVAL_MS) ; sans, seul le bonus "tir auto" fait tirer
-// tout seul, à la cadence habituelle (réduite par les dégâts encaissés).
-// Les dégâts du tir restent les mêmes dans tous les cas.
+// MANUAL_HOLD_INTERVAL_MS) ; sans, c'est le tir auto (bonus acheté),
+// cadence habituelle réduite par les dégâts encaissés. Les deux ont leur
+// PROPRE minuteur de cadence (lastAutoShotAt / lastManualShotAt) : le tir
+// manuel continue de compter même une fois le tir auto acheté, les deux
+// se cumulent au lieu de se bloquer l'un l'autre. Les dégâts du tir
+// restent les mêmes dans tous les cas.
+let lastAutoShotAt = 0, lastManualShotAt = 0;
 function playerShoot(now, manualInterval){
-  if (!autoFireBought && manualInterval === undefined) return;
+  const isManual = manualInterval !== undefined;
+  if (!isManual && !autoFireBought) return;
   let effectiveInterval = manualInterval;
-  if (effectiveInterval === undefined){
+  if (!isManual){
     // chaque palier de dégâts encaissé retire 5% à la cadence de tir (tir auto seulement)
     const dmgStage = Math.round(PLAYER_MAX_HEALTH - playerHealth); // 0 (plein) à 10 (à bout)
     effectiveInterval = SHOT_INTERVAL_MS / Math.max(0.5, 1 - dmgStage*0.05);
   }
-  if (now - lastShotAt < effectiveInterval) return;
+  const lastShot = isManual ? lastManualShotAt : lastAutoShotAt;
+  if (now - lastShot < effectiveInterval) return;
   let target = null, best = PLAYER_RANGE_PX;
   for (const e of enemies){
     const d = Math.hypot(e.x-player.x, e.y-player.y);
     if (d < best){ best = d; target = e; }
   }
   if (!target) return;
-  lastShotAt = now;
+  if (isManual) lastManualShotAt = now; else lastAutoShotAt = now;
   // la balle grossit visiblement à chaque palier de dégâts acheté
   const r = 4 + dmgLevel * 1.1;
   projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg: effectivePlayerDmg(), r, source: 'player' });
@@ -930,11 +941,13 @@ function update(now){
     playerShoot(now);
 
     // tir manuel en restant appuyé (au-delà du seuil de tap) : cadence
-    // fixe, plus lente qu'en tapant vite plusieurs fois de suite
-    if (pointerIsDown && !autoFireBought){
-      const holdDist = Math.hypot(pointerLastX-pointerDownX, pointerLastY-pointerDownY);
+    // fixe, plus lente qu'en tapant vite plusieurs fois de suite — reste
+    // actif même une fois le tir auto acheté (les deux se cumulent, pas
+    // besoin de le désactiver) ; ignoré si ce doigt fait aussi bouger le
+    // joueur via le joystick (sinon on tirerait en boucle en se déplaçant)
+    if (pointerIsDown && !joyEngagedThisTouch){
       const heldMs = Date.now() - pointerDownAt;
-      if (holdDist < 15 && heldMs >= MANUAL_HOLD_START_MS) playerShoot(now, MANUAL_HOLD_INTERVAL_MS);
+      if (heldMs >= MANUAL_HOLD_START_MS) playerShoot(now, MANUAL_HOLD_INTERVAL_MS);
     }
 
     // revenu passif : chaque niveau rajoute +1 or par tic (voir bonus 1)
@@ -1280,6 +1293,7 @@ function resetGame(startingGold){
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireBought = false;
+  lastAutoShotAt = 0; lastManualShotAt = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 })); recentSuccesses = [];
   player.x = STAGE_W/2; player.y = STAGE_H - 70;
   spawnBoat(performance.now());

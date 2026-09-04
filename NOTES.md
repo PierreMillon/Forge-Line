@@ -232,6 +232,24 @@ Format condensé — l'idée, pas la formulation exacte.
 - **Vague 1 réduite à 2 ennemis (v17.4)** : au lieu de 5, pour une entrée
   en matière plus douce. Les vagues suivantes gardent leur progression
   habituelle (+3 par vague).
+- **Plafond du tir manuel remonté à 20 taps/s (v17.5)**, 50ms au lieu de
+  150ms.
+- **Correctif : tir manuel qui se déclenchait pendant un déplacement au
+  joystick (v17.6)**. Cause : le déclencheur du tir manuel se fiait à la
+  distance du doigt depuis son point de contact initial, pas à l'état réel
+  du joystick — une petite déflexion tenue quelques centaines de ms
+  ressemblait à "doigt immobile" et déclenchait un tir alors qu'on
+  déplaçait le joueur. Corrigé avec un vrai drapeau (`joyEngagedThisTouch`)
+  posé dès que CE geste dépasse la zone morte du joystick, quel que soit
+  l'endroit où le doigt finit — le tir manuel est ignoré tant que ce
+  drapeau est vrai. Vérifié : déplacement franc tenu 800ms → aucun tir ;
+  appui quasi immobile (sous la zone morte) tenu 800ms → tire bien.
+- **Tir auto et tir manuel se cumulent (v17.6)** : avant, les deux
+  partageaient le même minuteur de cadence et se bloquaient l'un l'autre
+  une fois le tir auto acheté (tenir/taper en plus ne faisait plus rien).
+  Chacun a maintenant son propre minuteur (`lastAutoShotAt` /
+  `lastManualShotAt`) : rester appuyé ou taper en plus du tir auto ajoute
+  vraiment des tirs supplémentaires, ça ne les remplace pas.
 
 ## 📜 Historique des versions (résumé)
 
@@ -273,3 +291,5 @@ Format condensé — l'idée, pas la formulation exacte.
   et plus lent)
 - v17.4 : vague 1 réduite à 2 ennemis (au lieu de 5)
 - v17.5 : plafond du tir manuel remonté à 20 taps/s (50ms, au lieu de 150ms)
+- v17.6 : correctif tir manuel pendant un déplacement au joystick ; tir
+  auto et manuel se cumulent au lieu de se bloquer
