@@ -9,7 +9,18 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 🚧 En cours
 
-- (rien en cours — voir "à faire" ci-dessous)
+- **Discussion : progression par algorithme plutôt que par niveaux codés
+  à la main.** Idée proposée : au lieu de coder chaque palier un par un
+  (comme les 3 niveaux de tour actuels, plafonnés en dur), donner à
+  chaque "unité" du jeu (le joueur, la tour, et les 4 types d'ennemis —
+  6 éléments) un programme interne / une formule qui calcule ses stats en
+  fonction d'une variable d'entrée (ex : or dépensé), sans plafond codé —
+  en théorie illimité (si quelqu'un accumule 1 million d'or, la formule
+  calcule directement le palier 300 sans qu'on ait eu à l'écrire).
+  Explicitement PAS de génération procédurale de carte — juste des
+  formules de progression des stats. Étape 1 (en cours) : se mettre
+  d'accord sur le principe avant de discuter comment l'implémenter, puis
+  seulement ensuite coder. Pas encore de code touché pour ça.
 
 ## 📋 À faire (demandé, pas encore fait)
 
@@ -35,6 +46,23 @@ Format condensé — l'idée, pas la formulation exacte.
   renforcer l'illusion 3D — soit redessiné à partir du sprite fourni
   (boat-icon.png de Knight Wars), soit dessiné en isométrique nativement
   (façon drawIsoBox). Demandé comme un rappel, pas encore fait.
+
+- **Plusieurs cartes** pour la suite (variété au-delà de la plage
+  actuelle). Pas encore décidé à quoi elles ressemblent.
+
+- **Décor sur la grille isométrique** : commencer à dessiner un petit
+  univers autour du château — par exemple une route qui part du bas du
+  château, fait quelques virages sur le côté, comme si elle menait à une
+  ville voisine. Pure idée de décor, pas de mécanique de jeu associée
+  pour l'instant.
+
+- **Easter egg : le cheval de Troie.** Un "cheval de Troie" (à préciser
+  visuellement) sort du bateau et attaque — si on le laisse passer,
+  défaite immédiate ; si on le détruit, des soldats en descendent (détail
+  à définir). Déclencheur pas encore choisi — piste évoquée : si le
+  joueur reste trop longtemps dans l'eau, un message d'avertissement
+  apparaît ("attention à ne pas rester trop dans l'eau, vous risquez de
+  fâcher les dieux") avant que ça se déclenche. Idée brute, à retravailler.
 
 - **Principe directeur : éviter la froideur mécanique** (vaut aussi pour
   Bastion Orbit, noté dans son BACKLOG.md). Le défaut classique : ennemis
