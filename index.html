@@ -736,7 +736,7 @@ function spawnEnemy(now){
   const hp = Math.round(BASE_ENEMY_HP * Math.pow(WAVE_GROWTH, wave-1));
   const boatX = boat ? boat.x : STAGE_W/2;
   const baseX = boatX + (Math.random()-0.5) * BOAT_W * 0.85;
-  const speed = (0.9 + wave*0.12) * 0.8; // -20% par rapport à la version précédente
+  const speed = (0.9 + wave*0.12) * 0.4; // moitié de la vitesse d'avant (déjà -20% une fois, donc *0.8*0.5)
   const startY = WATER_H - 4; // au pied du bateau, sur la plage
   const driftPhase = Math.random()*Math.PI*2;
   const driftAmp = 16 + Math.random()*24;

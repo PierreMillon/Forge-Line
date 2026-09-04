@@ -202,6 +202,9 @@ Format condensé — l'idée, pas la formulation exacte.
   déclenche rien.
 - **Bouton "Recommencer une nouvelle partie" dans le menu (v17)** :
   accessible à tout moment, pas seulement depuis l'écran de fin.
+- **Vitesse des ennemis divisée par deux (v17.1)** : demandé après coup
+  ("plus lents, moitié de la vitesse actuelle"). Vient s'ajouter au -20%
+  déjà appliqué en v12.
 
 ## 📜 Historique des versions (résumé)
 
@@ -235,3 +238,4 @@ Format condensé — l'idée, pas la formulation exacte.
   du double-tap), correctif de la position de construction (au-dessus du
   joueur, pas en bas à droite), élan résiduel du joystick, bouton
   "Recommencer" dans le menu
+- v17.1 : vitesse des ennemis divisée par deux
