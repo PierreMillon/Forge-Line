@@ -238,7 +238,7 @@ function drawBoat(){
 // pour un quadrillage en losange. Les tours restent scellées entre elles
 // (distance entre cases voisines < 2×TOWER_SOLID_RADIUS).
 const GRID_TW = 48, GRID_TH = 24;
-let showGrid = false;
+let showGrid = true; // activée par défaut pour l'instant (demandé)
 function gridToScreen(gx, gy){
   return { x: (gx-gy)*GRID_TW/2, y: (gx+gy)*GRID_TH/2 };
 }
@@ -269,34 +269,36 @@ const PLAYER_DAMAGE_RATE = 0.02; // points perdus par frame au contact
 const PLAYER_FLASH_MS = 120;
 const REGEN_TICK_MS = 500;
 // zone tampon = représentation du château lui-même : un rectangle façon
-// muraille, coupé en 10 tranches horizontales. Chaque brèche détruit une
-// tranche (en partant du haut) — remplace l'ancien compteur texte
+// muraille, sur toute la largeur de l'écran (demandé sur un croquis),
+// coupé en 10 tranches horizontales. Chaque brèche détruit une tranche
+// (en partant du haut) — remplace l'ancien compteur texte
 // "Brèches : x/10", la santé du château se lit d'un coup d'œil. x/y/w/h
-// recalculés au resize (centré en bas de l'écran, près du spawn).
+// recalculés au resize (toute la largeur, en bas de l'écran).
 const CASTLE_SEGMENTS = 10;
-const REGEN_ZONE = { x: 0, y: 0, w: 150, h: 46 };
+const REGEN_ZONE = { x: 0, y: 0, w: 0, h: 46 };
 function inRegenZone(x, y){
   const pad = 14; // un peu de marge autour du rectangle, plus confortable à atteindre
   return x >= REGEN_ZONE.x - pad && x <= REGEN_ZONE.x + REGEN_ZONE.w + pad &&
          y >= REGEN_ZONE.y - pad && y <= REGEN_ZONE.y + REGEN_ZONE.h + pad;
 }
 
-// petit chemin décoratif : part du bord du château vers une zone hors-
-// écran, en suivant les diagonales de la grille isométrique (comme les
-// cases de construction) pour rester cohérent avec la perspective. Pas de
-// gameplay ici — juste pour donner l'impression qu'il existe une carte
-// plus grande autour ("il se promène ailleurs, en dehors de l'écran").
+// petit chemin décoratif : part du bord du château vers le haut ou la
+// gauche (retracé sur un croquis reçu, suivi à ~50% de précision comme
+// demandé), en suivant les diagonales de la grille isométrique (comme
+// les cases de construction) pour rester cohérent avec la perspective.
+// Pas de gameplay ici — juste pour donner l'impression qu'il existe une
+// carte plus grande autour.
 let pathScreenPoints = [];
 function buildPath(){
-  const start = screenToGridCell(STAGE_W*0.74, STAGE_H - REGEN_ZONE.h - 4);
+  const start = screenToGridCell(STAGE_W*0.52, REGEN_ZONE.y);
   pathScreenPoints = [];
   let gx = start.gx, gy = start.gy;
   pathScreenPoints.push(gridToScreen(gx, gy));
-  const segments = 14;
+  const segments = 16;
   for (let i = 0; i < segments; i++){
-    gx += 1; // avance surtout vers la droite, sort du cadre
-    if (i % 3 === 1) gy += 1;      // léger zigzag ("il se promène")
-    else if (i % 5 === 3) gy -= 1;
+    gx -= 1; // gx qui diminue seul = vers le haut-gauche dans cette grille en losange
+    if (i % 3 === 1) gy -= 1;      // zigzag : encore plus vers le haut par moments
+    else if (i % 4 === 3) gy += 1; // ...ou un peu vers la droite, pour zigzaguer
     pathScreenPoints.push(gridToScreen(gx, gy));
   }
 }
@@ -323,7 +325,7 @@ function resizeCanvas(){
   cv.style.height = STAGE_H + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // on dessine ensuite en pixels CSS
 
-  REGEN_ZONE.x = STAGE_W/2 - REGEN_ZONE.w/2; REGEN_ZONE.y = STAGE_H - REGEN_ZONE.h - 8;
+  REGEN_ZONE.x = 0; REGEN_ZONE.w = STAGE_W; REGEN_ZONE.y = STAGE_H - REGEN_ZONE.h - 8;
   buildPath();
 
   if (!playerPlaced){
@@ -845,6 +847,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.14, text: "Grille de construction affichée par défaut ; château sur toute la largeur ; chemin retracé vers le haut/gauche (croquis reçu)" },
   { v: 17.13, text: "Renfort de tour garanti plus rentable qu'une tour neuve à tout niveau (incrément géométrique au lieu du total) ; tir auto en progression infinie (débit, plus un simple interrupteur)" },
   { v: 17.12, text: "Correctif audio iPhone (interrupteur silence) ; construction de tour jamais bloquée (décale sur le côté) ; château = 10 tranches détruites par les brèches (remplace le compteur texte) ; vague affichée en haut au centre ; bateau et chemin en isométrique" },
   { v: 17.11, text: "Progression infinie par formule (or total dépensé, coût +2,7%/palier, puissance +5%/palier) — remplace les paliers plafonnés (or passif, dégâts, tours) de v17.9" },

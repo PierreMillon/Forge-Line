@@ -498,3 +498,24 @@ Vérifié avec Playwright : ratio PV/or calculé aux paliers 1, 2, 3, 5, 10,
 30, 100, 300 (toujours ≥ 4, jamais en dessous du seuil de 3 d'une tour
 neuve), dégâts et intervalle de tir auto cohérents à plusieurs paliers,
 suite de régression (bonusbar, autofire, cadence) toujours verte.
+
+## v17.14 : ajustements sur croquis reçu (grille, château pleine largeur, chemin)
+
+Trois corrections reçues sous forme d'un screenshot annoté (tracé au
+doigt) plutôt que par description :
+- **Grille de construction affichée par défaut** (`showGrid = true`)
+  pour l'instant — pas encore de bouton dédié, juste le comportement
+  par défaut inversé.
+- **Château sur toute la largeur de l'écran** (rectangle `REGEN_ZONE`),
+  au lieu d'un rectangle centré de 150px comme en v17.12 — repris du
+  tracé (grand rectangle barré en bas, toute la largeur).
+- **Chemin décoratif retracé** : part maintenant du bord du château vers
+  le haut-gauche (au lieu de vers la droite hors-écran comme en v17.12),
+  suivi du tracé à ~50% de précision comme demandé ("largement
+  suffisant").
+
+Vérifié avec Playwright + capture d'écran comparée visuellement au
+croquis reçu : grille visible, château pleine largeur avec bordure
+"muraille", chemin en zigzag vers le haut-gauche façon esquisse. Suite
+de régression (audio, construction, château, bateau/chemin) toujours
+verte, aucune erreur JS.
