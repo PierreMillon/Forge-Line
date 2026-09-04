@@ -264,6 +264,37 @@ Format condensé — l'idée, pas la formulation exacte.
 - **Annulé le correctif v17.6 sur le tir pendant un déplacement (v17.8)** :
   malentendu de ma part, voir la note v17.6 mise à jour ci-dessus. Rester
   appuyé tire maintenant, qu'on bouge le joueur ou pas.
+- **4 types d'ennemis + PV linéaires + vitesse fixe organique (v17.9)** :
+  - PV : croissance LINÉAIRE par vague (+3, au lieu de ×1,2 exponentiel)
+    — `BASE_ENEMY_HP + WAVE_HP_STEP×(vague-1)`, puis multiplié par le type.
+  - Vitesse : plus de montée avec la vague. Chaque type a une vitesse de
+    base fixe ; chaque ennemi varie individuellement autour d'elle par une
+    oscillation organique (±30%, désynchronisée par ennemi) — "ils
+    décident d'accélérer ou de ralentir", toujours sous un plafond fixe.
+  - 4 types (couleur distincte chacun) : *base* (rouge, référence),
+    *rapide-fragile* (bleu clair, ×2 vitesse, moitié PV), *rapide-costaud*
+    (violet, ×2 vitesse, PV normal), *boss* (orange, moitié vitesse, ×4 PV,
+    dessiné plus gros). Le boss est rare : apparaît une fois toutes les
+    `BOSS_WAVE_INTERVAL` vagues (5 pour l'instant, à ajuster), jamais plus
+    d'un par vague, et retire un ennemi simple de cette vague pour
+    compenser (pas un pur ajout).
+  - Répartition hors-boss : ~15% rapide-fragile, ~15% rapide-costaud, le
+    reste en type de base.
+- **Croissance du nombre d'ennemis par vague : +1 (v17.9)**, au lieu de +3
+  — explicitement pour avoir plus de marge de réglage fin ("beaucoup
+  beaucoup de variations pour gérer la difficulté").
+- **Dégâts des ennemis sur les tours divisés par deux (v17.9)** : 0,2/frame
+  pour un attaquant (0,4 avant), 0,075/frame pour les autres (0,15 avant).
+- **Économie des tours rééquilibrée (v17.9)** : rapporté que construire une
+  petite tour de plus rapportait plus de PV par or dépensé que renforcer
+  une tour existante — l'inverse de ce qui était voulu. Corrigé : une tour
+  neuve reste 10 or → 30 PV (3 PV/or) ; un renfort coûte maintenant le même
+  prix (10 or, au lieu de 15/30 croissant) mais rapporte plus de PV (+40,
+  supérieur aux 30 PV d'une tour neuve) → 4 PV/or à chaque palier,
+  toujours plus rentable que multiplier les petites tours. Même principe
+  appliqué aux dégâts des tours : petit bonus linéaire par palier (+6,
+  soit la moitié des dégâts de base, par renfort) pour qu'une tour
+  renforcée batte aussi en puissance de feu.
 
 ## 📜 Historique des versions (résumé)
 
@@ -311,3 +342,8 @@ Format condensé — l'idée, pas la formulation exacte.
   (10 paliers, 100%→20%), tir raté qui dévie visiblement et peut toucher
   un autre ennemi par hasard
 - v17.8 : annule le correctif v17.6 — rester appuyé tire même en bougeant
+- v17.9 : 4 types d'ennemis (couleurs, PV/vitesse propres, boss rare tous
+  les 5 vagues), PV en croissance linéaire (plus exponentielle), vitesse
+  fixe par type + variation organique individuelle, +1 ennemi/vague (au
+  lieu de +3), dégâts ennemis sur tours divisés par deux, renforcer une
+  tour rendu plus rentable que construire à côté (PV et dégâts)

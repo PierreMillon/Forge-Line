@@ -303,8 +303,40 @@ const SHOT_INTERVAL_MS = 1000;
 const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 1.2; // tir des tours 20% plus rapide que le joueur
 const PLAYER_DMG = 12;
 const BASE_ENEMY_HP = 12;
-const WAVE_GROWTH = 1.2; // chaque vague est 20% plus forte que la précédente
+const WAVE_HP_STEP = 3; // croissance LINÉAIRE (pas exponentielle) : +3 PV par vague
 const KILL_REWARD = 1;   // or gagné en tuant un ennemi (rien s'il atteint la ligne)
+
+// --- types d'ennemis (couleur + PV/vitesse relatifs au type de base) ---
+// vitesse : plus de montée avec la vague — chaque type a une vitesse de
+// base FIXE, et chaque ennemi varie individuellement autour d'elle (un peu
+// plus vite, un peu plus lent, ça oscille organiquement dans le temps),
+// plafonnée par ENEMY_PACE_AMPLITUDE — jamais un vrai pic incontrôlé.
+const ENEMY_BASE_SPEED = 0.55; // px/frame, référence pour le type de base
+const ENEMY_PACE_AMPLITUDE = 0.3; // +/- 30% de variation individuelle autour de la vitesse du type
+const ENEMY_TYPES = [
+  { id: 'base',       hpMult: 1,   speedMult: 1,   colorA: '#f2a3a3', colorB: '#c33f3f' }, // rouge, référence
+  { id: 'fast_frail', hpMult: 0.5, speedMult: 2,   colorA: '#a3d3f2', colorB: '#3f7fc3' }, // bleu clair, rapide et fragile
+  { id: 'fast_tough', hpMult: 1,   speedMult: 2,   colorA: '#cba3f2', colorB: '#7a3fc3' }, // violet, rapide et costaud
+  { id: 'boss',       hpMult: 4,   speedMult: 0.5, colorA: '#f2cf9e', colorB: '#c3813f', rare: true }, // orange, lent et très résistant
+];
+// le boss (rare, façon mini-boss) revient toutes les BOSS_WAVE_INTERVAL
+// vagues, jamais plus d'un par vague — valeur de départ, à ajuster
+const BOSS_WAVE_INTERVAL = 5;
+let bossSpawnedThisWave = false;
+function pickEnemyType(){
+  if (wave % BOSS_WAVE_INTERVAL === 0 && !bossSpawnedThisWave){
+    bossSpawnedThisWave = true;
+    // un ennemi plus costaud en plus, pas en plus DU total habituel : on
+    // retire un ennemi simple de cette vague pour compenser (jamais sous
+    // ce qui est déjà sorti +1, pour ne pas casser la boucle de spawn)
+    enemiesThisWave = Math.max(spawned + 1, enemiesThisWave - 1);
+    return ENEMY_TYPES[3];
+  }
+  const r = Math.random();
+  if (r < 0.15) return ENEMY_TYPES[1];
+  if (r < 0.30) return ENEMY_TYPES[2];
+  return ENEMY_TYPES[0];
+}
 
 // --- mémoire collective des ennemis ---
 // la carte est découpée en colonnes ; chaque mort/percée y est comptée,
@@ -506,7 +538,19 @@ function effectivePlayerDmg(){ return PLAYER_DMG + dmgLevel * DMG_PER_LEVEL; }
 const TOWER_BUILD_COST = 10;
 const TOWER_BASE_HP = 30;
 const TOWER_MAX_LEVEL = 3;
-function towerUpgradeCost(t){ return t.level * 15; }
+// renforcer doit être PLUS rentable que construire une petite tour de plus
+// à côté (rapporté : ce n'était pas le cas — une tour neuve donnait plus
+// de PV par or dépensé qu'un renfort). Une tour neuve : 10 or pour 30 PV
+// (3 PV/or). Un renfort coûte le même prix mais rapporte plus de PV
+// (TOWER_UPGRADE_HP_BONUS=40 > TOWER_BASE_HP=30), donc 4 PV/or à chaque
+// palier — toujours plus intéressant que multiplier les petites tours.
+const TOWER_UPGRADE_COST = 10;
+const TOWER_UPGRADE_HP_BONUS = 40;
+function towerUpgradeCost(t){ return TOWER_UPGRADE_COST; }
+// même principe pour les dégâts : un petit bonus linéaire par palier, pour
+// que renforcer batte aussi construire à côté sur la puissance de feu
+const TOWER_UPGRADE_DMG_BONUS = 6; // par palier, la moitié des dégâts de base
+function towerDamage(t){ return PLAYER_DMG + TOWER_UPGRADE_DMG_BONUS * ((t.level||1) - 1); }
 // 4. tir automatique : par défaut le joueur tire MANUELLEMENT (un tap/clic
 //    déclenche un tir, gratuit dès le début, cadence identique à
 //    l'automatique — voir tryManualShoot) ; ce bonus lui évite d'avoir à
@@ -543,7 +587,7 @@ function tryUpgradeTower(t){
   if (gold < cost) return;
   gold -= cost;
   t.level++;
-  t.maxHp = TOWER_BASE_HP * t.level;
+  t.maxHp = TOWER_BASE_HP + TOWER_UPGRADE_HP_BONUS * (t.level - 1);
   t.hp = t.maxHp; // le renfort remet aussi la tour à neuf
   sfxBuild();
 }
@@ -669,6 +713,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.9, text: "4 types d'ennemis (couleurs, boss rare) ; PV linéaires (plus exponentiels) ; vitesse fixe + variation organique ; +1 ennemi/vague ; dégâts ennemis sur tours ÷2 ; renforcer une tour plus rentable que construire à côté" },
   { v: 17.8, text: "Annule le correctif v17.6 (malentendu) : rester appuyé tire même en bougeant le joueur" },
   { v: 17.7, text: "Portée du joueur illimitée ; précision dégradée par la distance (10 paliers, 100%→20%) ; un tir raté dévie visiblement et peut toucher un autre ennemi par hasard" },
   { v: 17.6, text: "Correctif : le tir manuel ne se déclenche plus pendant un déplacement au joystick ; tir auto + manuel se cumulent au lieu de se bloquer" },
@@ -816,10 +861,12 @@ function pickNearestTower(x, y){
 // les ennemis débarquent du bateau : ils apparaissent groupés à sa base,
 // pas dispersés au hasard sur toute la largeur de l'écran
 function spawnEnemy(now){
-  const hp = Math.round(BASE_ENEMY_HP * Math.pow(WAVE_GROWTH, wave-1));
+  const type = pickEnemyType();
+  // croissance LINÉAIRE (pas exponentielle) : +WAVE_HP_STEP par vague,
+  // puis multipliée par le type (le boss encaisse 4x, le rapide-fragile moitié)
+  const hp = Math.round((BASE_ENEMY_HP + WAVE_HP_STEP * (wave-1)) * type.hpMult);
   const boatX = boat ? boat.x : STAGE_W/2;
   const baseX = boatX + (Math.random()-0.5) * BOAT_W * 0.85;
-  const speed = (0.9 + wave*0.12) * 0.4; // moitié de la vitesse d'avant (déjà -20% une fois, donc *0.8*0.5)
   const startY = WATER_H - 4; // au pied du bateau, sur la plage
   const driftPhase = Math.random()*Math.PI*2;
   const driftAmp = 16 + Math.random()*24;
@@ -841,7 +888,13 @@ function spawnEnemy(now){
     x: baseX + Math.sin(startY*driftFreq + driftPhase)*driftAmp,
     y: startY, baseX,
     driftPhase, driftAmp, driftFreq,
-    hp, maxHp: hp, speed,
+    hp, maxHp: hp, type,
+    // vitesse de base fixe (par type), + une variation individuelle
+    // organique recalculée chaque frame (voir update()) — pas de plafond
+    // qui grimpe avec la vague, juste "certains sont un peu plus pressés"
+    speed: ENEMY_BASE_SPEED * type.speedMult,
+    pacePhase: Math.random()*Math.PI*2,
+    paceRate: 0.0006 + Math.random()*0.0006, // rad/ms — désynchronise les oscillations entre ennemis
     role, target: null,
     preferredX: pickPreferredX(),
     commitment,
@@ -995,14 +1048,14 @@ function update(now){
       }
       if (target){
         t.lastShotAt = now;
-        projectiles.push({ x: t.x, y: t.y, target, speed: SHOT_SPEED_PX, dmg: PLAYER_DMG, source: 'tower' });
+        projectiles.push({ x: t.x, y: t.y, target, speed: SHOT_SPEED_PX, dmg: towerDamage(t), source: 'tower' });
         sfxShoot();
       }
     }
     let underAttack = false;
     for (const e of enemies){
       if (Math.hypot(e.x-t.x, e.y-t.y) < CONTACT_RANGE_PX){
-        t.hp -= (e.role === 'attacker' ? 0.4 : 0.15);
+        t.hp -= (e.role === 'attacker' ? 0.2 : 0.075); // dégâts sur les tours divisés par deux (demandé)
         underAttack = true;
       }
     }
@@ -1064,13 +1117,21 @@ function update(now){
   } else if (enemies.length === 0){
     wave++;
     spawned = 0;
-    enemiesThisWave += 3;
+    enemiesThisWave += 1; // +1 par vague (au lieu de +3) — plein de petites variations pour ajuster la difficulté
+    bossSpawnedThisWave = false;
     spawnInterval = pickNextSpawnDelay();
     spawnBoat(now); // un nouveau bateau arrive pour cette vague
     saveProgress(); // point de sauvegarde naturel : entre deux vagues
   }
 
   for (const e of enemies){
+    // vitesse individuelle : oscille organiquement autour de la vitesse de
+    // base du type (chacun "décide" d'accélérer ou de ralentir un peu),
+    // plafonnée par ENEMY_PACE_AMPLITUDE — jamais un vrai pic incontrôlé
+    if (e.type){
+      const paceMult = 1 + ENEMY_PACE_AMPLITUDE * Math.sin(now * e.paceRate + e.pacePhase);
+      e.speed = ENEMY_BASE_SPEED * e.type.speedMult * paceMult;
+    }
     if (e.waitFrames > 0){
       e.waitFrames--; // hésite/se planque un instant avant de s'avancer
     } else if (e.role === 'attacker'){
@@ -1231,11 +1292,13 @@ function draw(now){
 
   for (const e of enemies){
     layers.push({ y: e.y, draw: () => {
-      const grad = ctx.createRadialGradient(e.x-3, e.y-11, 1, e.x, e.y-8, 9);
-      grad.addColorStop(0, '#f2a3a3');
-      grad.addColorStop(1, '#c33f3f');
+      const t = e.type || ENEMY_TYPES[0];
+      const rr = t.id === 'boss' ? 11 : 8; // le boss se voit un peu plus gros, façon mini-boss
+      const grad = ctx.createRadialGradient(e.x-3, e.y-8-rr*0.4, 1, e.x, e.y-8, rr+1);
+      grad.addColorStop(0, t.colorA);
+      grad.addColorStop(1, t.colorB);
       ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(e.x, e.y-8, 8, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(e.x, e.y-8, rr, 0, Math.PI*2); ctx.fill();
     }});
   }
 
@@ -1329,7 +1392,7 @@ function resetGame(startingGold){
   towers = []; enemies = []; projectiles = []; floatingTexts = [];
   gold = startingGold || 0; wave = 1; breaches = 0; gameOver = false;
   playerDead = false; spectating = false;
-  spawned = 0; enemiesThisWave = 2; spawnTimer = 0; spawnInterval = pickNextSpawnDelay();
+  spawned = 0; enemiesThisWave = 2; spawnTimer = 0; spawnInterval = pickNextSpawnDelay(); bossSpawnedThisWave = false;
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireBought = false;
