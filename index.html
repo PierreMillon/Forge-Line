@@ -598,12 +598,30 @@ function tryTowerAction(){
   if (near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX) tryUpgradeTower(near);
   else tryBuild();
 }
+// réparer coûte 1 or, mais une seule fois par "session" : tant qu'on reste
+// collé à la même tour, la réparation continue gratuitement jusqu'à ce
+// qu'elle soit finie ou qu'on s'éloigne — s'éloigner puis revenir relance
+// une session (donc recoûte 1 or), pour encourager à rester sur place
+// plutôt que faire des allers-retours. Renforcer une tour la répare déjà
+// entièrement d'un coup, gratuitement (voir tryUpgradeTower) — ça ne
+// change pas.
+const REPAIR_SESSION_COST = 1;
+let repairingTower = null;
 function tryRepair(){
   const t = pickNearestTower(player.x, player.y);
-  if (t && t.hp < t.maxHp && Math.hypot(t.x-player.x, t.y-player.y) < CONTACT_RANGE_PX){
-    t.hp = Math.min(t.maxHp, t.hp + 0.4);
-    t.repairCount = (t.repairCount||0) + 1; // sert à repérer "la tour qu'on défend le plus" (IA harceleurs)
+  const nearTower = t && Math.hypot(t.x-player.x, t.y-player.y) < CONTACT_RANGE_PX;
+  if (!nearTower){
+    repairingTower = null; // sorti de portée : la session s'arrête, il faudra repayer pour reprendre
+    return;
   }
+  if (t.hp >= t.maxHp) return; // rien à réparer
+  if (repairingTower !== t){
+    if (gold < REPAIR_SESSION_COST) return; // pas assez d'or pour démarrer une session
+    gold -= REPAIR_SESSION_COST;
+    repairingTower = t;
+  }
+  t.hp = Math.min(t.maxHp, t.hp + 0.4);
+  t.repairCount = (t.repairCount||0) + 1; // sert à repérer "la tour qu'on défend le plus" (IA harceleurs)
 }
 // une tour posée est un obstacle solide : personne (joueur ni ennemis) ne
 // peut marcher dedans — elle sert aussi de mur pour la ligne de défense
@@ -713,6 +731,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.10, text: "Réparer une tour coûte 1 or par session (gratuit tant qu'on reste, recoûte si on part et revient)" },
   { v: 17.9, text: "4 types d'ennemis (couleurs, boss rare) ; PV linéaires (plus exponentiels) ; vitesse fixe + variation organique ; +1 ennemi/vague ; dégâts ennemis sur tours ÷2 ; renforcer une tour plus rentable que construire à côté" },
   { v: 17.8, text: "Annule le correctif v17.6 (malentendu) : rester appuyé tire même en bougeant le joueur" },
   { v: 17.7, text: "Portée du joueur illimitée ; précision dégradée par la distance (10 paliers, 100%→20%) ; un tir raté dévie visiblement et peut toucher un autre ennemi par hasard" },
@@ -1393,6 +1412,7 @@ function resetGame(startingGold){
   gold = startingGold || 0; wave = 1; breaches = 0; gameOver = false;
   playerDead = false; spectating = false;
   spawned = 0; enemiesThisWave = 2; spawnTimer = 0; spawnInterval = pickNextSpawnDelay(); bossSpawnedThisWave = false;
+  repairingTower = null;
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireBought = false;

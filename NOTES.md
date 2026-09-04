@@ -323,6 +323,15 @@ Format condensé — l'idée, pas la formulation exacte.
   appliqué aux dégâts des tours : petit bonus linéaire par palier (+6,
   soit la moitié des dégâts de base, par renfort) pour qu'une tour
   renforcée batte aussi en puissance de feu.
+- **Réparation par session, 1 or (v17.10)** : réparer une tour (sans la
+  renforcer) coûte maintenant 1 or, mais une seule fois par "session" —
+  tant qu'on reste collé à la même tour, la réparation continue
+  gratuitement jusqu'à ce qu'elle soit finie ou qu'on s'éloigne.
+  S'éloigner puis revenir relance une session (donc recoûte 1 or) :
+  encourage à rester sur place plutôt que faire des allers-retours.
+  Renforcer une tour continue de la réparer entièrement d'un coup,
+  gratuitement, peu importe les dégâts déjà là (déjà le cas avant,
+  inchangé).
 
 ## 📜 Historique des versions (résumé)
 
@@ -375,3 +384,5 @@ Format condensé — l'idée, pas la formulation exacte.
   fixe par type + variation organique individuelle, +1 ennemi/vague (au
   lieu de +3), dégâts ennemis sur tours divisés par deux, renforcer une
   tour rendu plus rentable que construire à côté (PV et dégâts)
+- v17.10 : réparer une tour coûte 1 or par session (gratuit tant qu'on
+  reste, recoûte si on s'éloigne puis revient)
