@@ -33,10 +33,17 @@
   #over-card h2{margin:0 0 6px;font-size:19px;color:#3a3529}
   #over-card p{margin:0 0 16px;font-size:13px;color:#3a3529;opacity:.7}
   #over-card .btns{display:flex;flex-direction:column;gap:8px}
-  #continue-btn{padding:10px 14px;border-radius:8px;border:none;background:#5b8dd9;color:#fff;font-size:13.5px;cursor:pointer}
-  #continue-btn:active{background:#4a78bd}
+  #continue-btn,#revive-btn{padding:10px 14px;border-radius:8px;border:none;background:#5b8dd9;color:#fff;font-size:13.5px;cursor:pointer}
+  #continue-btn:active,#revive-btn:active{background:#4a78bd}
+  #spectate-btn{padding:9px 14px;border-radius:8px;border:1px solid #00000030;background:transparent;color:#3a3529;font-size:13px;cursor:pointer}
+  #spectate-btn:active{background:#00000010}
   #restart-btn{padding:9px 14px;border-radius:8px;border:1px solid #00000030;background:transparent;color:#3a3529;font-size:13px;cursor:pointer}
   #restart-btn:active{background:#00000010}
+
+  #faq-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);left:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;width:250px;z-index:10;padding:12px 14px;font-size:12.5px;line-height:1.6}
+  #faq-panel p{margin:0 0 10px}
+  #bonus-btn{width:100%;padding:9px 10px;border-radius:8px;border:1px solid #00000030;background:#fff3d0;color:#3a3529;font-size:12.5px;cursor:pointer}
+  #bonus-btn:active{background:#f7e2a0}
 
   #joyzone{display:none;position:fixed;left:0;right:0;top:var(--topbar-h);bottom:var(--bottombar-h);z-index:3;touch-action:none}
   #joy-base,#joy-knob{display:none;position:fixed;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:4}
@@ -56,6 +63,7 @@
     <a href="https://pierremillon.github.io/bastion-orbit/">Bastion Orbit</a>
     <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
     <a id="grid-toggle" href="#">Afficher la grille (debug)</a>
+    <a id="faq-toggle" href="#">Aide / FAQ</a>
   </div>
   <button id="version-btn" aria-label="Historique des versions"></button>
   <div id="version-panel"></div>
@@ -68,13 +76,20 @@
   <div id="joy-knob"></div>
   <div id="over">
     <div id="over-card">
-      <h2>Tu as perdu</h2>
+      <h2 id="over-title">Tu as perdu</h2>
       <p id="over-wave"></p>
       <div class="btns">
         <button id="continue-btn">🎬 Regarder une pub (30s) pour continuer</button>
+        <button id="revive-btn">🎬 Regarder une pub (30s) pour revivre</button>
+        <button id="spectate-btn">Continuer à regarder</button>
         <button id="restart-btn">Recommencer au tout début</button>
       </div>
     </div>
+  </div>
+  <div id="faq-panel">
+    <p><strong>Pourquoi une pub ?</strong> Forge Line est gratuit et sans achat intégré : la pub récompensée finance simplement son hébergement. On ne t'en propose jamais plus d'une par jour.</p>
+    <p><strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.</p>
+    <button id="bonus-btn">🎁 Code bonus : recommencer avec 100 or</button>
   </div>
 </div>
 
@@ -194,8 +209,16 @@ const REGEN_TICK_MS = 500;
 const REGEN_ZONE = { x: 0, y: 0, r: 60 }; // x/y recalculés au resize (près du spawn)
 let playerHealth = PLAYER_MAX_HEALTH;
 let playerFlashUntil = 0;
+let playerInvulnUntil = 0; // courte invulnérabilité après une résurrection
 let lastRegenTickAt = 0;
 let floatingTexts = []; // {x, y, text, createdAt, color}
+
+// écran de mort du joueur (distinct de la défaite par brèches) : le
+// joueur est "gelé" (playerDead) tant qu'il n'a pas choisi une option.
+// S'il choisit "continuer à regarder" (spectating), la partie continue
+// sans lui jusqu'à la défaite normale par brèches.
+let playerDead = false;
+let spectating = false;
 
 function resizeCanvas(){
   const dpr = window.devicePixelRatio || 1;
@@ -234,6 +257,109 @@ const PLAYER_DMG = 12;
 const BASE_ENEMY_HP = 12;
 const WAVE_GROWTH = 1.2; // chaque vague est 20% plus forte que la précédente
 const KILL_REWARD = 1;   // or gagné en tuant un ennemi (rien s'il atteint la ligne)
+
+// --- mémoire collective des ennemis ---
+// la carte est découpée en colonnes ; chaque mort/percée y est comptée,
+// ce qui influence où les prochains ennemis préfèrent tenter leur chance —
+// pas une IA "intelligente" centrale, juste une statistique locale qui
+// nourrit un tirage pondéré, plus une pincée d'imitation des derniers
+// succès rapides (mémoire de groupe, pas de plan concerté)
+const COLUMN_COUNT = 8;
+function columnOf(x){ return Math.max(0, Math.min(COLUMN_COUNT-1, Math.floor(x / (STAGE_W/COLUMN_COUNT)))); }
+let columnStats = [];
+function ensureColumnStats(){
+  if (columnStats.length !== COLUMN_COUNT) columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 }));
+}
+ensureColumnStats();
+let recentSuccesses = []; // {col, speed} derniers ennemis ayant atteint le château
+
+function pickPreferredX(){
+  ensureColumnStats();
+  if (recentSuccesses.length && Math.random() < 0.3){
+    const pick = recentSuccesses[recentSuccesses.length - 1];
+    return (pick.col + 0.5) * (STAGE_W/COLUMN_COUNT);
+  }
+  const weights = columnStats.map(s => {
+    const total = s.deaths + s.successes;
+    if (total === 0) return 1; // colonne encore inconnue : chance neutre
+    return 0.3 + (s.successes / total) * 2; // favorise ce qui a déjà "payé"
+  });
+  const sum = weights.reduce((a,b)=>a+b, 0);
+  let r = Math.random() * sum;
+  for (let i = 0; i < COLUMN_COUNT; i++){
+    r -= weights[i];
+    if (r <= 0) return (i + 0.5) * (STAGE_W/COLUMN_COUNT);
+  }
+  return STAGE_W/2;
+}
+
+// les attaquants visent la tour la plus proche de tomber parmi celles à
+// portée raisonnable (pas juste la plus proche géométriquement) ; distinct
+// de pickNearestTower, qui reste dédiée à la réparation du joueur
+function pickTargetTower(x, y){
+  const NEAR_RANGE = 260;
+  let best = null, bestScore = -Infinity, fallback = null, fallbackD = Infinity;
+  for (const t of towers){
+    const d = Math.hypot(t.x-x, t.y-y);
+    if (d < fallbackD){ fallbackD = d; fallback = t; }
+    if (d < NEAR_RANGE){
+      const weakness = 1 - t.hp/t.maxHp; // 0 pleine vie -> 1 presque tombée
+      const score = weakness*2 - d/NEAR_RANGE;
+      if (score > bestScore){ bestScore = score; best = t; }
+    }
+  }
+  return best || fallback;
+}
+function mostRepairedTower(){
+  let best = null, bestC = 0;
+  for (const t of towers){
+    if ((t.repairCount||0) > bestC){ bestC = t.repairCount; best = t; }
+  }
+  return best;
+}
+// dérive lentement vers la colonne préférée de l'ennemi (rushers, et
+// attaquants sans tour à portée) ; les moins "engagés" (commitment bas)
+// re-tirent une nouvelle colonne préférée de temps en temps — l'illusion
+// que certains changent d'avis en cours de route
+function driftTowardPreferred(e, now){
+  if (e.commitment < 0.35 && now > e.nextRerollAt){
+    e.preferredX = pickPreferredX();
+    e.nextRerollAt = now + 3000 + Math.random()*4000;
+  }
+  e.baseX += (e.preferredX - e.baseX) * 0.0015 * (0.4 + e.commitment);
+  e.y += e.speed;
+  e.x = e.baseX + Math.sin(e.y*e.driftFreq + e.driftPhase)*e.driftAmp;
+}
+
+// score d'agressivité du joueur : monte à chaque coup qu'il porte,
+// redescend doucement — utilisé pour décider si des harceleurs
+// apparaissent (l'objectif affiché des ennemis reste toujours le
+// château ; les harceleurs continuent d'avancer, juste plus lentement)
+let playerAggroScore = 0;
+const HARASSER_THRESHOLD = 15;
+
+// --- sauvegarde locale (facultative, débloquée en regardant une pub) ---
+// on ne sauvegarde jamais tant que ce n'est pas débloqué explicitement :
+// pas de pression, pas de pub imposée avant que le joueur ait perdu une
+// fois et choisi d'en regarder une pour continuer/revivre
+function saveProgress(){
+  if (localStorage.getItem('forgeLineUnlocked') !== '1') return;
+  try { localStorage.setItem('forgeLineSave', JSON.stringify({ gold, wave, savedAt: Date.now() })); }
+  catch(e) { /* stockage indisponible (navigation privée, quota) : la partie continue sans bloquer */ }
+}
+function loadProgress(){
+  if (localStorage.getItem('forgeLineUnlocked') !== '1') return;
+  try {
+    const raw = localStorage.getItem('forgeLineSave');
+    if (!raw) return;
+    const save = JSON.parse(raw);
+    if (save && Number.isFinite(save.gold) && Number.isFinite(save.wave)){ gold = save.gold; wave = save.wave; }
+  } catch(e) { /* sauvegarde corrompue : on repart normalement, sans planter */ }
+}
+function unlockAutoSave(){
+  try { localStorage.setItem('forgeLineUnlocked', '1'); } catch(e) {}
+}
+loadProgress();
 
 // --- petits bruitages synthétisés (aucun fichier audio, tout est généré) ---
 let audioCtx = null;
@@ -313,13 +439,14 @@ function tryBuild(){
   const bx = target.x, by = target.y + GRID_TH;
   for (const t of towers) if (Math.hypot(t.x-bx, t.y-by) < 10) return; // case déjà occupée
   gold -= 10;
-  towers.push({ x: bx, y: by, hp: 30, maxHp: 30, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0 });
+  towers.push({ x: bx, y: by, hp: 30, maxHp: 30, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
   sfxBuild();
 }
 function tryRepair(){
   const t = pickNearestTower(player.x, player.y);
   if (t && t.hp < t.maxHp && Math.hypot(t.x-player.x, t.y-player.y) < CONTACT_RANGE_PX){
     t.hp = Math.min(t.maxHp, t.hp + 0.4);
+    t.repairCount = (t.repairCount||0) + 1; // sert à repérer "la tour qu'on défend le plus" (IA harceleurs)
   }
 }
 // une tour posée est un obstacle solide : personne (joueur ni ennemis) ne
@@ -376,10 +503,23 @@ document.getElementById('grid-toggle').addEventListener('click', e => {
   showGrid = !showGrid;
   e.target.textContent = showGrid ? 'Cacher la grille (debug)' : 'Afficher la grille (debug)';
 });
+const faqPanel = document.getElementById('faq-panel');
+document.getElementById('faq-toggle').addEventListener('click', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  menuPanel.style.display = 'none';
+  faqPanel.style.display = faqPanel.style.display === 'block' ? 'none' : 'block';
+});
+document.addEventListener('click', e => {
+  if (faqPanel.style.display === 'block' && !faqPanel.contains(e.target) && e.target.id !== 'faq-toggle'){
+    faqPanel.style.display = 'none';
+  }
+});
 
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 16, text: "Économie des pubs (sauvegarde locale, FAQ, code bonus) ; IA des ennemis à mémoire (colonnes préférées, imitation, harceleurs) ; écran de mort du joueur (revivre/spectateur)" },
   { v: 15, text: "Bateau par vague (proue vers le bas, position aléatoire, accostage animé) ; vitesse du joystick analogique" },
   { v: 14, text: "Santé du joueur : couleur jaune→rouge (10 paliers), cadence de tir réduite, régénération en zone tampon près de la base" },
   { v: 13, text: "Grille isométrique restaurée pour la construction ; thème Vikings (bateau, plage) — les ennemis débarquent" },
@@ -469,16 +609,24 @@ function pickNearestTower(x, y){
 // tanks alignés sur la grille isométrique
 // les ennemis débarquent du bateau : ils apparaissent groupés à sa base,
 // pas dispersés au hasard sur toute la largeur de l'écran
-function spawnEnemy(){
+function spawnEnemy(now){
   const hp = Math.round(BASE_ENEMY_HP * Math.pow(WAVE_GROWTH, wave-1));
   const boatX = boat ? boat.x : STAGE_W/2;
   const baseX = boatX + (Math.random()-0.5) * BOAT_W * 0.85;
-  const isAttacker = Math.random() < 0.3;
   const speed = (0.9 + wave*0.12) * 0.8; // -20% par rapport à la version précédente
   const startY = WATER_H - 4; // au pied du bateau, sur la plage
   const driftPhase = Math.random()*Math.PI*2;
   const driftAmp = 16 + Math.random()*24;
   const driftFreq = 0.01 + Math.random()*0.01;
+
+  // rôle : attaquant (fonce sur une tour), harceleur (rôde près du joueur
+  // ou de la tour qu'il défend le plus, si le joueur a été agressif
+  // récemment), ou rusher (descend tout droit vers le château)
+  const harasserChance = Math.min(0.35, 0.05 + playerAggroScore/60);
+  const roll = Math.random();
+  const role = roll < 0.3 ? 'attacker' : (roll < 0.3 + harasserChance ? 'harasser' : 'rusher');
+
+  const commitment = Math.random(); // proche de 0 : change souvent d'avis ; proche de 1 : s'y tient
   const e = {
     // x initial calculé avec la même formule que le mouvement (voir plus
     // bas) : sinon, au premier instant où l'ennemi bouge, il "saute" de
@@ -488,13 +636,16 @@ function spawnEnemy(){
     y: startY, baseX,
     driftPhase, driftAmp, driftFreq,
     hp, maxHp: hp, speed,
-    role: isAttacker ? 'attacker' : 'rusher',
-    target: null,
+    role, target: null,
+    preferredX: pickPreferredX(),
+    commitment,
+    nextRerollAt: commitment < 0.35 ? now + 3000 + Math.random()*4000 : Infinity,
+    spawnedAt: now,
     // certains hésitent avant de s'avancer — l'impression qu'ils attendent
     // une occasion plutôt que de foncer tous en rang
     waitFrames: Math.random() < 0.4 ? Math.floor(20 + Math.random()*70) : 0
   };
-  if (isAttacker) e.target = pickNearestTower(baseX, 0);
+  if (role === 'attacker') e.target = pickTargetTower(baseX, 0);
   enemies.push(e);
 }
 
@@ -510,55 +661,64 @@ function playerShoot(now){
   }
   if (!target) return;
   lastShotAt = now;
-  projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg: PLAYER_DMG });
+  projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg: PLAYER_DMG, source: 'player' });
   sfxShoot();
 }
 
 function update(now){
   if (gameOver) return;
+  // écran de mort affiché, en attente du choix du joueur : tout est gelé
+  // (sauf s'il a choisi "continuer à regarder", spectating=true)
+  if (playerDead && !spectating) return;
 
-  // déplacement fluide (clavier 8 directions à vitesse fixe, joystick à
-  // vitesse analogique — proportionnelle à la distance tirée du centre)
-  let dx = 0, dy = 0, speedFactor = 1;
-  if (joyActive){
-    dx = joyDX; dy = joyDY; speedFactor = joyMagnitude;
-  } else {
-    if (keys['arrowup']||keys['z']||keys['w']) dy -= 1;
-    if (keys['arrowdown']||keys['s']) dy += 1;
-    if (keys['arrowleft']||keys['q']||keys['a']) dx -= 1;
-    if (keys['arrowright']||keys['d']) dx += 1;
-  }
-  if (dx || dy){
-    const len = Math.hypot(dx, dy) || 1;
-    player.x += dx/len*PLAYER_SPEED*speedFactor;
-    player.y += dy/len*PLAYER_SPEED*speedFactor;
-  }
-  resolveTowerCollision(player, TOWER_SOLID_RADIUS); // une tour, c'est aussi un mur
-  player.x = Math.max(MARGIN, Math.min(STAGE_W-MARGIN, player.x));
-  player.y = Math.max(MARGIN, Math.min(STAGE_H-MARGIN, player.y));
-
-  tryRepair(); // automatique dès qu'on est collé à une tour endommagée
-
-  // les ennemis visent le château, pas le joueur — mais s'ils se
-  // retrouvent au contact, ça compte quand même : dégâts + flash rouge
-  for (const e of enemies){
-    if (Math.hypot(e.x-player.x, e.y-player.y) < PLAYER_CONTACT_RANGE){
-      playerHealth = Math.max(0, playerHealth - PLAYER_DAMAGE_RATE);
-      playerFlashUntil = now + PLAYER_FLASH_MS;
+  if (!playerDead){
+    // déplacement fluide (clavier 8 directions à vitesse fixe, joystick à
+    // vitesse analogique — proportionnelle à la distance tirée du centre)
+    let dx = 0, dy = 0, speedFactor = 1;
+    if (joyActive){
+      dx = joyDX; dy = joyDY; speedFactor = joyMagnitude;
+    } else {
+      if (keys['arrowup']||keys['z']||keys['w']) dy -= 1;
+      if (keys['arrowdown']||keys['s']) dy += 1;
+      if (keys['arrowleft']||keys['q']||keys['a']) dx -= 1;
+      if (keys['arrowright']||keys['d']) dx += 1;
     }
-  }
-  // régénération dans la zone tampon près de la base, +1 point / 0,5s,
-  // avec un petit "+1" flottant pour le montrer
-  if (playerHealth < PLAYER_MAX_HEALTH && Math.hypot(player.x-REGEN_ZONE.x, player.y-REGEN_ZONE.y) < REGEN_ZONE.r){
-    if (now - lastRegenTickAt >= REGEN_TICK_MS){
-      playerHealth = Math.min(PLAYER_MAX_HEALTH, playerHealth + 1);
-      lastRegenTickAt = now;
-      floatingTexts.push({ x: player.x, y: player.y - 20, text: '+1', createdAt: now, color: '#4a9d4a' });
+    if (dx || dy){
+      const len = Math.hypot(dx, dy) || 1;
+      player.x += dx/len*PLAYER_SPEED*speedFactor;
+      player.y += dy/len*PLAYER_SPEED*speedFactor;
     }
+    resolveTowerCollision(player, TOWER_SOLID_RADIUS); // une tour, c'est aussi un mur
+    player.x = Math.max(MARGIN, Math.min(STAGE_W-MARGIN, player.x));
+    player.y = Math.max(MARGIN, Math.min(STAGE_H-MARGIN, player.y));
+
+    tryRepair(); // automatique dès qu'on est collé à une tour endommagée
+
+    // les ennemis visent le château, pas le joueur — mais s'ils se
+    // retrouvent au contact, ça compte quand même : dégâts + flash rouge
+    // (sauf courte invulnérabilité après une résurrection)
+    if (now > playerInvulnUntil){
+      for (const e of enemies){
+        if (Math.hypot(e.x-player.x, e.y-player.y) < PLAYER_CONTACT_RANGE){
+          playerHealth = Math.max(0, playerHealth - PLAYER_DAMAGE_RATE);
+          playerFlashUntil = now + PLAYER_FLASH_MS;
+        }
+      }
+    }
+    // régénération dans la zone tampon près de la base, +1 point / 0,5s,
+    // avec un petit "+1" flottant pour le montrer
+    if (playerHealth < PLAYER_MAX_HEALTH && Math.hypot(player.x-REGEN_ZONE.x, player.y-REGEN_ZONE.y) < REGEN_ZONE.r){
+      if (now - lastRegenTickAt >= REGEN_TICK_MS){
+        playerHealth = Math.min(PLAYER_MAX_HEALTH, playerHealth + 1);
+        lastRegenTickAt = now;
+        floatingTexts.push({ x: player.x, y: player.y - 20, text: '+1', createdAt: now, color: '#4a9d4a' });
+      }
+    }
+
+    playerShoot(now);
   }
   floatingTexts = floatingTexts.filter(f => now - f.createdAt < 700);
-
-  playerShoot(now);
+  playerAggroScore = Math.max(0, playerAggroScore - 0.01); // redescend doucement si le joueur arrête de taper
 
   // tours : mêmes projectiles que le joueur, mais 20% plus rapides ;
   // pas de barre de vie séparée — leur hauteur EST leur vie (voir draw())
@@ -572,7 +732,7 @@ function update(now){
       }
       if (target){
         t.lastShotAt = now;
-        projectiles.push({ x: t.x, y: t.y, target, speed: SHOT_SPEED_PX, dmg: PLAYER_DMG });
+        projectiles.push({ x: t.x, y: t.y, target, speed: SHOT_SPEED_PX, dmg: PLAYER_DMG, source: 'tower' });
         sfxShoot();
       }
     }
@@ -593,7 +753,10 @@ function update(now){
   for (const pr of projectiles){
     if (!enemies.includes(pr.target) || pr.target.hp <= 0){ pr.dead = true; continue; }
     const dx = pr.target.x-pr.x, dy = pr.target.y-pr.y, d = Math.hypot(dx, dy);
-    if (d < 6){ pr.target.hp -= pr.dmg; pr.dead = true; sfxHit(); }
+    if (d < 6){
+      pr.target.hp -= pr.dmg; pr.dead = true; sfxHit();
+      if (pr.source === 'player') playerAggroScore += 1; // nourrit la décision "faut-il des harceleurs"
+    }
     else { pr.x += dx/d*pr.speed; pr.y += dy/d*pr.speed; }
   }
   projectiles = projectiles.filter(p => !p.dead);
@@ -612,7 +775,7 @@ function update(now){
         if (remaining > 1 && Math.random() < 0.35) burst = 2;
         if (remaining > 2 && Math.random() < 0.12) burst = 3;
         burst = Math.min(burst, remaining);
-        for (let i = 0; i < burst; i++) spawnEnemy();
+        for (let i = 0; i < burst; i++) spawnEnemy(now);
         spawned += burst;
         spawnTimer = 0;
         spawnInterval = pickNextSpawnDelay();
@@ -624,39 +787,60 @@ function update(now){
     enemiesThisWave += 3;
     spawnInterval = pickNextSpawnDelay();
     spawnBoat(now); // un nouveau bateau arrive pour cette vague
+    saveProgress(); // point de sauvegarde naturel : entre deux vagues
   }
 
   for (const e of enemies){
     if (e.waitFrames > 0){
       e.waitFrames--; // hésite/se planque un instant avant de s'avancer
     } else if (e.role === 'attacker'){
-      if (!e.target || !towers.includes(e.target)) e.target = pickNearestTower(e.x, e.y);
+      if (!e.target || !towers.includes(e.target)) e.target = pickTargetTower(e.x, e.y);
       if (e.target){
         const dx = e.target.x-e.x, dy = e.target.y-e.y, d = Math.hypot(dx, dy);
         if (d > ATTACKER_STOP_PX){ e.x += dx/d*e.speed; e.y += dy/d*e.speed; }
       } else {
-        e.y += e.speed;
-        e.x = e.baseX + Math.sin(e.y*e.driftFreq + e.driftPhase)*e.driftAmp;
+        driftTowardPreferred(e, now);
       }
+    } else if (e.role === 'harasser'){
+      // rôde près du joueur (s'il a été agressif récemment) ou de la tour
+      // qu'on répare le plus, sans jamais renoncer à avancer vers le
+      // château — juste plus lentement le temps de harceler
+      const lure = playerAggroScore > HARASSER_THRESHOLD ? player : (mostRepairedTower() || { x: e.baseX, y: e.y + 40 });
+      const ldx = lure.x-e.x, ldy = lure.y-e.y, ld = Math.hypot(ldx, ldy) || 1;
+      if (ld > 40){ e.x += ldx/ld*e.speed*0.7; e.y += ldy/ld*e.speed*0.4; }
+      e.y += e.speed*0.3;
     } else {
-      e.y += e.speed;
-      e.x = e.baseX + Math.sin(e.y*e.driftFreq + e.driftPhase)*e.driftAmp;
+      driftTowardPreferred(e, now);
     }
     resolveTowerCollision(e, TOWER_SOLID_RADIUS); // ne peut pas traverser une tour
     e.x = Math.max(16, Math.min(STAGE_W-16, e.x));
     if (e.hp <= 0){
-      if (!e.dead) gold += KILL_REWARD; // l'or vient de la mise à mort, pas de l'arrivée sur la carte
+      if (!e.dead){
+        gold += KILL_REWARD; // l'or vient de la mise à mort, pas de l'arrivée sur la carte
+        ensureColumnStats();
+        columnStats[columnOf(e.x)].deaths++;
+      }
       e.dead = true;
     } else if (e.y >= STAGE_H - 16){
+      if (!e.dead){
+        ensureColumnStats();
+        const col = columnOf(e.x);
+        columnStats[col].successes++;
+        recentSuccesses.push({ col, speed: now - (e.spawnedAt||now) });
+        if (recentSuccesses.length > 10) recentSuccesses.shift();
+      }
       e.dead = true; breaches++;
     }
   }
   enemies = enemies.filter(e => !e.dead);
 
-  if (breaches >= 10){
+  if (!playerDead && playerHealth <= 0){
+    playerDead = true;
+    showOverModal('health');
+  }
+  if (breaches >= 10 && !gameOver){
     gameOver = true;
-    document.getElementById('over').style.display = 'flex';
-    document.getElementById('over-wave').textContent = `Tu as tenu jusqu'à la vague ${wave}`;
+    showOverModal(playerDead ? 'final' : 'breach');
   }
 
   document.getElementById('gold').textContent = gold;
@@ -807,22 +991,71 @@ function lerpColor(hexA, hexB, t){
   return `rgb(${r},${g},${bl})`;
 }
 
-// écran de défaite : « continuer » pardonne juste les brèches (comme une
-// pub récompensée — pas encore branchée, mais le bouton fonctionne déjà) ;
-// « recommencer » repart entièrement de zéro
+// écran de fin : trois cas distincts —
+//  - 'breach' (10 brèches, joueur toujours vivant) : « continuer » pardonne
+//    juste les brèches (pub récompensée) ou « recommencer » repart de zéro
+//  - 'health' (santé du joueur à 0, château encore debout) : « revivre »
+//    (pub récompensée) ou « continuer à regarder » en spectateur jusqu'à
+//    la défaite normale, ou recommencer
+//  - 'final' (les brèches atteignent 10 pendant qu'on regardait en
+//    spectateur) : plus rien à proposer que recommencer
+function showOverModal(reason){
+  document.getElementById('over-wave').textContent = `Tu as tenu jusqu'à la vague ${wave}`;
+  const title = document.getElementById('over-title');
+  const continueBtn = document.getElementById('continue-btn');
+  const reviveBtn = document.getElementById('revive-btn');
+  const spectateBtn = document.getElementById('spectate-btn');
+  if (reason === 'health'){
+    title.textContent = 'Tu es tombé au combat';
+    continueBtn.style.display = 'none';
+    reviveBtn.style.display = 'block';
+    spectateBtn.style.display = 'block';
+  } else if (reason === 'final'){
+    title.textContent = 'Le château est tombé';
+    continueBtn.style.display = 'none';
+    reviveBtn.style.display = 'none';
+    spectateBtn.style.display = 'none';
+  } else {
+    title.textContent = 'Tu as perdu';
+    continueBtn.style.display = 'block';
+    reviveBtn.style.display = 'none';
+    spectateBtn.style.display = 'none';
+  }
+  document.getElementById('over').style.display = 'flex';
+}
+function resetGame(startingGold){
+  towers = []; enemies = []; projectiles = []; floatingTexts = [];
+  gold = startingGold || 0; wave = 1; breaches = 0; gameOver = false;
+  playerDead = false; spectating = false;
+  spawned = 0; enemiesThisWave = 5; spawnTimer = 0; spawnInterval = pickNextSpawnDelay();
+  playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
+  playerAggroScore = 0;
+  columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 })); recentSuccesses = [];
+  player.x = STAGE_W/2; player.y = STAGE_H - 70;
+  spawnBoat(performance.now());
+  document.getElementById('over').style.display = 'none';
+}
 document.getElementById('continue-btn').addEventListener('click', () => {
+  unlockAutoSave();
   breaches = 0;
   gameOver = false;
   document.getElementById('over').style.display = 'none';
 });
-document.getElementById('restart-btn').addEventListener('click', () => {
-  towers = []; enemies = []; projectiles = []; floatingTexts = [];
-  gold = 0; wave = 1; breaches = 0; gameOver = false;
-  spawned = 0; enemiesThisWave = 5; spawnTimer = 0; spawnInterval = pickNextSpawnDelay();
-  playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; lastRegenTickAt = 0;
-  player.x = STAGE_W/2; player.y = STAGE_H - 70;
-  spawnBoat(performance.now());
+document.getElementById('revive-btn').addEventListener('click', () => {
+  unlockAutoSave();
+  playerHealth = PLAYER_MAX_HEALTH;
+  playerDead = false; spectating = false;
+  playerFlashUntil = 0; playerInvulnUntil = performance.now() + 1200; // petit répit après la résurrection
   document.getElementById('over').style.display = 'none';
+});
+document.getElementById('spectate-btn').addEventListener('click', () => {
+  spectating = true;
+  document.getElementById('over').style.display = 'none';
+});
+document.getElementById('restart-btn').addEventListener('click', () => resetGame(0));
+document.getElementById('bonus-btn').addEventListener('click', () => {
+  resetGame(100);
+  faqPanel.style.display = 'none';
 });
 
 function loop(ts){

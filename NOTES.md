@@ -13,46 +13,9 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 📋 À faire (demandé, pas encore fait)
 
-- **Économie des pubs, éthique et sans forcer** : quand on regarde la pub
-  de 30s pour continuer, ça active aussi une sauvegarde automatique de la
-  progression (en local, navigateur) — avec avertissement explicite qu'il
-  ne faut pas vider le cache sinon la progression est perdue et il faut
-  regarder une nouvelle pub. Prévoir une entrée FAQ dans le menu pour les
-  gens qui perdent leur progression sans comprendre pourquoi (cache vidé,
-  ou message pas lu) — rassurant, pas culpabilisant. Pour ces cas, un
-  "code bonus" qui redonne une partie depuis le début mais avec 100 pièces
-  offertes, en guise d'excuse. Objectif explicite : forcer à regarder au
-  maximum une pub par jour, pas plus — modèle économique qui gagne sur le
-  nombre de joueurs, pas en pressurant fort un petit nombre.
-
-- **IA des ennemis à mémoire (première règle proposée)** : plus la partie
-  avance, plus les ennemis qui arrivent "ont vu" ce qui est arrivé aux
-  précédents (mémoire collective façon fourmis) — pas besoin d'être précis
-  au pixel, un souvenir à la case (grille isométrique) suffit : quel
-  chemin a été pris, quel taux de pertes il a donné. Au fil du temps, les
-  chemins avec moins de pertes sont favorisés. Deuxième composante : ceux
-  qui ont réussi à atteindre le château sont imités — soit par ceux qui
-  veulent y aller le plus vite, soit par ceux qui veulent y aller avec le
-  moins de dégâts (deux profils d'imitateurs différents). Composante
-  aléatoire forte et volontaire : un même ennemi peut changer d'avis en
-  cours de route (comme un humain qui change de stratégie toutes les 30
-  secondes) ou au contraire rester droit dans sa idée du début à la fin —
-  ce mélange fait partie du but recherché. Troisième composante : mémoire
-  de quelles tours "tiennent le moins longtemps" (celles qui tombent vite
-  sous les coups) pour concentrer les efforts dessus. Un ennemi peut aussi
-  choisir un "mode" : détruire des tours, ou harceler le joueur (si le
-  joueur leur inflige trop de dégâts, ou pour l'empêcher/décourager
-  d'aller réparer une tour qu'il répare souvent — en se postant sur son
-  chemin ou en restant trop près de lui pour le blesser), sachant que le
-  but principal reste la destruction du château. Beaucoup de pièces
-  indépendantes plutôt qu'un système monolithique — voir aussi le principe
-  directeur "éviter la froideur mécanique" ci-dessous, c'est la même idée
-  appliquée concrètement.
-
-- **Écran de mort du joueur** (si sa santé tombe à 0 — actuellement la
-  santé ne descend jamais à 0 dans le sens "mort", juste vire au rouge) :
-  trois boutons - regarder une pub pour revivre à 100% de santé, abandonner,
-  ou "regarder la suite de la partie" (spectateur ?, à préciser).
+- (rien en attente — les trois demandes du 2026-09-04 sont faites, voir
+  "Décisions prises" ci-dessous : économie des pubs, IA à mémoire, écran
+  de mort du joueur)
 
 ## 💭 Idées à explorer plus tard (pas encore décidées)
 
@@ -152,6 +115,33 @@ Format condensé — l'idée, pas la formulation exacte.
   maintenant proportionnelle à la distance entre le doigt et le centre du
   joystick (au lieu d'un tout-ou-rien au-delà de la zone morte). Le
   clavier reste à vitesse fixe (pas d'équivalent analogique).
+- **Économie des pubs (v16)** : bouton "continuer"/"revivre" débloque une
+  sauvegarde locale (`localStorage`, or + vague) rechargée au démarrage ;
+  rien n'est jamais sauvegardé avant ce premier déblocage explicite. Entrée
+  "Aide / FAQ" dans le menu, expliquant le pourquoi de la pub et le risque
+  de perte si le cache est vidé. "Code bonus" dans ce panneau FAQ :
+  recommence à zéro avec 100 or offerts, à tout moment (pas besoin d'avoir
+  perdu). Rien ne force plus d'une pub par session de jeu.
+- **IA à mémoire des ennemis (v16)** : la carte est découpée en 8 colonnes ;
+  chaque mort/percée y est comptée, et les nouveaux ennemis tirent leur
+  "colonne préférée" au sort, pondérée par ce qui a déjà réussi (mémoire
+  collective statistique, pas un plan concerté). 30% du temps, ils imitent
+  directement le dernier ennemi ayant atteint le château rapidement. Chaque
+  ennemi a un "engagement" aléatoire (0 à 1) : les peu engagés changent de
+  colonne préférée toutes les quelques secondes, les très engagés y restent
+  fidèles. Les attaquants ciblent désormais la tour la plus proche de
+  tomber parmi celles à portée, pas juste la plus proche géométriquement.
+  Nouveau rôle "harceleur" : rôde près du joueur (si son score d'agressivité
+  — construit sur ses tirs récents — est élevé) ou près de la tour la plus
+  réparée, tout en continuant d'avancer lentement vers le château (l'objectif
+  reste toujours le château, jamais seulement le joueur).
+- **Écran de mort du joueur (v16)** : la santé peut désormais tomber
+  jusqu'à zéro (auparavant elle ne faisait que virer au rouge sans jamais
+  "tuer"). À la mort : écran distinct ("Tu es tombé au combat") avec
+  "regarder une pub pour revivre" (santé pleine, courte invulnérabilité) ou
+  "continuer à regarder" (mode spectateur — le joueur est gelé mais la
+  partie continue sans lui jusqu'à la défaite normale par brèches, qui
+  affiche alors un troisième écran final "Le château est tombé").
 
 ## 📜 Historique des versions (résumé)
 
@@ -175,3 +165,7 @@ Format condensé — l'idée, pas la formulation exacte.
   régénération en zone tampon)
 - v15 : bateau par vague (proue vers le bas, position aléatoire, animation
   d'accostage), vitesse du joystick analogique
+- v16 : économie des pubs (sauvegarde locale, FAQ, code bonus), IA des
+  ennemis à mémoire (colonnes préférées, imitation, engagement variable,
+  ciblage des tours faibles, rôle harceleur), écran de mort du joueur
+  (revivre / spectateur / défaite finale)
