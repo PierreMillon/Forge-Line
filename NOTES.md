@@ -9,18 +9,12 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 🚧 En cours
 
-- **Discussion : progression par algorithme plutôt que par niveaux codés
-  à la main.** Idée proposée : au lieu de coder chaque palier un par un
-  (comme les 3 niveaux de tour actuels, plafonnés en dur), donner à
-  chaque "unité" du jeu (le joueur, la tour, et les 4 types d'ennemis —
-  6 éléments) un programme interne / une formule qui calcule ses stats en
-  fonction d'une variable d'entrée (ex : or dépensé), sans plafond codé —
-  en théorie illimité (si quelqu'un accumule 1 million d'or, la formule
-  calcule directement le palier 300 sans qu'on ait eu à l'écrire).
-  Explicitement PAS de génération procédurale de carte — juste des
-  formules de progression des stats. Étape 1 (en cours) : se mettre
-  d'accord sur le principe avant de discuter comment l'implémenter, puis
-  seulement ensuite coder. Pas encore de code touché pour ça.
+- **Chemin isométrique + bateau en isométrique, zone de régénération en
+  rectangle très clair (symbolise le château), retirer le petit repère
+  vert.** Demandé en priorité, message coupé en cours de dictée (la toute
+  fin — "et on enlève le…" — n'est pas arrivée). À clarifier avec
+  l'utilisateur avant de coder le détail ; noté ici pour ne pas perdre le
+  début de la demande.
 
 ## 📋 À faire (demandé, pas encore fait)
 
@@ -386,3 +380,53 @@ Format condensé — l'idée, pas la formulation exacte.
   tour rendu plus rentable que construire à côté (PV et dégâts)
 - v17.10 : réparer une tour coûte 1 or par session (gratuit tant qu'on
   reste, recoûte si on s'éloigne puis revient)
+- v17.11 : progression infinie par formule, remplace les 3 systèmes à
+  paliers plafonnés en dur (or passif, dégâts joueur, niveau de tour —
+  voir discussion ci-dessous, désormais tranchée)
+
+## Progression infinie par formule (v17.11 — remplace les plafonds de v17.9)
+
+Discussion menée en 3 étapes explicitement demandées : 1) se comprendre,
+2) concevoir, 3) coder — rien codé avant l'étape 3.
+
+**Principe retenu** : au lieu de coder chaque palier à la main avec un
+plafond en dur (ancien `TOWER_MAX_LEVEL`, `AUTO_GOLD_MAX_LEVEL`,
+`DMG_MAX_LEVEL`), chaque bonus achetable a maintenant une formule qui
+calcule son coût et sa puissance au palier n, sans limite — le palier
+300 se calcule directement, pas besoin de l'avoir écrit à la main.
+
+- Variable d'entrée : l'or dépensé sur ce bonus précis (confirmé par
+  l'utilisateur via quiz, en comptant le nombre de paliers achetés plutôt
+  que l'or cumulé littéral — équivalent puisque le coût par palier est
+  fixe une fois le palier atteint).
+- Coût du palier n = coût de base × 1,027^(n-1) (croissance géométrique,
+  confirmée par quiz) — calé pour qu'environ 1 million d'or dépensé
+  amène vers le palier 300, repère donné par l'utilisateur.
+- Puissance au palier n = valeur de base × 1,05^(n-1) (courbe géométrique
+  aussi, confirmée : "Géométrique, c'est parfait, fonce") — le rapport
+  puissance/coût reste stable en début de jeu.
+
+**Compromis assumé, pas encore explicitement discuté avec l'utilisateur
+avant le codage** : en v17.9, la règle était "renforcer une tour existante
+doit toujours être plus rentable que construire une petite tour à côté à
+chaque palier". Avec deux croissances géométriques, cette règle-là ne
+peut pas tenir indéfiniment à un rythme doux (elle exigerait que la
+puissance grimpe à un rythme ≥100%/palier, ce qui serait absurde). Choix
+fait : la puissance grimpe un peu plus vite que le coût (1,05 contre
+1,027), donc l'écart entre renforcer et construire neuf grandit avec le
+temps plutôt que d'être garanti dès le palier 1 — logique de jeu "idle"
+(l'investissement soutenu finit par dominer) plutôt que garantie stricte
+à chaque instant. Conséquence mesurée : au palier 300 (repère donné par
+l'utilisateur), le coût n'a été multiplié que par environ 3000, mais la
+puissance par environ 2,3 millions — très généreux en fin de partie
+extrême, à surveiller si des joueurs poussent aussi loin.
+
+Affichage : la hauteur visuelle d'une tour et le rayon du projectile du
+joueur montent en sous-linéaire (log2 / racine carrée) pour ne pas sortir
+de l'écran à très haut palier, même si les stats réelles montent plus
+vite en dessous.
+
+Vérifié avec Playwright : formules calculées directement pour les
+paliers 1 et 300 (cohérentes avec le repère "1M or → palier 300"), achats
+répétés (20×) sans jamais buter sur un plafond, tour renforcée 10 fois de
+suite sans erreur JS, aucune erreur console.

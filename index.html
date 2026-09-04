@@ -518,39 +518,46 @@ const keys = {};
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// --- bonus achetables (bandeau du bas) ---
+// --- progression par formule, pas par niveaux codés à la main ---
+// discuté en amont : au lieu de plafonner chaque bonus à quelques
+// paliers écrits en dur, chaque palier suit une formule géométrique,
+// en théorie sans limite. Deux taux communs à toute la progression :
+// - le COÛT grimpe de 2,7% par palier (accord pris en discussion :
+//   avec ce taux, ~1 million d'or dépensé au total amène vers le
+//   palier 300 — repère donné par l'utilisateur, pas une règle stricte)
+// - la PUISSANCE grimpe de 5% par palier, légèrement plus vite que le
+//   coût : au début la différence est ténue, mais investir longtemps
+//   dans un seul élément finit par vraiment payer (effet boule de
+//   neige voulu, plutôt qu'un avantage marginal constant)
+const UPGRADE_COST_GROWTH = 1.027;
+const UPGRADE_POWER_GROWTH = 1.05;
+
 // 1. revenu passif : paliers de coût croissant, chaque niveau rajoute
-//    +1 or au montant gagné toutes les 2s (niveau 2 = +2 or/2s, etc.)
-const AUTO_GOLD_COST_BASE = 15, AUTO_GOLD_COST_STEP = 10, AUTO_GOLD_MAX_LEVEL = 5;
+//    un peu plus d'or au montant gagné toutes les 2s
+const AUTO_GOLD_COST_BASE = 15;
 const AUTO_GOLD_INTERVAL_MS = 2000;
 let autoGoldLevel = 0;
 let lastAutoGoldAt = 0;
-function autoGoldCost(){ return AUTO_GOLD_COST_BASE + autoGoldLevel * AUTO_GOLD_COST_STEP; }
+function autoGoldCost(){ return Math.round(AUTO_GOLD_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, autoGoldLevel)); }
+function autoGoldIncome(){ return Math.max(1, Math.round(Math.pow(UPGRADE_POWER_GROWTH, autoGoldLevel))); }
 // 2. dégâts du joueur (pas des tours) : paliers de coût croissant, balles
-//    visiblement plus grosses à chaque palier
-const DMG_COST_BASE = 8, DMG_COST_STEP = 6, DMG_MAX_LEVEL = 5, DMG_PER_LEVEL = 4;
+//    visiblement plus grosses à chaque palier (racine plutôt que
+//    linéaire pour la taille visuelle — sinon ça deviendrait un
+//    disque énorme à très haut niveau)
+const DMG_COST_BASE = 8;
 let dmgLevel = 0;
-function dmgUpgradeCost(){ return DMG_COST_BASE + dmgLevel * DMG_COST_STEP; }
-function effectivePlayerDmg(){ return PLAYER_DMG + dmgLevel * DMG_PER_LEVEL; }
+function dmgUpgradeCost(){ return Math.round(DMG_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, dmgLevel)); }
+function effectivePlayerDmg(){ return Math.round(PLAYER_DMG * Math.pow(UPGRADE_POWER_GROWTH, dmgLevel)); }
 // 3. tour : construit une nouvelle tour, ou renforce celle déjà à portée
-//    (rajoute un "étage" — plus haute, plus de PV). Une tour à pouvoir
-//    spécial (50 or) est une idée pour plus tard, pas encore faite.
+//    (rajoute un "étage" — plus haute, plus de PV et de dégâts). Une
+//    tour à pouvoir spécial (50 or) est une idée pour plus tard, pas
+//    encore faite.
 const TOWER_BUILD_COST = 10;
 const TOWER_BASE_HP = 30;
-const TOWER_MAX_LEVEL = 3;
-// renforcer doit être PLUS rentable que construire une petite tour de plus
-// à côté (rapporté : ce n'était pas le cas — une tour neuve donnait plus
-// de PV par or dépensé qu'un renfort). Une tour neuve : 10 or pour 30 PV
-// (3 PV/or). Un renfort coûte le même prix mais rapporte plus de PV
-// (TOWER_UPGRADE_HP_BONUS=40 > TOWER_BASE_HP=30), donc 4 PV/or à chaque
-// palier — toujours plus intéressant que multiplier les petites tours.
-const TOWER_UPGRADE_COST = 10;
-const TOWER_UPGRADE_HP_BONUS = 40;
-function towerUpgradeCost(t){ return TOWER_UPGRADE_COST; }
-// même principe pour les dégâts : un petit bonus linéaire par palier, pour
-// que renforcer batte aussi construire à côté sur la puissance de feu
-const TOWER_UPGRADE_DMG_BONUS = 6; // par palier, la moitié des dégâts de base
-function towerDamage(t){ return PLAYER_DMG + TOWER_UPGRADE_DMG_BONUS * ((t.level||1) - 1); }
+const TOWER_UPGRADE_COST = 10; // même prix de départ qu'une tour neuve
+function towerUpgradeCost(t){ return Math.round(TOWER_UPGRADE_COST * Math.pow(UPGRADE_COST_GROWTH, (t.level||1) - 1)); }
+function towerMaxHpAtLevel(level){ return Math.round(TOWER_BASE_HP * Math.pow(UPGRADE_POWER_GROWTH, level - 1)); }
+function towerDamage(t){ return Math.round(PLAYER_DMG * Math.pow(UPGRADE_POWER_GROWTH, (t.level||1) - 1)); }
 // 4. tir automatique : par défaut le joueur tire MANUELLEMENT (un tap/clic
 //    déclenche un tir, gratuit dès le début, cadence identique à
 //    l'automatique — voir tryManualShoot) ; ce bonus lui évite d'avoir à
@@ -582,12 +589,12 @@ function tryBuild(){
   sfxBuild();
 }
 function tryUpgradeTower(t){
-  if (t.level >= TOWER_MAX_LEVEL) return;
+  // pas de plafond : progression infinie par formule (voir bloc plus haut)
   const cost = towerUpgradeCost(t);
   if (gold < cost) return;
   gold -= cost;
   t.level++;
-  t.maxHp = TOWER_BASE_HP + TOWER_UPGRADE_HP_BONUS * (t.level - 1);
+  t.maxHp = towerMaxHpAtLevel(t.level);
   t.hp = t.maxHp; // le renfort remet aussi la tour à neuf
   sfxBuild();
 }
@@ -638,13 +645,13 @@ function resolveTowerCollision(pos, radius){
 
 document.getElementById('autogold-btn').addEventListener('click', () => {
   const cost = autoGoldCost();
-  if (autoGoldLevel >= AUTO_GOLD_MAX_LEVEL || gold < cost) return;
+  if (gold < cost) return;
   gold -= cost;
   if (autoGoldLevel === 0) lastAutoGoldAt = performance.now(); // démarre le minuteur au tout premier achat seulement
   autoGoldLevel++;
 });
 document.getElementById('damage-btn').addEventListener('click', () => {
-  if (dmgLevel >= DMG_MAX_LEVEL || gold < dmgUpgradeCost()) return;
+  if (gold < dmgUpgradeCost()) return;
   gold -= dmgUpgradeCost();
   dmgLevel++;
 });
@@ -656,14 +663,15 @@ document.getElementById('autofire-btn').addEventListener('click', () => {
   autoFireBought = true;
 });
 
-// affiche l'état courant des 4 boutons (coût, "Max"/"Actif", grisé si pas
-// assez d'or) — rappelé à chaque frame, comme le reste du HUD
+// affiche l'état courant des 4 boutons (coût, "Actif", grisé si pas
+// assez d'or) — rappelé à chaque frame, comme le reste du HUD. Plus de
+// "Max" : la progression est infinie, seul le manque d'or bloque l'achat.
 function refreshBonusbar(){
   const disabledAll = playerDead || gameOver;
   const agCost = autoGoldCost();
   const agBtn = document.getElementById('autogold-btn');
-  agBtn.disabled = disabledAll || autoGoldLevel >= AUTO_GOLD_MAX_LEVEL || gold < agCost;
-  document.getElementById('autogold-cost').textContent = autoGoldLevel >= AUTO_GOLD_MAX_LEVEL ? 'Max' : (agCost + ' or');
+  agBtn.disabled = disabledAll || gold < agCost;
+  document.getElementById('autogold-cost').textContent = agCost + ' or';
 
   const afBtn = document.getElementById('autofire-btn');
   afBtn.disabled = disabledAll || autoFireBought || gold < AUTO_FIRE_COST;
@@ -671,8 +679,8 @@ function refreshBonusbar(){
 
   const dCost = dmgUpgradeCost();
   const dBtn = document.getElementById('damage-btn');
-  dBtn.disabled = disabledAll || dmgLevel >= DMG_MAX_LEVEL || gold < dCost;
-  document.getElementById('damage-cost').textContent = dmgLevel >= DMG_MAX_LEVEL ? 'Max' : (dCost + ' or');
+  dBtn.disabled = disabledAll || gold < dCost;
+  document.getElementById('damage-cost').textContent = dCost + ' or';
 
   const near = pickNearestTower(player.x, player.y);
   const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
@@ -682,8 +690,8 @@ function refreshBonusbar(){
   if (canUpgrade){
     tLabel.textContent = 'Renforcer';
     const uCost = towerUpgradeCost(near);
-    tBtn.disabled = disabledAll || near.level >= TOWER_MAX_LEVEL || gold < uCost;
-    tCost.textContent = near.level >= TOWER_MAX_LEVEL ? 'Max' : (uCost + ' or');
+    tBtn.disabled = disabledAll || gold < uCost;
+    tCost.textContent = uCost + ' or';
   } else {
     tLabel.textContent = 'Construire';
     tBtn.disabled = disabledAll || gold < TOWER_BUILD_COST;
@@ -731,6 +739,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.11, text: "Progression infinie par formule (or total dépensé, coût +2,7%/palier, puissance +5%/palier) — remplace les paliers plafonnés (or passif, dégâts, tours) de v17.9" },
   { v: 17.10, text: "Réparer une tour coûte 1 or par session (gratuit tant qu'on reste, recoûte si on part et revient)" },
   { v: 17.9, text: "4 types d'ennemis (couleurs, boss rare) ; PV linéaires (plus exponentiels) ; vitesse fixe + variation organique ; +1 ennemi/vague ; dégâts ennemis sur tours ÷2 ; renforcer une tour plus rentable que construire à côté" },
   { v: 17.8, text: "Annule le correctif v17.6 (malentendu) : rester appuyé tire même en bougeant le joueur" },
@@ -957,8 +966,10 @@ function playerShoot(now, manualInterval){
   }
   if (!target) return;
   if (isManual) lastManualShotAt = now; else lastAutoShotAt = now;
-  // la balle grossit visiblement à chaque palier de dégâts acheté
-  const r = 4 + dmgLevel * 1.1;
+  // la balle grossit visiblement à chaque palier de dégâts acheté — en
+  // racine carrée (pas linéaire) puisque la progression est infinie,
+  // sinon elle deviendrait énorme à très haut niveau
+  const r = 4 + Math.sqrt(dmgLevel) * 3;
   const dmg = effectivePlayerDmg();
   if (Math.random() < hitChanceForDistance(best)){
     projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg, r, source: 'player' });
@@ -1045,11 +1056,12 @@ function update(now){
       if (heldMs >= MANUAL_HOLD_START_MS) playerShoot(now, MANUAL_HOLD_INTERVAL_MS);
     }
 
-    // revenu passif : chaque niveau rajoute +1 or par tic (voir bonus 1)
+    // revenu passif : formule géométrique, pas +1 par niveau (voir bonus 1)
     if (autoGoldLevel > 0 && now - lastAutoGoldAt >= AUTO_GOLD_INTERVAL_MS){
-      gold += autoGoldLevel;
+      const income = autoGoldIncome();
+      gold += income;
       lastAutoGoldAt = now;
-      floatingTexts.push({ x: player.x, y: player.y - 26, text: '+'+autoGoldLevel, createdAt: now, color: '#d9a441' });
+      floatingTexts.push({ x: player.x, y: player.y - 26, text: '+'+income, createdAt: now, color: '#d9a441' });
     }
   }
   floatingTexts = floatingTexts.filter(f => now - f.createdAt < 700);
@@ -1298,13 +1310,19 @@ function draw(now){
   // devient brièvement translucide pendant qu'elle se fait attaquer.
   for (const t of towers){
     const level = t.level || 1;
+    // la progression est infinie (plus de plafond), donc la hauteur à
+    // l'écran doit ralentir en haut de l'échelle (sub-linéaire, log2) —
+    // sinon une tour très renforcée sortirait de l'écran. Le nombre
+    // d'étages dessinés est aussi plafonné (au-delà, ça se voit à peine).
+    const visualLevel = 1 + Math.log2(level);
+    const segments = Math.min(Math.round(visualLevel), 12);
     // chaque renfort ajoute un "étage" : plus haute au max, et cette
     // hauteur max rétrécit avec les dégâts encaissés comme avant
-    const sh = TOWER_MAX_SH * level * Math.max(0, t.hp/t.maxHp);
+    const sh = TOWER_MAX_SH * visualLevel * Math.max(0, t.hp/t.maxHp);
     const flashing = now < (t.flashUntil || 0);
     layers.push({ y: t.y, draw: () => {
       if (flashing) ctx.globalAlpha = 0.45;
-      drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', level);
+      drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments);
       if (flashing) ctx.globalAlpha = 1;
     }});
   }
