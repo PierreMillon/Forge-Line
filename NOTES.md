@@ -263,6 +263,8 @@ Format condensé — l'idée, pas la formulation exacte.
   gardent leur portée fixe et leur précision garantie (inchangé) — ce
   système ne concerne que le joueur.
 
+## 📜 Historique des versions (résumé)
+
 - v1 : prototype initial (déplacement, tours, vagues)
 - v2 : contrôles tactiles (joystick, double-tap), style beige
 - v3 : plein écran, mouvement organique, projectiles en sphères
