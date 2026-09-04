@@ -13,11 +13,28 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 📋 À faire (demandé, pas encore fait)
 
-- (rien en attente — les trois demandes du 2026-09-04 sont faites, voir
-  "Décisions prises" ci-dessous : économie des pubs, IA à mémoire, écran
-  de mort du joueur)
+- **Le bateau prend en compte la mémoire des ennemis pour choisir où
+  accoster** (aujourd'hui : position aléatoire, indépendante des colonnes
+  qui réussissent le mieux). Et surtout : les ennemis de la vague doivent
+  être visibles SUR le bateau pendant qu'il glisse/accoste, physiquement
+  groupés dessus, plutôt que d'apparaître seulement une fois qu'il a
+  touché la plage — pour qu'on les voie vraiment "arriver en groupe".
+  Demandé, pas encore fait (nécessite de repenser le lien entre
+  spawnBoat/spawnEnemy et l'affichage du bateau).
+
+- **Collision souple entre ennemis (une fois débarqués du bateau)** : ils
+  ne doivent plus se chevaucher — cercles adjacents, bords qui se touchent
+  sans se traverser — mais avec une petite élasticité/souplesse (ils
+  peuvent un peu s'enfoncer les uns dans les autres, pas une paroi rigide).
+  Pendant qu'ils sont encore sur le bateau, le chevauchement reste permis
+  (lié à l'idée ci-dessus). Demandé, pas encore fait.
 
 ## 💭 Idées à explorer plus tard (pas encore décidées)
+
+- **Bateau en vraie perspective isométrique**, aligné sur la grille, pour
+  renforcer l'illusion 3D — soit redessiné à partir du sprite fourni
+  (boat-icon.png de Knight Wars), soit dessiné en isométrique nativement
+  (façon drawIsoBox). Demandé comme un rappel, pas encore fait.
 
 - **Principe directeur : éviter la froideur mécanique** (vaut aussi pour
   Bastion Orbit, noté dans son BACKLOG.md). Le défaut classique : ennemis
@@ -142,6 +159,49 @@ Format condensé — l'idée, pas la formulation exacte.
   "continuer à regarder" (mode spectateur — le joueur est gelé mais la
   partie continue sans lui jusqu'à la défaite normale par brèches, qui
   affiche alors un troisième écran final "Le château est tombé").
+- **Correctif audio (v17)** : sur un appareil réel, le tout premier
+  `resume()` de l'AudioContext ne semblait pas toujours aboutir avant que
+  d'autres sons soient tentés — plus aucun son jusqu'à ce qu'un DEUXIÈME
+  geste relance `resume()` avec succès (rapporté : "le son ne s'active que
+  quand je construis"). Le déblocage à usage unique (`{once:true}`) est
+  remplacé par une tentative répétée à chaque geste, jusqu'à ce que le
+  contexte soit vraiment `running`.
+- **Clignotement à santé critique (v17)** : le joueur clignote (alterne
+  opacité pleine/30%, toutes les 150ms) quand sa santé tombe à 10% ou
+  moins — alarme visuelle en plus du dégradé jaune→rouge existant.
+- **Le joueur disparaît en mode spectateur (v17)** : une fois mort et le
+  choix "continuer à regarder" fait, son pavé isométrique n'est plus
+  dessiné du tout (il ne revient qu'après "revivre").
+- **Bandeau de bonus (v17)**, remplace le double-tap pour construire :
+  trois boutons achetables juste au-dessus du bandeau d'infos —
+  (1) revenu passif : achat unique (15 or), +1 or/2s ensuite ;
+  (2) dégâts du joueur : paliers de coût croissant, balle visiblement plus
+  grosse à chaque palier (jusqu'à 5 paliers) — n'affecte que les tirs du
+  joueur, pas ceux des tours ; (3) tour : construit une nouvelle tour si
+  aucune n'est à portée, sinon renforce celle la plus proche (rajoute un
+  "étage" — plus haute, PV max multipliés par le niveau, jusqu'à niveau 3).
+  Un 4e bouton (tour à pouvoir spécial, 50 or) est une idée pour plus tard,
+  pas encore fait. Décision prise en discussion : le tir automatique de
+  base reste gratuit dès le départ (pas de risque de blocage à 0 or) — le
+  bouton dégâts ne fait qu'améliorer, il ne débloque rien.
+- **Correctif position de construction (v17)** : la tour posée sortait
+  visuellement en bas à droite du joueur au lieu d'au-dessus (rapporté en
+  jeu). Cause : dans cette grille en losange, avancer d'un seul cran sur
+  un seul axe (gx ou gy) ne va jamais tout droit vers le haut à l'écran —
+  chaque axe descend en plus de décaler horizontalement. Il faut reculer
+  sur LES DEUX axes à la fois (gx-1 ET gy-1) pour que les décalages
+  horizontaux s'annulent et n'obtenir qu'un déplacement vertical pur.
+  Un léger décalage horizontal résiduel reste possible (jusqu'à une
+  demi-case) : c'est le prix du calage sur la grille en losange, pas un
+  bug — nécessaire pour que plusieurs tours posées bord à bord s'alignent
+  en mur continu.
+- **Élan résiduel du joystick (v17)** : un relâchement juste après un
+  mouvement rapide ("coup sec") laisse le joueur glisser encore un peu,
+  avec une atténuation forte (quelques cases, pas une glissade). Un
+  relâchement normal (lent, ou tenu longtemps sans mouvement récent) ne
+  déclenche rien.
+- **Bouton "Recommencer une nouvelle partie" dans le menu (v17)** :
+  accessible à tout moment, pas seulement depuis l'écran de fin.
 
 ## 📜 Historique des versions (résumé)
 
@@ -169,3 +229,9 @@ Format condensé — l'idée, pas la formulation exacte.
   ennemis à mémoire (colonnes préférées, imitation, engagement variable,
   ciblage des tours faibles, rôle harceleur), écran de mort du joueur
   (revivre / spectateur / défaite finale)
+- v17 : correctif audio (déblocage répété au lieu d'une seule fois),
+  clignotement à santé critique, joueur invisible en spectateur, bandeau
+  de bonus (revenu passif, dégâts, construire/renforcer une tour — retrait
+  du double-tap), correctif de la position de construction (au-dessus du
+  joueur, pas en bas à droite), élan résiduel du joystick, bouton
+  "Recommencer" dans le menu

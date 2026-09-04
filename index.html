@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Forge Line — prototype</title>
 <style>
-  :root{ --topbar-h:52px; --bottombar-h:64px; }
+  :root{ --topbar-h:52px; --bottombar-h:64px; --bonusbar-h:58px; }
   html,body{margin:0;height:100%;background:#e8dfc8;color:#3a3529;font-family:system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
 
   #topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);display:flex;align-items:center;background:#00000012;z-index:6}
@@ -23,7 +23,14 @@
   #bottombar{position:fixed;bottom:0;left:0;right:0;height:var(--bottombar-h);display:flex;align-items:center;justify-content:center;background:#00000012;z-index:6}
   #hud{font-size:14px;line-height:1.4;text-align:center}
 
-  #stage{position:fixed;top:var(--topbar-h);bottom:var(--bottombar-h);left:0;right:0;overflow:hidden;background:#e8dfc8}
+  /* bandeau de bonus achetables, juste au-dessus du bandeau d'infos */
+  #bonusbar{position:fixed;bottom:var(--bottombar-h);left:0;right:0;height:var(--bonusbar-h);display:flex;align-items:stretch;justify-content:center;gap:8px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
+  #bonusbar button{flex:1;max-width:130px;padding:4px 4px;border-radius:9px;border:1px solid #00000030;background:#faf6ea;color:#3a3529;font-size:11px;line-height:1.35;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+  #bonusbar button:disabled{opacity:.42}
+  #bonusbar button .b-icon{font-size:16px}
+  #bonusbar button .b-cost{opacity:.75;font-size:10px}
+
+  #stage{position:fixed;top:var(--topbar-h);bottom:calc(var(--bottombar-h) + var(--bonusbar-h));left:0;right:0;overflow:hidden;background:#e8dfc8}
   canvas{display:block;touch-action:none;background:#e8dfc8}
 
   /* écran de défaite : une petite carte centrée, pas un voile plein écran —
@@ -45,7 +52,7 @@
   #bonus-btn{width:100%;padding:9px 10px;border-radius:8px;border:1px solid #00000030;background:#fff3d0;color:#3a3529;font-size:12.5px;cursor:pointer}
   #bonus-btn:active{background:#f7e2a0}
 
-  #joyzone{display:none;position:fixed;left:0;right:0;top:var(--topbar-h);bottom:var(--bottombar-h);z-index:3;touch-action:none}
+  #joyzone{display:none;position:fixed;left:0;right:0;top:var(--topbar-h);bottom:calc(var(--bottombar-h) + var(--bonusbar-h));z-index:3;touch-action:none}
   #joy-base,#joy-knob{display:none;position:fixed;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:4}
   #joy-base{width:88px;height:88px;background:#00000018;border:1px solid #00000030}
   #joy-knob{width:40px;height:40px;background:#00000040}
@@ -64,6 +71,7 @@
     <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
     <a id="grid-toggle" href="#">Afficher la grille (debug)</a>
     <a id="faq-toggle" href="#">Aide / FAQ</a>
+    <a id="menu-restart" href="#">Recommencer une nouvelle partie</a>
   </div>
   <button id="version-btn" aria-label="Historique des versions"></button>
   <div id="version-panel"></div>
@@ -91,6 +99,12 @@
     <p><strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.</p>
     <button id="bonus-btn">🎁 Code bonus : recommencer avec 100 or</button>
   </div>
+</div>
+
+<div id="bonusbar">
+  <button id="autogold-btn"><span class="b-icon">💰</span><span>Revenu auto</span><span class="b-cost" id="autogold-cost"></span></button>
+  <button id="damage-btn"><span class="b-icon">💥</span><span>Dégâts</span><span class="b-cost" id="damage-cost"></span></button>
+  <button id="tower-btn"><span class="b-icon">🏰</span><span id="tower-label"></span><span class="b-cost" id="tower-cost"></span></button>
 </div>
 
 <div id="bottombar">
@@ -373,10 +387,23 @@ function getAudioCtx(){
 // (tir automatique, impact) partent du fond de la boucle de jeu et pas
 // directement d'un clic, on la débloque explicitement au tout premier
 // contact avec l'écran, sinon TOUS les sons restent muets pour la partie.
-function unlockAudioOnce(){ getAudioCtx(); }
-window.addEventListener('pointerdown', unlockAudioOnce, { once: true, passive: true });
-window.addEventListener('touchstart', unlockAudioOnce, { once: true, passive: true });
-window.addEventListener('keydown', unlockAudioOnce, { once: true });
+// un seul essai suffisait en théorie, mais en pratique (rapporté sur
+// appareil réel) le tout premier resume() peut ne pas aboutir avant que
+// d'autres sons soient déjà tentés — du coup rien ne se joue tant qu'un
+// DEUXIÈME geste (souvent la construction) ne relance pas resume() avec
+// succès. On retente donc à chaque geste, sans se limiter à une seule
+// fois, jusqu'à ce que le contexte soit vraiment "running".
+function tryUnlockAudio(){
+  const ac = getAudioCtx();
+  if (ac.state === 'running'){
+    window.removeEventListener('pointerdown', tryUnlockAudio);
+    window.removeEventListener('touchstart', tryUnlockAudio);
+    window.removeEventListener('keydown', tryUnlockAudio);
+  }
+}
+window.addEventListener('pointerdown', tryUnlockAudio, { passive: true });
+window.addEventListener('touchstart', tryUnlockAudio, { passive: true });
+window.addEventListener('keydown', tryUnlockAudio);
 function playTone({ freq=440, freqEnd=null, duration=0.05, type='sine', gain=0.15 }){
   const ac = getAudioCtx(), t0 = ac.currentTime;
   const osc = ac.createOscillator();
@@ -425,22 +452,66 @@ const keys = {};
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-function isControl(el){ return el && el.closest && el.closest('#topbar, #bottombar'); }
+// --- bonus achetables (bandeau du bas) ---
+// 1. revenu passif : un achat unique, pas de palier pour l'instant (idée à
+//    prolonger plus tard — voir NOTES.md)
+const AUTO_GOLD_COST = 15;
+const AUTO_GOLD_INTERVAL_MS = 2000;
+let autoGoldBought = false;
+let lastAutoGoldAt = 0;
+// 2. dégâts du joueur (pas des tours) : paliers de coût croissant, balles
+//    visiblement plus grosses à chaque palier
+const DMG_COST_BASE = 8, DMG_COST_STEP = 6, DMG_MAX_LEVEL = 5, DMG_PER_LEVEL = 4;
+let dmgLevel = 0;
+function dmgUpgradeCost(){ return DMG_COST_BASE + dmgLevel * DMG_COST_STEP; }
+function effectivePlayerDmg(){ return PLAYER_DMG + dmgLevel * DMG_PER_LEVEL; }
+// 3. tour : construit une nouvelle tour, ou renforce celle déjà à portée
+//    (rajoute un "étage" — plus haute, plus de PV). Un 4e bouton (tour à
+//    pouvoir spécial, 50 or) est prévu plus tard, pas encore fait.
+const TOWER_BUILD_COST = 10;
+const TOWER_BASE_HP = 30;
+const TOWER_MAX_LEVEL = 3;
+function towerUpgradeCost(t){ return t.level * 15; }
 
 // la tour se cale sur la case de la grille juste au-dessus du joueur (côté
 // ennemis) — comme cette case dépend d'où le joueur se trouve à l'instant
-// du double-tap, marcher le long d'une ligne et construire plusieurs fois
+// de l'appui, marcher le long d'une ligne et construire plusieurs fois
 // pose des tours côte à côte : la grille garantit qu'elles s'alignent sans
 // se chevaucher, et forment une ligne de blocage continue
 function tryBuild(){
-  if (gold < 10) return;
+  if (gold < TOWER_BUILD_COST) return;
   const cell = screenToGridCell(player.x, player.y);
-  const target = gridToScreen(cell.gx, cell.gy - 1);
-  const bx = target.x, by = target.y + GRID_TH;
+  // dans cette grille en losange, aucun des deux axes seuls (gx ou gy) ne
+  // pointe droit vers le haut à l'écran — un pas sur gx seul va en bas à
+  // droite, un pas sur gy seul va en bas à gauche (chacun descend de
+  // GRID_TH/2 et décale de GRID_TW/2). Il faut reculer sur LES DEUX à la
+  // fois (gx-1 ET gy-1) pour que les deux décalages horizontaux
+  // s'annulent : ça ne bouge qu'en vertical, pile au-dessus du joueur —
+  // ce que "gy-1" seul (l'ancien calcul) ne faisait pas (la tour sortait
+  // en bas à droite, pas au-dessus, comme rapporté)
+  const target = gridToScreen(cell.gx - 1, cell.gy - 1);
+  const bx = target.x, by = target.y;
   for (const t of towers) if (Math.hypot(t.x-bx, t.y-by) < 10) return; // case déjà occupée
-  gold -= 10;
-  towers.push({ x: bx, y: by, hp: 30, maxHp: 30, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
+  gold -= TOWER_BUILD_COST;
+  towers.push({ x: bx, y: by, hp: TOWER_BASE_HP, maxHp: TOWER_BASE_HP, level: 1, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
   sfxBuild();
+}
+function tryUpgradeTower(t){
+  if (t.level >= TOWER_MAX_LEVEL) return;
+  const cost = towerUpgradeCost(t);
+  if (gold < cost) return;
+  gold -= cost;
+  t.level++;
+  t.maxHp = TOWER_BASE_HP * t.level;
+  t.hp = t.maxHp; // le renfort remet aussi la tour à neuf
+  sfxBuild();
+}
+// le bouton "tour" du bandeau : renforce la tour à portée si on est déjà
+// collé à une, sinon en construit une nouvelle — jamais les deux à la fois
+function tryTowerAction(){
+  const near = pickNearestTower(player.x, player.y);
+  if (near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX) tryUpgradeTower(near);
+  else tryBuild();
 }
 function tryRepair(){
   const t = pickNearestTower(player.x, player.y);
@@ -462,27 +533,49 @@ function resolveTowerCollision(pos, radius){
   }
 }
 
-// construire : double-clic (souris) ou double-tap (tactile), n'importe où
-document.addEventListener('dblclick', e => {
-  if (isControl(e.target)) return;
-  tryBuild();
+document.getElementById('autogold-btn').addEventListener('click', () => {
+  if (autoGoldBought || gold < AUTO_GOLD_COST) return;
+  gold -= AUTO_GOLD_COST;
+  autoGoldBought = true;
+  lastAutoGoldAt = performance.now();
 });
-let lastTap = { time: 0, x: 0, y: 0 };
-document.addEventListener('touchend', e => {
-  if (isControl(e.target)) return;
-  const t = e.changedTouches[0];
-  const now = Date.now();
-  const dt = now - lastTap.time;
-  const dist = Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y);
-  if (dt < 300 && dist < 30){
-    tryBuild();
-    lastTap = { time: 0, x: 0, y: 0 };
-  } else {
-    lastTap = { time: now, x: t.clientX, y: t.clientY };
-  }
-}, { passive:true });
+document.getElementById('damage-btn').addEventListener('click', () => {
+  if (dmgLevel >= DMG_MAX_LEVEL || gold < dmgUpgradeCost()) return;
+  gold -= dmgUpgradeCost();
+  dmgLevel++;
+});
+document.getElementById('tower-btn').addEventListener('click', tryTowerAction);
+window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'b') tryTowerAction(); });
 
-window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'b') tryBuild(); });
+// affiche l'état courant des 3 boutons (coût, "Max"/"Actif", grisé si pas
+// assez d'or) — rappelé à chaque frame, comme le reste du HUD
+function refreshBonusbar(){
+  const disabledAll = playerDead || gameOver;
+  const agBtn = document.getElementById('autogold-btn');
+  agBtn.disabled = disabledAll || autoGoldBought || gold < AUTO_GOLD_COST;
+  document.getElementById('autogold-cost').textContent = autoGoldBought ? 'Actif' : (AUTO_GOLD_COST + ' or');
+
+  const dCost = dmgUpgradeCost();
+  const dBtn = document.getElementById('damage-btn');
+  dBtn.disabled = disabledAll || dmgLevel >= DMG_MAX_LEVEL || gold < dCost;
+  document.getElementById('damage-cost').textContent = dmgLevel >= DMG_MAX_LEVEL ? 'Max' : (dCost + ' or');
+
+  const near = pickNearestTower(player.x, player.y);
+  const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
+  const tBtn = document.getElementById('tower-btn');
+  const tLabel = document.getElementById('tower-label');
+  const tCost = document.getElementById('tower-cost');
+  if (canUpgrade){
+    tLabel.textContent = 'Renforcer';
+    const uCost = towerUpgradeCost(near);
+    tBtn.disabled = disabledAll || near.level >= TOWER_MAX_LEVEL || gold < uCost;
+    tCost.textContent = near.level >= TOWER_MAX_LEVEL ? 'Max' : (uCost + ' or');
+  } else {
+    tLabel.textContent = 'Construire';
+    tBtn.disabled = disabledAll || gold < TOWER_BUILD_COST;
+    tCost.textContent = TOWER_BUILD_COST + ' or';
+  }
+}
 
 // menu en haut à gauche : pour l'instant juste la liste des jeux (Bastion
 // Orbit arrivera ici une fois publié)
@@ -503,6 +596,11 @@ document.getElementById('grid-toggle').addEventListener('click', e => {
   showGrid = !showGrid;
   e.target.textContent = showGrid ? 'Cacher la grille (debug)' : 'Afficher la grille (debug)';
 });
+document.getElementById('menu-restart').addEventListener('click', e => {
+  e.preventDefault();
+  menuPanel.style.display = 'none';
+  resetGame(0);
+});
 const faqPanel = document.getElementById('faq-panel');
 document.getElementById('faq-toggle').addEventListener('click', e => {
   e.preventDefault();
@@ -519,6 +617,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17, text: "Correctif audio (déblocage répété) ; clignotement à santé critique ; bandeau de bonus (revenu passif, dégâts, construire/renforcer une tour) ; correctif position de construction ; élan du joystick ; bouton Recommencer dans le menu" },
   { v: 16, text: "Économie des pubs (sauvegarde locale, FAQ, code bonus) ; IA des ennemis à mémoire (colonnes préférées, imitation, harceleurs) ; écran de mort du joueur (revivre/spectateur)" },
   { v: 15, text: "Bateau par vague (proue vers le bas, position aléatoire, accostage animé) ; vitesse du joystick analogique" },
   { v: 14, text: "Santé du joueur : couleur jaune→rouge (10 paliers), cadence de tir réduite, régénération en zone tampon près de la base" },
@@ -562,13 +661,31 @@ let joyDX = 0, joyDY = 0; // vecteur de direction continu (mouvement fluide, pas
 let joyMagnitude = 0; // 0..1, proportionnel à la distance tirée (vitesse analogique)
 const JOY_RADIUS = 40, JOY_DEADZONE = 12;
 
+// élan résiduel après un coup sec sur le joystick (relâché juste après un
+// mouvement rapide) : le perso glisse encore un peu, avec une atténuation
+// forte pour que ça s'éteigne en quelques cases, pas une vraie glissade
+let joyLastX = 0, joyLastY = 0, joyLastT = 0;
+let joyFlickVX = 0, joyFlickVY = 0; // vitesse instantanée du dernier geste, en px/ms
+let inertiaVX = 0, inertiaVY = 0; // élan appliqué au joueur, en px/frame
+const INERTIA_DECAY = 0.82;
+const INERTIA_MIN_FLICK_SPEED = 0.4; // px/ms — en dessous, on considère que c'est un relâchement normal, pas un coup sec
+const INERTIA_MAX_PX_PER_FRAME = PLAYER_SPEED * 1.4; // ne dépasse jamais beaucoup la vitesse normale
+
 function joyStart(x, y){
   joyActive = true; joyOriginX = x; joyOriginY = y;
+  joyLastX = x; joyLastY = y; joyLastT = performance.now();
+  joyFlickVX = 0; joyFlickVY = 0;
   joyBase.style.left = x+'px'; joyBase.style.top = y+'px'; joyBase.style.display = 'block';
   joyKnob.style.left = x+'px'; joyKnob.style.top = y+'px'; joyKnob.style.display = 'block';
 }
 function joyMove(x, y){
   if (!joyActive) return;
+  const now = performance.now();
+  const dt = Math.max(1, now - joyLastT); // ms — évite une division par 0 sur deux évènements simultanés
+  joyFlickVX = (x - joyLastX) / dt;
+  joyFlickVY = (y - joyLastY) / dt;
+  joyLastX = x; joyLastY = y; joyLastT = now;
+
   const dx = x-joyOriginX, dy = y-joyOriginY;
   const dist = Math.hypot(dx, dy);
   const clamped = Math.min(dist, JOY_RADIUS);
@@ -584,6 +701,12 @@ function joyMove(x, y){
   }
 }
 function joyEnd(){
+  const flickSpeed = Math.hypot(joyFlickVX, joyFlickVY); // px/ms
+  if (flickSpeed > INERTIA_MIN_FLICK_SPEED){
+    const FRAME_MS = 16.7;
+    inertiaVX = Math.max(-INERTIA_MAX_PX_PER_FRAME, Math.min(INERTIA_MAX_PX_PER_FRAME, joyFlickVX * FRAME_MS));
+    inertiaVY = Math.max(-INERTIA_MAX_PX_PER_FRAME, Math.min(INERTIA_MAX_PX_PER_FRAME, joyFlickVY * FRAME_MS));
+  }
   joyActive = false;
   joyBase.style.display = 'none';
   joyKnob.style.display = 'none';
@@ -661,7 +784,9 @@ function playerShoot(now){
   }
   if (!target) return;
   lastShotAt = now;
-  projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg: PLAYER_DMG, source: 'player' });
+  // la balle grossit visiblement à chaque palier de dégâts acheté
+  const r = 4 + dmgLevel * 1.1;
+  projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg: effectivePlayerDmg(), r, source: 'player' });
   sfxShoot();
 }
 
@@ -687,6 +812,14 @@ function update(now){
       const len = Math.hypot(dx, dy) || 1;
       player.x += dx/len*PLAYER_SPEED*speedFactor;
       player.y += dy/len*PLAYER_SPEED*speedFactor;
+    }
+    // élan résiduel après un coup sec sur le joystick : glisse encore un
+    // peu, s'éteint vite tout seul
+    if (Math.abs(inertiaVX) > 0.05 || Math.abs(inertiaVY) > 0.05){
+      player.x += inertiaVX; player.y += inertiaVY;
+      inertiaVX *= INERTIA_DECAY; inertiaVY *= INERTIA_DECAY;
+    } else {
+      inertiaVX = 0; inertiaVY = 0;
     }
     resolveTowerCollision(player, TOWER_SOLID_RADIUS); // une tour, c'est aussi un mur
     player.x = Math.max(MARGIN, Math.min(STAGE_W-MARGIN, player.x));
@@ -716,6 +849,13 @@ function update(now){
     }
 
     playerShoot(now);
+
+    // revenu passif (acheté une fois pour toutes) : un peu d'or au fil du temps
+    if (autoGoldBought && now - lastAutoGoldAt >= AUTO_GOLD_INTERVAL_MS){
+      gold += 1;
+      lastAutoGoldAt = now;
+      floatingTexts.push({ x: player.x, y: player.y - 26, text: '+1', createdAt: now, color: '#d9a441' });
+    }
   }
   floatingTexts = floatingTexts.filter(f => now - f.createdAt < 700);
   playerAggroScore = Math.max(0, playerAggroScore - 0.01); // redescend doucement si le joueur arrête de taper
@@ -846,9 +986,13 @@ function update(now){
   document.getElementById('gold').textContent = gold;
   document.getElementById('wave').textContent = wave;
   document.getElementById('breach').textContent = breaches;
+  refreshBonusbar();
 }
 
 // dessine un petit pavé isométrique (3 faces) posé au point (cx, cyBase)
+// "stacked" est soit un booléen (une seule ligne médiane, comme avant),
+// soit un nombre d'étages (niveau de la tour) : dans ce cas on dessine une
+// ligne par jointure entre étages, pour que le renfort se voie vraiment
 function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked){
   const cyTop = cyBase - sh - 2*hh;
   const N = { x: cx,    y: cyTop };
@@ -866,10 +1010,14 @@ function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked){
   ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(E.x,E.y+sh); ctx.lineTo(S.x,S.y+sh); ctx.closePath(); ctx.fill();
 
   if (stacked){
+    const segments = stacked === true ? 2 : Math.max(1, stacked);
     ctx.strokeStyle = '#00000030';
-    ctx.beginPath();
-    ctx.moveTo(W.x, W.y+sh/2); ctx.lineTo(S.x, S.y+sh/2); ctx.lineTo(E.x, E.y+sh/2);
-    ctx.stroke();
+    for (let i = 1; i < segments; i++){
+      const frac = i / segments;
+      ctx.beginPath();
+      ctx.moveTo(W.x, W.y+sh*frac); ctx.lineTo(S.x, S.y+sh*frac); ctx.lineTo(E.x, E.y+sh*frac);
+      ctx.stroke();
+    }
   }
 }
 
@@ -929,11 +1077,14 @@ function draw(now){
   // encaisse rétrécit vers le sol, et disparaît une fois "coulée". Elle
   // devient brièvement translucide pendant qu'elle se fait attaquer.
   for (const t of towers){
-    const sh = TOWER_MAX_SH * Math.max(0, t.hp/t.maxHp);
+    const level = t.level || 1;
+    // chaque renfort ajoute un "étage" : plus haute au max, et cette
+    // hauteur max rétrécit avec les dégâts encaissés comme avant
+    const sh = TOWER_MAX_SH * level * Math.max(0, t.hp/t.maxHp);
     const flashing = now < (t.flashUntil || 0);
     layers.push({ y: t.y, draw: () => {
       if (flashing) ctx.globalAlpha = 0.45;
-      drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', true);
+      drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', level);
       if (flashing) ctx.globalAlpha = 1;
     }});
   }
@@ -950,24 +1101,35 @@ function draw(now){
 
   for (const pr of projectiles){
     layers.push({ y: pr.y, draw: () => {
-      const grad = ctx.createRadialGradient(pr.x-1.5, pr.y-1.5, 0.5, pr.x, pr.y, 4);
+      const r = pr.r || 4;
+      const grad = ctx.createRadialGradient(pr.x-r*0.4, pr.y-r*0.4, 0.5, pr.x, pr.y, r);
       grad.addColorStop(0, '#4a4a4a');
       grad.addColorStop(1, '#000000');
       ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(pr.x, pr.y, 4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(pr.x, pr.y, r, 0, Math.PI*2); ctx.fill();
     }});
   }
 
-  // couleur du joueur : jaune (plein) -> rouge (à bout), + flash bref au
-  // moment d'un coup encaissé
-  const healthT = 1 - playerHealth/PLAYER_MAX_HEALTH; // 0 sain -> 1 à bout
-  const flashing2 = now < playerFlashUntil;
-  const pTop = flashing2 ? '#ff5c5c' : lerpColor('#f7d67a', '#c23f3f', healthT);
-  const pLeft = flashing2 ? '#e04040' : lerpColor('#e0b04e', '#9c2f2f', healthT);
-  const pRight = flashing2 ? '#b52c2c' : lerpColor('#b98a34', '#6e1f1f', healthT);
-  layers.push({ y: player.y, draw: () => {
-    drawIsoBox(player.x, player.y, PLAYER_HW, PLAYER_HH, PLAYER_SH, pTop, pLeft, pRight);
-  }});
+  // le joueur disparaît complètement une fois mort (spectateur) — rien à
+  // dessiner à sa place, il ne reviendra qu'après "revivre"
+  if (!playerDead){
+    // couleur du joueur : jaune (plein) -> rouge (à bout), + flash bref au
+    // moment d'un coup encaissé
+    const healthT = 1 - playerHealth/PLAYER_MAX_HEALTH; // 0 sain -> 1 à bout
+    const flashing2 = now < playerFlashUntil;
+    const pTop = flashing2 ? '#ff5c5c' : lerpColor('#f7d67a', '#c23f3f', healthT);
+    const pLeft = flashing2 ? '#e04040' : lerpColor('#e0b04e', '#9c2f2f', healthT);
+    const pRight = flashing2 ? '#b52c2c' : lerpColor('#b98a34', '#6e1f1f', healthT);
+    // à 10% de vie ou moins, clignote (alarme visuelle) — indépendant du
+    // flash rouge bref d'un coup encaissé, qui reste prioritaire dessus
+    const critical = playerHealth <= PLAYER_MAX_HEALTH * 0.1;
+    const blinkOn = !critical || Math.floor(now / 150) % 2 === 0;
+    layers.push({ y: player.y, draw: () => {
+      if (!blinkOn) ctx.globalAlpha = 0.3;
+      drawIsoBox(player.x, player.y, PLAYER_HW, PLAYER_HH, PLAYER_SH, pTop, pLeft, pRight);
+      if (!blinkOn) ctx.globalAlpha = 1;
+    }});
+  }
 
   layers.sort((a, b) => a.y - b.y);
   for (const l of layers) l.draw();
@@ -1030,6 +1192,7 @@ function resetGame(startingGold){
   spawned = 0; enemiesThisWave = 5; spawnTimer = 0; spawnInterval = pickNextSpawnDelay();
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
+  autoGoldBought = false; lastAutoGoldAt = 0; dmgLevel = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 })); recentSuccesses = [];
   player.x = STAGE_W/2; player.y = STAGE_H - 70;
   spawnBoat(performance.now());
