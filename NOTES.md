@@ -222,6 +222,12 @@ Format condensé — l'idée, pas la formulation exacte.
   honnête qu'accorder le bonus en silence, vu qu'il n'y a pas de vraie
   pub branchée. Compteur de clics à ajouter plus tard (stats). Même
   traitement fait sur Knight Wars (bouton pub premium).
+- **Deux cadences pour le tir manuel (v17.3)** : répéter le tap tire plus
+  vite (cadence courte, 150ms — juste assez pour empêcher un spam
+  littéral), rester appuyé donne un rythme fixe plus lent (500ms). Le
+  seuil entre les deux : un relâchement avant 250ms = un tap ; au-delà,
+  bascule en maintien. Distinction par une vraie mesure du temps
+  d'appui/relâchement, pas une estimation.
 
 ## 📜 Historique des versions (résumé)
 
@@ -259,3 +265,5 @@ Format condensé — l'idée, pas la formulation exacte.
 - v17.2 : tir manuel par défaut (tap/clic) + bonus "tir auto" (4e bouton),
   revenu passif à paliers (au lieu d'un achat unique), fausse erreur de
   pub honnête avant d'accorder le bonus (même chose sur Knight Wars)
+- v17.3 : deux cadences de tir manuel (tap répété = rapide, maintien = fixe
+  et plus lent)
