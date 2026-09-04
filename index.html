@@ -614,15 +614,38 @@ function effectivePlayerDmg(){ return Math.round(PLAYER_DMG * Math.pow(UPGRADE_P
 const TOWER_BUILD_COST = 10;
 const TOWER_BASE_HP = 30;
 const TOWER_UPGRADE_COST = 10; // même prix de départ qu'une tour neuve
+// renforcer une tour doit TOUJOURS rester garanti plus rentable que
+// construire une tour neuve à côté (10 or -> 30 PV, 3 PV/or), à chaque
+// palier, pour toujours — pas juste au début. Une pure croissance
+// géométrique DEPUIS TOWER_BASE_HP donnerait des gains minuscules aux
+// premiers paliers (30×5% = 1,5 PV) impossible à garder rentable sans
+// coûts ridicules. Solution : chaque palier ajoute un INCRÉMENT qui,
+// lui, grandit géométriquement (au lieu de faire grandir le total dès
+// la base) — l'incrément du 1er renfort vaut 40 PV (repris tel quel de
+// v17.9, déjà validé : 40/10 = 4 PV/or > 3 PV/or), et grandit ensuite de
+// 5%/palier comme le reste de la progression. Comme cet incrément
+// grandit plus vite (5%) que le coût (2,7%), le ratio PV/or ne fait que
+// s'améliorer avec le niveau : garanti ≥ 4 PV/or pour toujours, jamais
+// pire qu'au palier 1. Même logique pour les dégâts (incrément de 6,
+// repris de v17.9).
+const TOWER_HP_INCREMENT_BASE = 40;
+const TOWER_DMG_INCREMENT_BASE = 6;
+function geometricSum(n){ return (Math.pow(UPGRADE_POWER_GROWTH, n) - 1) / (UPGRADE_POWER_GROWTH - 1); } // somme des paliers 1..n
 function towerUpgradeCost(t){ return Math.round(TOWER_UPGRADE_COST * Math.pow(UPGRADE_COST_GROWTH, (t.level||1) - 1)); }
-function towerMaxHpAtLevel(level){ return Math.round(TOWER_BASE_HP * Math.pow(UPGRADE_POWER_GROWTH, level - 1)); }
-function towerDamage(t){ return Math.round(PLAYER_DMG * Math.pow(UPGRADE_POWER_GROWTH, (t.level||1) - 1)); }
+function towerMaxHpAtLevel(level){ return Math.round(TOWER_BASE_HP + TOWER_HP_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))); }
+function towerDamage(t){ const level = t.level || 1; return Math.round(PLAYER_DMG + TOWER_DMG_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))); }
 // 4. tir automatique : par défaut le joueur tire MANUELLEMENT (un tap/clic
 //    déclenche un tir, gratuit dès le début, cadence identique à
 //    l'automatique — voir tryManualShoot) ; ce bonus lui évite d'avoir à
 //    taper à chaque tir. Le bonus dégâts s'applique dans les deux modes.
-const AUTO_FIRE_COST = 20;
-let autoFireBought = false;
+//    Comme les 3 autres, en progression infinie par formule : chaque
+//    palier réduit encore l'intervalle entre deux tirs auto (le "débit"),
+//    jusqu'à un plancher pour rester jouable (pas un cadencement infini).
+const AUTO_FIRE_COST_BASE = 20;
+const AUTO_FIRE_MIN_INTERVAL_MS = 80; // plancher : au-delà, investir encore n'accélère quasiment plus
+let autoFireLevel = 0;
+function autoFireCost(){ return Math.round(AUTO_FIRE_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, autoFireLevel)); }
+function autoFireInterval(){ return Math.max(AUTO_FIRE_MIN_INTERVAL_MS, SHOT_INTERVAL_MS / Math.pow(UPGRADE_POWER_GROWTH, autoFireLevel)); }
 
 // la tour se cale sur la case de la grille juste au-dessus du joueur (côté
 // ennemis) — comme cette case dépend d'où le joueur se trouve à l'instant
@@ -738,14 +761,16 @@ document.getElementById('damage-btn').addEventListener('click', () => {
 document.getElementById('tower-btn').addEventListener('click', tryTowerAction);
 window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'b') tryTowerAction(); });
 document.getElementById('autofire-btn').addEventListener('click', () => {
-  if (autoFireBought || gold < AUTO_FIRE_COST) return;
-  gold -= AUTO_FIRE_COST;
-  autoFireBought = true;
+  const cost = autoFireCost();
+  if (gold < cost) return;
+  gold -= cost;
+  autoFireLevel++;
 });
 
-// affiche l'état courant des 4 boutons (coût, "Actif", grisé si pas
-// assez d'or) — rappelé à chaque frame, comme le reste du HUD. Plus de
-// "Max" : la progression est infinie, seul le manque d'or bloque l'achat.
+// affiche l'état courant des 4 boutons (coût, grisé si pas assez d'or) —
+// rappelé à chaque frame, comme le reste du HUD. Plus de "Max"/"Actif" :
+// la progression est infinie, seul le manque d'or bloque l'achat (le tir
+// auto se voit directement à l'écran une fois le 1er palier acheté).
 function refreshBonusbar(){
   const disabledAll = playerDead || gameOver;
   const agCost = autoGoldCost();
@@ -753,9 +778,10 @@ function refreshBonusbar(){
   agBtn.disabled = disabledAll || gold < agCost;
   document.getElementById('autogold-cost').textContent = agCost + ' or';
 
+  const afCost = autoFireCost();
   const afBtn = document.getElementById('autofire-btn');
-  afBtn.disabled = disabledAll || autoFireBought || gold < AUTO_FIRE_COST;
-  document.getElementById('autofire-cost').textContent = autoFireBought ? 'Actif' : (AUTO_FIRE_COST + ' or');
+  afBtn.disabled = disabledAll || gold < afCost;
+  document.getElementById('autofire-cost').textContent = afCost + ' or';
 
   const dCost = dmgUpgradeCost();
   const dBtn = document.getElementById('damage-btn');
@@ -819,6 +845,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.13, text: "Renfort de tour garanti plus rentable qu'une tour neuve à tout niveau (incrément géométrique au lieu du total) ; tir auto en progression infinie (débit, plus un simple interrupteur)" },
   { v: 17.12, text: "Correctif audio iPhone (interrupteur silence) ; construction de tour jamais bloquée (décale sur le côté) ; château = 10 tranches détruites par les brèches (remplace le compteur texte) ; vague affichée en haut au centre ; bateau et chemin en isométrique" },
   { v: 17.11, text: "Progression infinie par formule (or total dépensé, coût +2,7%/palier, puissance +5%/palier) — remplace les paliers plafonnés (or passif, dégâts, tours) de v17.9" },
   { v: 17.10, text: "Réparer une tour coûte 1 or par session (gratuit tant qu'on reste, recoûte si on part et revient)" },
@@ -1028,12 +1055,12 @@ function spawnEnemy(now){
 let lastAutoShotAt = 0, lastManualShotAt = 0;
 function playerShoot(now, manualInterval){
   const isManual = manualInterval !== undefined;
-  if (!isManual && !autoFireBought) return;
+  if (!isManual && autoFireLevel === 0) return;
   let effectiveInterval = manualInterval;
   if (!isManual){
     // chaque palier de dégâts encaissé retire 5% à la cadence de tir (tir auto seulement)
     const dmgStage = Math.round(PLAYER_MAX_HEALTH - playerHealth); // 0 (plein) à 10 (à bout)
-    effectiveInterval = SHOT_INTERVAL_MS / Math.max(0.5, 1 - dmgStage*0.05);
+    effectiveInterval = autoFireInterval() / Math.max(0.5, 1 - dmgStage*0.05);
   }
   const lastShot = isManual ? lastManualShotAt : lastAutoShotAt;
   if (now - lastShot < effectiveInterval) return;
@@ -1569,7 +1596,7 @@ function resetGame(startingGold){
   repairingTower = null;
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
-  autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireBought = false;
+  autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0;
   lastAutoShotAt = 0; lastManualShotAt = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 })); recentSuccesses = [];
   player.x = STAGE_W/2; player.y = STAGE_H - 70;

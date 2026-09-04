@@ -9,11 +9,16 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 🚧 En cours
 
-- **Cadence de tir (tir manuel + tir auto) en progression infinie par
-  formule**, comme l'or passif/dégâts/tours (v17.11) : au lieu d'un
-  "tir auto" acheté une fois pour toutes (bouton actuel : simple
-  interrupteur), pouvoir continuer à dépenser de l'or pour augmenter le
-  débit de tir. Demandé, pas encore conçu ni codé.
+- **Progression des types d'ennemis par vague, à revoir.** Aujourd'hui
+  (v17.9) : type 2/3 tirés au hasard dès le début (~15%/15%/70%), boss
+  toutes les 5 vagues. Demandé à la place : une introduction progressive
+  et lisible — commencer très simple, puis introduire un type à la fois
+  (exemple donné en réfléchissant à voix haute, pas une règle figée :
+  peut-être le type 2 dès la vague 5, le type 3 vers la vague 10 avec
+  "deux modèles 2 et un modèle 3"), et le boss ("le gros") repoussé
+  beaucoup plus loin — vers la vague 200 plutôt que toutes les 5 vagues,
+  très rare en début de partie. Pas encore clarifié en détail (quiz
+  envoyé), pas codé.
 
 ## 📋 À faire (demandé, pas encore fait)
 
@@ -466,3 +471,30 @@ erreur), 6 constructions à la suite sans chevauchement ni échec silencieux,
 château/bateau/chemin dessinés sans erreur JS pendant 30s de jeu multi-
 vagues, suite de régression complète (test-big, test-features,
 test-autofire, test-cadence, test-joyfire, test-bonusbar) toujours verte.
+
+## v17.13 : garantie économie des tours + tir auto en progression infinie
+
+- **Renfort de tour toujours garanti plus rentable qu'une tour neuve**,
+  demandé explicitement en revenant sur le compromis noté en v17.11 (qui
+  laissait l'écart se creuser avec le temps sans le garantir dès le
+  départ). Correctif mathématique : au lieu de faire grandir le PV TOTAL
+  de façon géométrique depuis la base (30 PV), ce qui donne des gains
+  minuscules aux premiers paliers (1,5 PV au palier 1, impossible à
+  garder rentable sans coûts ridicules), c'est l'INCRÉMENT ajouté à
+  chaque palier qui grandit géométriquement (5%/palier), en partant de
+  40 PV au 1er renfort — repris tel quel de v17.9, déjà validé (40/10 or
+  = 4 PV/or, mieux que les 3 PV/or d'une tour neuve). Comme l'incrément
+  grandit plus vite (5%) que le coût du renfort (2,7%), le ratio ne fait
+  QUE s'améliorer avec le niveau : 4 PV/or au palier 1, 4,8 au palier 10,
+  36 au palier 100, 3007 au palier 300 — jamais en dessous de 4, garanti
+  pour toujours, pas seulement en moyenne. Même traitement pour les
+  dégâts des tours (incrément de 6, repris de v17.9).
+- **Tir auto en progression infinie** : n'est plus un simple interrupteur
+  acheté une fois (20 or) mais un palier de plus qu'on peut continuer à
+  acheter pour augmenter le débit (intervalle entre deux tirs auto réduit
+  de 5%/palier, jusqu'à un plancher de 80ms pour rester jouable).
+
+Vérifié avec Playwright : ratio PV/or calculé aux paliers 1, 2, 3, 5, 10,
+30, 100, 300 (toujours ≥ 4, jamais en dessous du seuil de 3 d'une tour
+neuve), dégâts et intervalle de tir auto cohérents à plusieurs paliers,
+suite de régression (bonusbar, autofire, cadence) toujours verte.
