@@ -250,8 +250,18 @@ Format condensé — l'idée, pas la formulation exacte.
   Chacun a maintenant son propre minuteur (`lastAutoShotAt` /
   `lastManualShotAt`) : rester appuyé ou taper en plus du tir auto ajoute
   vraiment des tirs supplémentaires, ça ne les remplace pas.
-
-## 📜 Historique des versions (résumé)
+- **Portée illimitée + précision par la distance, joueur uniquement
+  (v17.7)** : le joueur peut désormais viser n'importe quel ennemi, quelle
+  que soit la distance (plus de plafond de portée). En contrepartie, la
+  précision baisse avec l'éloignement : 100% en dessous d'un quart de
+  l'ancienne portée de référence (200px), puis dégrade sur 10 paliers
+  jusqu'à 20% (1 tir sur 5) à cette distance de référence et au-delà
+  (jamais 0 — on peut toujours tirer très loin, juste peu fiable). Un tir
+  raté part quand même, mais dévie nettement à côté (angle aléatoire,
+  17-34°) — et peut, par hasard, toucher un autre ennemi croisé sur sa
+  trajectoire déviée. Encourage à s'approcher sans l'imposer. Les tours
+  gardent leur portée fixe et leur précision garantie (inchangé) — ce
+  système ne concerne que le joueur.
 
 - v1 : prototype initial (déplacement, tours, vagues)
 - v2 : contrôles tactiles (joystick, double-tap), style beige
@@ -293,3 +303,6 @@ Format condensé — l'idée, pas la formulation exacte.
 - v17.5 : plafond du tir manuel remonté à 20 taps/s (50ms, au lieu de 150ms)
 - v17.6 : correctif tir manuel pendant un déplacement au joystick ; tir
   auto et manuel se cumulent au lieu de se bloquer
+- v17.7 : portée du joueur illimitée, précision dégradée par la distance
+  (10 paliers, 100%→20%), tir raté qui dévie visiblement et peut toucher
+  un autre ennemi par hasard

@@ -144,8 +144,26 @@ let STAGE_W = 0, STAGE_H = 0;
 const MARGIN = 22;
 
 const PLAYER_SPEED = 4;      // px/frame
+// portée du joueur : illimitée (peut toujours viser l'ennemi le plus
+// proche, où qu'il soit) — mais la précision baisse avec la distance.
+// PLAYER_RANGE_PX sert maintenant de distance de référence pour ce calcul
+// (pas de plafond dur) : en dessous d'un quart de cette distance, tir
+// garanti ; au-delà, la précision dégrade sur 10 paliers jusqu'à 20% de
+// chance de toucher à cette distance de référence (et plafonne à 20%
+// au-delà, jamais 0 — on peut toujours tirer loin, juste moins fiable).
 const PLAYER_RANGE_PX = 200;
-const TOWER_RANGE_PX = 160;
+const ACCURACY_FULL_FRACTION = 0.25; // en dessous de 25% de PLAYER_RANGE_PX : 100% de précision
+const ACCURACY_ZONES = 10;
+const ACCURACY_MIN = 0.2; // à PLAYER_RANGE_PX (et au-delà) : 20% de précision (1 tir sur 5)
+const MISS_DEVIATION_MIN = 0.3, MISS_DEVIATION_MAX = 0.6; // radians — assez pour qu'on voie clairement que ça part à côté
+function hitChanceForDistance(d){
+  const fullRangeDist = PLAYER_RANGE_PX * ACCURACY_FULL_FRACTION;
+  if (d <= fullRangeDist) return 1;
+  const t = Math.min(1, (d - fullRangeDist) / (PLAYER_RANGE_PX - fullRangeDist));
+  const zone = Math.min(ACCURACY_ZONES - 1, Math.floor(t * ACCURACY_ZONES));
+  return 1 - (zone / (ACCURACY_ZONES - 1)) * (1 - ACCURACY_MIN);
+}
+const TOWER_RANGE_PX = 160; // les tours, elles, gardent une portée fixe et une précision parfaite
 const SHOT_SPEED_PX = 8;     // px/frame
 const TOWER_MAX_SH = 28, TOWER_HW = 10, TOWER_HH = 5;
 const PLAYER_HW = 9, PLAYER_HH = 5, PLAYER_SH = 14;
@@ -651,6 +669,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.7, text: "Portée du joueur illimitée ; précision dégradée par la distance (10 paliers, 100%→20%) ; un tir raté dévie visiblement et peut toucher un autre ennemi par hasard" },
   { v: 17.6, text: "Correctif : le tir manuel ne se déclenche plus pendant un déplacement au joystick ; tir auto + manuel se cumulent au lieu de se bloquer" },
   { v: 17.5, text: "Plafond du tir manuel remonté à 20 taps/s (50ms, au lieu de 150ms)" },
   { v: 17.4, text: "Vague 1 réduite à 2 ennemis (au lieu de 5)" },
@@ -867,7 +886,10 @@ function playerShoot(now, manualInterval){
   }
   const lastShot = isManual ? lastManualShotAt : lastAutoShotAt;
   if (now - lastShot < effectiveInterval) return;
-  let target = null, best = PLAYER_RANGE_PX;
+  // portée illimitée : on vise toujours l'ennemi le plus proche, quelle
+  // que soit la distance (pas de plafond ici — c'est la précision qui
+  // se charge de décourager le tir à très longue distance)
+  let target = null, best = Infinity;
   for (const e of enemies){
     const d = Math.hypot(e.x-player.x, e.y-player.y);
     if (d < best){ best = d; target = e; }
@@ -876,7 +898,18 @@ function playerShoot(now, manualInterval){
   if (isManual) lastManualShotAt = now; else lastAutoShotAt = now;
   // la balle grossit visiblement à chaque palier de dégâts acheté
   const r = 4 + dmgLevel * 1.1;
-  projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg: effectivePlayerDmg(), r, source: 'player' });
+  const dmg = effectivePlayerDmg();
+  if (Math.random() < hitChanceForDistance(best)){
+    projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg, r, source: 'player' });
+  } else {
+    // raté : le tir part quand même, mais dévie nettement à côté — et
+    // peut, par hasard, toucher un autre ennemi sur son passage
+    const angle = Math.atan2(target.y-player.y, target.x-player.x)
+      + (Math.random()<0.5?-1:1) * (MISS_DEVIATION_MIN + Math.random()*(MISS_DEVIATION_MAX-MISS_DEVIATION_MIN));
+    const destX = player.x + Math.cos(angle) * (best + 40);
+    const destY = player.y + Math.sin(angle) * (best + 40);
+    projectiles.push({ x: player.x, y: player.y, destX, destY, wild: true, speed: SHOT_SPEED_PX, dmg, r, source: 'player' });
+  }
   sfxShoot();
 }
 
@@ -991,6 +1024,23 @@ function update(now){
   towers = towers.filter(t => t.hp > 0); // à 0, la tour a "coulé" jusqu'au sol, sans bruit
 
   for (const pr of projectiles){
+    if (pr.wild){
+      // tir raté : file vers un point fixe dévié (pas de poursuite), mais
+      // peut quand même toucher par hasard un ennemi croisé en chemin
+      let hitSomeone = null;
+      for (const e of enemies){
+        if (Math.hypot(e.x-pr.x, e.y-pr.y) < 6){ hitSomeone = e; break; }
+      }
+      if (hitSomeone){
+        hitSomeone.hp -= pr.dmg; pr.dead = true; sfxHit();
+        if (pr.source === 'player') playerAggroScore += 1;
+        continue;
+      }
+      const dx = pr.destX-pr.x, dy = pr.destY-pr.y, d = Math.hypot(dx, dy);
+      if (d < 6) pr.dead = true; // arrivé à destination sans rien toucher : disparaît, sans bruit
+      else { pr.x += dx/d*pr.speed; pr.y += dy/d*pr.speed; }
+      continue;
+    }
     if (!enemies.includes(pr.target) || pr.target.hp <= 0){ pr.dead = true; continue; }
     const dx = pr.target.x-pr.x, dy = pr.target.y-pr.y, d = Math.hypot(dx, dy);
     if (d < 6){
