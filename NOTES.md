@@ -234,16 +234,15 @@ Format condensé — l'idée, pas la formulation exacte.
   habituelle (+3 par vague).
 - **Plafond du tir manuel remonté à 20 taps/s (v17.5)**, 50ms au lieu de
   150ms.
-- **Correctif : tir manuel qui se déclenchait pendant un déplacement au
-  joystick (v17.6)**. Cause : le déclencheur du tir manuel se fiait à la
-  distance du doigt depuis son point de contact initial, pas à l'état réel
-  du joystick — une petite déflexion tenue quelques centaines de ms
-  ressemblait à "doigt immobile" et déclenchait un tir alors qu'on
-  déplaçait le joueur. Corrigé avec un vrai drapeau (`joyEngagedThisTouch`)
-  posé dès que CE geste dépasse la zone morte du joystick, quel que soit
-  l'endroit où le doigt finit — le tir manuel est ignoré tant que ce
-  drapeau est vrai. Vérifié : déplacement franc tenu 800ms → aucun tir ;
-  appui quasi immobile (sous la zone morte) tenu 800ms → tire bien.
+- **Tir manuel pendant un déplacement au joystick (v17.6, ANNULÉ en
+  v17.8)** : j'avais mal compris une demande et "corrigé" un comportement
+  qui n'était pas un bug — j'avais fait en sorte qu'un doigt qui bouge le
+  joystick (`joyEngagedThisTouch`) empêche le tir manuel de se déclencher.
+  Précision reçue ensuite : c'est voulu que rester appuyé tire, qu'on soit
+  en train de bouger ou pas — un seul doigt doit pouvoir déplacer ET tirer
+  en même temps. Revenu en arrière (le drapeau `joyEngagedThisTouch` est
+  retiré, plus utile) : maintenant, tenir le doigt appuyé tire à la
+  cadence de maintien, indépendamment du déplacement.
 - **Tir auto et tir manuel se cumulent (v17.6)** : avant, les deux
   partageaient le même minuteur de cadence et se bloquaient l'un l'autre
   une fois le tir auto acheté (tenir/taper en plus ne faisait plus rien).
@@ -262,6 +261,9 @@ Format condensé — l'idée, pas la formulation exacte.
   trajectoire déviée. Encourage à s'approcher sans l'imposer. Les tours
   gardent leur portée fixe et leur précision garantie (inchangé) — ce
   système ne concerne que le joueur.
+- **Annulé le correctif v17.6 sur le tir pendant un déplacement (v17.8)** :
+  malentendu de ma part, voir la note v17.6 mise à jour ci-dessus. Rester
+  appuyé tire maintenant, qu'on bouge le joueur ou pas.
 
 ## 📜 Historique des versions (résumé)
 
@@ -303,8 +305,9 @@ Format condensé — l'idée, pas la formulation exacte.
   et plus lent)
 - v17.4 : vague 1 réduite à 2 ennemis (au lieu de 5)
 - v17.5 : plafond du tir manuel remonté à 20 taps/s (50ms, au lieu de 150ms)
-- v17.6 : correctif tir manuel pendant un déplacement au joystick ; tir
-  auto et manuel se cumulent au lieu de se bloquer
+- v17.6 : tir manuel pendant un déplacement au joystick — ANNULÉ en v17.8
+  (malentendu) ; tir auto et manuel se cumulent au lieu de se bloquer
 - v17.7 : portée du joueur illimitée, précision dégradée par la distance
   (10 paliers, 100%→20%), tir raté qui dévie visiblement et peut toucher
   un autre ennemi par hasard
+- v17.8 : annule le correctif v17.6 — rester appuyé tire même en bougeant

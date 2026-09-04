@@ -669,6 +669,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.8, text: "Annule le correctif v17.6 (malentendu) : rester appuyé tire même en bougeant le joueur" },
   { v: 17.7, text: "Portée du joueur illimitée ; précision dégradée par la distance (10 paliers, 100%→20%) ; un tir raté dévie visiblement et peut toucher un autre ennemi par hasard" },
   { v: 17.6, text: "Correctif : le tir manuel ne se déclenche plus pendant un déplacement au joystick ; tir auto + manuel se cumulent au lieu de se bloquer" },
   { v: 17.5, text: "Plafond du tir manuel remonté à 20 taps/s (50ms, au lieu de 150ms)" },
@@ -717,12 +718,6 @@ const joyKnob = document.getElementById('joy-knob');
 let joyActive = false, joyOriginX = 0, joyOriginY = 0;
 let joyDX = 0, joyDY = 0; // vecteur de direction continu (mouvement fluide, pas 4 directions figées)
 let joyMagnitude = 0; // 0..1, proportionnel à la distance tirée (vitesse analogique)
-// vrai dès que CE geste a fait dépasser la zone morte au moins une fois —
-// sert à ce que le tir manuel (plus bas) ignore un doigt qui déplace
-// réellement le joueur, même s'il finit par se stabiliser près de son
-// point de départ (une petite déflexion tenue reste un déplacement, pas
-// une intention de tir)
-let joyEngagedThisTouch = false;
 const JOY_RADIUS = 40, JOY_DEADZONE = 12;
 
 // élan résiduel après un coup sec sur le joystick (relâché juste après un
@@ -739,7 +734,6 @@ function joyStart(x, y){
   joyActive = true; joyOriginX = x; joyOriginY = y;
   joyLastX = x; joyLastY = y; joyLastT = performance.now();
   joyFlickVX = 0; joyFlickVY = 0;
-  joyEngagedThisTouch = false;
   joyBase.style.left = x+'px'; joyBase.style.top = y+'px'; joyBase.style.display = 'block';
   joyKnob.style.left = x+'px'; joyKnob.style.top = y+'px'; joyKnob.style.display = 'block';
 }
@@ -761,7 +755,6 @@ function joyMove(x, y){
   if (dist > JOY_DEADZONE){
     joyDX = Math.cos(angle); joyDY = Math.sin(angle);
     joyMagnitude = Math.min(1, (dist-JOY_DEADZONE) / (JOY_RADIUS-JOY_DEADZONE));
-    joyEngagedThisTouch = true;
   } else {
     joyDX = 0; joyDY = 0; joyMagnitude = 0;
   }
@@ -801,10 +794,6 @@ document.addEventListener('pointerup', e => {
   if (!pointerIsDown) return;
   pointerIsDown = false;
   if (playerDead) return;
-  // si ce geste a fait bouger le joystick au-delà de sa zone morte, c'était
-  // un déplacement, pas une intention de tir — même s'il finit collé à son
-  // point de départ (ex: on relâche juste après avoir repoussé le joystick)
-  if (joyEngagedThisTouch) return;
   const heldMs = Date.now() - pointerDownAt;
   // relâché avant le seuil de maintien : un tap, cadence courte (répéter vite = tirer vite)
   if (heldMs < MANUAL_HOLD_START_MS) playerShoot(performance.now(), MANUAL_TAP_COOLDOWN_MS);
@@ -976,9 +965,10 @@ function update(now){
     // tir manuel en restant appuyé (au-delà du seuil de tap) : cadence
     // fixe, plus lente qu'en tapant vite plusieurs fois de suite — reste
     // actif même une fois le tir auto acheté (les deux se cumulent, pas
-    // besoin de le désactiver) ; ignoré si ce doigt fait aussi bouger le
-    // joueur via le joystick (sinon on tirerait en boucle en se déplaçant)
-    if (pointerIsDown && !joyEngagedThisTouch){
+    // besoin de le désactiver). Se déclenche qu'on soit en train de bouger
+    // le joueur via le joystick ou pas : rester appuyé tire, point final —
+    // ça permet de bouger et tirer en même temps avec un seul doigt.
+    if (pointerIsDown){
       const heldMs = Date.now() - pointerDownAt;
       if (heldMs >= MANUAL_HOLD_START_MS) playerShoot(now, MANUAL_HOLD_INTERVAL_MS);
     }
