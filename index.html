@@ -15,6 +15,7 @@
   #menu-panel a:hover{background:#00000010}
   #menu-panel .disabled{opacity:.45;cursor:default}
 
+  #wave-label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:14px;font-weight:600;white-space:nowrap;pointer-events:none}
   #version-btn{margin-left:auto;margin-right:12px;padding:6px 10px;border-radius:8px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:13px;font-family:inherit;cursor:pointer}
   #version-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);right:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:230px;max-width:280px;z-index:10;padding:10px 14px;font-size:13px;line-height:1.7}
   #version-panel .v{font-weight:600;margin-right:4px}
@@ -83,6 +84,7 @@
     <a id="faq-toggle" href="#">Aide / FAQ</a>
     <a id="menu-restart" href="#">Recommencer une nouvelle partie</a>
   </div>
+  <div id="wave-label">Vague <span id="wave">1</span></div>
   <button id="version-btn" aria-label="Historique des versions"></button>
   <div id="version-panel"></div>
 </div>
@@ -126,9 +128,7 @@
 
 <div id="bottombar">
   <div id="hud">
-    Or : <span id="gold">0</span> —
-    Vague : <span id="wave">1</span> —
-    Brèches : <span id="breach">0</span>/10
+    Or : <span id="gold">0</span>
   </div>
 </div>
 
@@ -170,18 +170,17 @@ const PLAYER_HW = 9, PLAYER_HH = 5, PLAYER_SH = 14;
 
 // thème débarquement viking : une bande d'eau tout en haut (la plage),
 // un bateau d'où sortent les ennemis — le reste de la carte est le
-// château fort qu'on défend. Icône du bateau reprise du jeu Knight Wars.
+// château fort qu'on défend. Coque dessinée en isométrique (même
+// technique que les tours, drawIsoBox) plutôt qu'un sprite PNG à plat —
+// demandé pour rester cohérent avec la perspective du reste du décor.
 const WATER_H = 46;
-const BOAT_W = 74, BOAT_H = 74;
-const boatImg = new Image();
-boatImg.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMYAAADGCAYAAACJm/9dAAACh0lEQVR4nO3dMYoDMRAAQeu4/39ZF9jJQSdaEOsVVQ8w66CZZBiNOecL+O/n7g+AbyQMCMKAIAwIwoAgDAjCgCAMCMKAIAwIv3d/wBONMbbs0cw5x47fZZ2JAUEYEIQBQRgQhAFBGBCEAUEYEIQBQRgQhishb7vWPHaxPrKXiQFBGBCEAUEYEIQBQRgQhAFBGBCEAUEYEI5eCdl4zWPHz77G2LPlYX1knYkBQRgQhAFBGBCEAUEYEIQBQRgQhAFBGBA8HPPxDasxK9+wa32ENxMDgjAgCAOCMCAIA4IwIAgDgjAgCAOCMCA87krI0x54eRoXRd5MDAjCgCAMCMKAIAwIwoAgDAjCgCAMCMKAIAwIwoAgDAjCgCAMCMKAIAwIwoAgDAjCgCAMCEc/HPO0Cyi7eGRmnYkBQRgQhAFBGBCEAUEYEIQBQRgQhAFBGBCEAUEYEIQBQRgQhAFBGBCEAUEYEIQBQRgQhAHh6CshrmNwlYkBQRgQhAFBGBCEAUEYEIQBQRgQhAFBGBCEAUEYEIQBQRgQhAFBGBCEAUEYEIQBQRgQhAHh6Cshc867P+EruJayzsSAIAwIwoAgDAjCgCAMCMKAIAwIwoAgDAjCgCAMCMKAIAwIwoAgDAjCgCAMCMKAIAwIwoBw9JUQ1zG4ysSAIAwIwoAgDAjCgCAMCMKAIAwIwoAgDAjj5MdVxhjn/rkFc067MYtMDAjCgCAMCMKAIAwIwoAgDAjCgCAMCMKAcPRKCFxlYkAQBgRhQBAGBGFAEAYEYUAQBgRhQBAGBGFAEAYEYUAQBgRhQBAGBGFAEAYEYUAQBgRhQBAGBGFAEAYEYUAQBgRhQBAGBGFAEAYEYUAQBoQ/r102hM4RmYEAAAAASUVORK5CYII=';
+const BOAT_W = 74, BOAT_H = 74; // encombrement pour le calcul de la zone de débarquement des ennemis
+const BOAT_HW = 24, BOAT_HH = 14, BOAT_SH = 10; // dimensions de la coque isométrique
 
 // un bateau par vague : arrive en glissant depuis le large (au-dessus de
 // l'écran) jusqu'à un point d'échouage tiré au sort, avec une légère
-// rotation aléatoire ("posé à l'arrache"). La proue (pointe du sprite,
-// vers le haut à l'origine) doit toucher la plage en premier, donc on la
-// retourne (rotation de base + PI). Les ennemis de la vague ne sortent
-// qu'une fois le bateau échoué.
+// rotation aléatoire ("posé à l'arrache"). Les ennemis de la vague ne
+// sortent qu'une fois le bateau échoué.
 let boat = null; // {x, y, targetX, targetY, rot, startedAt, duration, landed}
 function spawnBoat(now){
   const margin = BOAT_W*0.7;
@@ -203,12 +202,26 @@ function updateBoat(now){
   if (t >= 1){ boat.y = boat.targetY; boat.landed = true; }
 }
 function drawBoat(){
-  if (!boat || !(boatImg.complete && boatImg.naturalWidth)) return;
+  if (!boat) return;
   const cx = boat.x, cy = boat.y + BOAT_H/2;
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(Math.PI + boat.rot); // proue vers le bas (vers la plage) + inclinaison
-  ctx.drawImage(boatImg, -BOAT_W/2, -BOAT_H/2, BOAT_W, BOAT_H);
+  ctx.rotate(boat.rot); // légère inclinaison, échoué "à l'arrache"
+  // coque : un pavé isométrique large et bas, couleur bois (même
+  // fonction que les tours, juste des proportions différentes)
+  drawIsoBox(0, 0, BOAT_HW, BOAT_HH, BOAT_SH, '#a9764a', '#7a5233', '#5c3f26', 1);
+  // mât + voile : repère simple pour que ça se lise comme un bateau,
+  // pas un vrai gréement
+  ctx.strokeStyle = '#5c3f26';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH); ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 20); ctx.stroke();
+  ctx.fillStyle = '#e8dfc8';
+  ctx.beginPath();
+  ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH - 18);
+  ctx.lineTo(13, -BOAT_SH - 2*BOAT_HH - 6);
+  ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 4);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }
 
@@ -255,7 +268,38 @@ const PLAYER_CONTACT_RANGE = 26;
 const PLAYER_DAMAGE_RATE = 0.02; // points perdus par frame au contact
 const PLAYER_FLASH_MS = 120;
 const REGEN_TICK_MS = 500;
-const REGEN_ZONE = { x: 0, y: 0, r: 60 }; // x/y recalculés au resize (près du spawn)
+// zone tampon = représentation du château lui-même : un rectangle façon
+// muraille, coupé en 10 tranches horizontales. Chaque brèche détruit une
+// tranche (en partant du haut) — remplace l'ancien compteur texte
+// "Brèches : x/10", la santé du château se lit d'un coup d'œil. x/y/w/h
+// recalculés au resize (centré en bas de l'écran, près du spawn).
+const CASTLE_SEGMENTS = 10;
+const REGEN_ZONE = { x: 0, y: 0, w: 150, h: 46 };
+function inRegenZone(x, y){
+  const pad = 14; // un peu de marge autour du rectangle, plus confortable à atteindre
+  return x >= REGEN_ZONE.x - pad && x <= REGEN_ZONE.x + REGEN_ZONE.w + pad &&
+         y >= REGEN_ZONE.y - pad && y <= REGEN_ZONE.y + REGEN_ZONE.h + pad;
+}
+
+// petit chemin décoratif : part du bord du château vers une zone hors-
+// écran, en suivant les diagonales de la grille isométrique (comme les
+// cases de construction) pour rester cohérent avec la perspective. Pas de
+// gameplay ici — juste pour donner l'impression qu'il existe une carte
+// plus grande autour ("il se promène ailleurs, en dehors de l'écran").
+let pathScreenPoints = [];
+function buildPath(){
+  const start = screenToGridCell(STAGE_W*0.74, STAGE_H - REGEN_ZONE.h - 4);
+  pathScreenPoints = [];
+  let gx = start.gx, gy = start.gy;
+  pathScreenPoints.push(gridToScreen(gx, gy));
+  const segments = 14;
+  for (let i = 0; i < segments; i++){
+    gx += 1; // avance surtout vers la droite, sort du cadre
+    if (i % 3 === 1) gy += 1;      // léger zigzag ("il se promène")
+    else if (i % 5 === 3) gy -= 1;
+    pathScreenPoints.push(gridToScreen(gx, gy));
+  }
+}
 let playerHealth = PLAYER_MAX_HEALTH;
 let playerFlashUntil = 0;
 let playerInvulnUntil = 0; // courte invulnérabilité après une résurrection
@@ -279,7 +323,8 @@ function resizeCanvas(){
   cv.style.height = STAGE_H + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // on dessine ensuite en pixels CSS
 
-  REGEN_ZONE.x = STAGE_W/2; REGEN_ZONE.y = STAGE_H - 50;
+  REGEN_ZONE.x = STAGE_W/2 - REGEN_ZONE.w/2; REGEN_ZONE.y = STAGE_H - REGEN_ZONE.h - 8;
+  buildPath();
 
   if (!playerPlaced){
     player.x = STAGE_W/2; player.y = STAGE_H - 70;
@@ -459,8 +504,22 @@ function getAudioCtx(){
 // DEUXIÈME geste (souvent la construction) ne relance pas resume() avec
 // succès. On retente donc à chaque geste, sans se limiter à une seule
 // fois, jusqu'à ce que le contexte soit vraiment "running".
+//
+// Cas signalé (iPhone, interrupteur sonnerie/silence sur silence) : sur
+// iOS Safari, la Web Audio API reste MUETTE quand l'interrupteur physique
+// est en mode silence — resume() passe bien à "running" mais aucun son
+// n'est audible, contrairement aux balises <audio>/<video> classiques,
+// qui elles passent outre. Correctif connu et documenté (bug WebKit
+// #237322, techniques "unmute-ios-audio"/"unmute") : jouer une fois un
+// fichier <audio> silencieux au tout premier geste "débloque" ensuite la
+// Web Audio API même interrupteur sur silence.
+const SILENT_WAV_B64 = 'data:audio/wav;base64,UklGRmQfAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUAfAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+const iosUnmuteAudio = new Audio(SILENT_WAV_B64);
+iosUnmuteAudio.loop = false;
+iosUnmuteAudio.setAttribute('playsinline', '');
 function tryUnlockAudio(){
   const ac = getAudioCtx();
+  iosUnmuteAudio.play().catch(() => {}); // ignoré si ça échoue (pas grave, retenté au geste suivant)
   if (ac.state === 'running'){
     window.removeEventListener('pointerdown', tryUnlockAudio);
     window.removeEventListener('touchstart', tryUnlockAudio);
@@ -581,11 +640,32 @@ function tryBuild(){
   // s'annulent : ça ne bouge qu'en vertical, pile au-dessus du joueur —
   // ce que "gy-1" seul (l'ancien calcul) ne faisait pas (la tour sortait
   // en bas à droite, pas au-dessus, comme rapporté)
-  const target = gridToScreen(cell.gx - 1, cell.gy - 1);
-  const bx = target.x, by = target.y;
-  for (const t of towers) if (Math.hypot(t.x-bx, t.y-by) < 10) return; // case déjà occupée
+  //
+  // si cette case est déjà prise (typiquement : joueur collé contre une
+  // ligne de tours déjà posées), construire ne doit jamais échouer en
+  // silence — on cherche la case libre la plus proche, à gauche puis à
+  // droite en priorité (le plus court détour), avant d'abandonner
+  const candidates = [
+    { gx: cell.gx - 1, gy: cell.gy - 1 }, // au-dessus, l'emplacement voulu par défaut
+    { gx: cell.gx,     gy: cell.gy - 1 }, // un cran à droite
+    { gx: cell.gx - 1, gy: cell.gy     }, // un cran à gauche
+    { gx: cell.gx + 1, gy: cell.gy - 1 }, // deux crans à droite
+    { gx: cell.gx - 1, gy: cell.gy + 1 }, // deux crans à gauche
+    { gx: cell.gx,     gy: cell.gy - 2 },
+    { gx: cell.gx - 2, gy: cell.gy     },
+  ];
+  let chosen = null;
+  for (const c of candidates){
+    const p = gridToScreen(c.gx, c.gy);
+    if (!towers.some(t => Math.hypot(t.x-p.x, t.y-p.y) < 10)){ chosen = p; break; }
+  }
+  if (!chosen) return; // vraiment aucune case libre à proximité (très rare)
   gold -= TOWER_BUILD_COST;
-  towers.push({ x: bx, y: by, hp: TOWER_BASE_HP, maxHp: TOWER_BASE_HP, level: 1, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
+  towers.push({ x: chosen.x, y: chosen.y, hp: TOWER_BASE_HP, maxHp: TOWER_BASE_HP, level: 1, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
+  // le joueur se décale tout seul sur le côté le plus court pour laisser
+  // la place à la tour tout juste posée (la collision tour/joueur, déjà
+  // appliquée chaque frame, s'en charge immédiatement)
+  resolveTowerCollision(player, TOWER_SOLID_RADIUS);
   sfxBuild();
 }
 function tryUpgradeTower(t){
@@ -739,6 +819,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.12, text: "Correctif audio iPhone (interrupteur silence) ; construction de tour jamais bloquée (décale sur le côté) ; château = 10 tranches détruites par les brèches (remplace le compteur texte) ; vague affichée en haut au centre ; bateau et chemin en isométrique" },
   { v: 17.11, text: "Progression infinie par formule (or total dépensé, coût +2,7%/palier, puissance +5%/palier) — remplace les paliers plafonnés (or passif, dégâts, tours) de v17.9" },
   { v: 17.10, text: "Réparer une tour coûte 1 or par session (gratuit tant qu'on reste, recoûte si on part et revient)" },
   { v: 17.9, text: "4 types d'ennemis (couleurs, boss rare) ; PV linéaires (plus exponentiels) ; vitesse fixe + variation organique ; +1 ennemi/vague ; dégâts ennemis sur tours ÷2 ; renforcer une tour plus rentable que construire à côté" },
@@ -1035,7 +1116,7 @@ function update(now){
     }
     // régénération dans la zone tampon près de la base, +1 point / 0,5s,
     // avec un petit "+1" flottant pour le montrer
-    if (playerHealth < PLAYER_MAX_HEALTH && Math.hypot(player.x-REGEN_ZONE.x, player.y-REGEN_ZONE.y) < REGEN_ZONE.r){
+    if (playerHealth < PLAYER_MAX_HEALTH && inRegenZone(player.x, player.y)){
       if (now - lastRegenTickAt >= REGEN_TICK_MS){
         playerHealth = Math.min(PLAYER_MAX_HEALTH, playerHealth + 1);
         lastRegenTickAt = now;
@@ -1217,7 +1298,8 @@ function update(now){
 
   document.getElementById('gold').textContent = gold;
   document.getElementById('wave').textContent = wave;
-  document.getElementById('breach').textContent = breaches;
+  // plus de compteur texte pour les brèches : le château (drawCastle) se
+  // détruit tranche par tranche à la place, pas de DOM à mettre à jour
   refreshBonusbar();
 }
 
@@ -1282,6 +1364,65 @@ function drawDebugGrid(){
   }
 }
 
+// château = zone tampon de régénération, coupée en 10 tranches
+// horizontales. Chaque brèche en détruit une, en partant du haut —
+// remplace l'ancien compteur texte "Brèches : x/10" (retiré du bandeau
+// du bas), la santé du château se lit d'un coup d'œil sans lire de
+// chiffre. Rectangle clair façon pierre, bordure + créneaux "muraille".
+function drawCastle(){
+  const { x, y, w, h } = REGEN_ZONE;
+  const destroyed = Math.min(CASTLE_SEGMENTS, breaches);
+  const segH = h / CASTLE_SEGMENTS;
+
+  for (let i = 0; i < CASTLE_SEGMENTS; i++){
+    const segY = y + i * segH;
+    ctx.fillStyle = i < destroyed ? '#00000012' : '#d8cca4'; // tranche détruite : juste un creux
+    ctx.fillRect(x, segY, w, segH);
+  }
+
+  // traits fins entre les tranches encore debout seulement
+  ctx.strokeStyle = '#00000020';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < CASTLE_SEGMENTS; i++){
+    if (i <= destroyed) continue;
+    const segY = y + i * segH;
+    ctx.beginPath(); ctx.moveTo(x, segY); ctx.lineTo(x + w, segY); ctx.stroke();
+  }
+
+  // contour épais façon muraille autour de ce qu'il reste, + créneaux sur
+  // le nouveau bord haut (celui de la tranche la plus haute encore là)
+  const topY = y + destroyed * segH;
+  ctx.strokeStyle = '#6b5f45';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, topY, w, h - destroyed * segH);
+  if (destroyed < CASTLE_SEGMENTS){
+    const merlonW = 10, gap = 8;
+    ctx.fillStyle = '#6b5f45';
+    for (let mx = x + 4; mx < x + w - merlonW; mx += merlonW + gap){
+      ctx.fillRect(mx, topY - 6, merlonW, 6);
+    }
+  }
+}
+
+// petit chemin décoratif (voir buildPath) : juste une bande stroke le long
+// des points calculés, aucun effet de jeu
+function drawPath(){
+  if (pathScreenPoints.length < 2) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#c9b48f';
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(pathScreenPoints[0].x, pathScreenPoints[0].y);
+  for (let i = 1; i < pathScreenPoints.length; i++) ctx.lineTo(pathScreenPoints[i].x, pathScreenPoints[i].y);
+  ctx.stroke();
+  ctx.strokeStyle = '#e0cfa8'; // fine ligne claire au centre, pour la texture
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+}
+
 function draw(now){
   ctx.clearRect(0, 0, STAGE_W, STAGE_H); // fond beige uni (posé par le CSS du canvas), aucune ligne de sol
 
@@ -1293,13 +1434,8 @@ function draw(now){
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, STAGE_W, WATER_H);
   drawBoat();
-
-  // zone tampon de régénération près de la base, marquée au sol
-  const regenGrad = ctx.createRadialGradient(REGEN_ZONE.x, REGEN_ZONE.y, 0, REGEN_ZONE.x, REGEN_ZONE.y, REGEN_ZONE.r);
-  regenGrad.addColorStop(0, '#7fc97f55');
-  regenGrad.addColorStop(1, '#7fc97f00');
-  ctx.fillStyle = regenGrad;
-  ctx.beginPath(); ctx.arc(REGEN_ZONE.x, REGEN_ZONE.y, REGEN_ZONE.r, 0, Math.PI*2); ctx.fill();
+  drawPath();
+  drawCastle();
 
   if (showGrid) drawDebugGrid();
 

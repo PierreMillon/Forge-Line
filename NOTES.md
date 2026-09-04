@@ -9,12 +9,11 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 🚧 En cours
 
-- **Chemin isométrique + bateau en isométrique, zone de régénération en
-  rectangle très clair (symbolise le château), retirer le petit repère
-  vert.** Demandé en priorité, message coupé en cours de dictée (la toute
-  fin — "et on enlève le…" — n'est pas arrivée). À clarifier avec
-  l'utilisateur avant de coder le détail ; noté ici pour ne pas perdre le
-  début de la demande.
+- **Cadence de tir (tir manuel + tir auto) en progression infinie par
+  formule**, comme l'or passif/dégâts/tours (v17.11) : au lieu d'un
+  "tir auto" acheté une fois pour toutes (bouton actuel : simple
+  interrupteur), pouvoir continuer à dépenser de l'or pour augmenter le
+  débit de tir. Demandé, pas encore conçu ni codé.
 
 ## 📋 À faire (demandé, pas encore fait)
 
@@ -36,19 +35,16 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 💭 Idées à explorer plus tard (pas encore décidées)
 
-- **Bateau en vraie perspective isométrique**, aligné sur la grille, pour
-  renforcer l'illusion 3D — soit redessiné à partir du sprite fourni
-  (boat-icon.png de Knight Wars), soit dessiné en isométrique nativement
-  (façon drawIsoBox). Demandé comme un rappel, pas encore fait.
+- ~~**Bateau en vraie perspective isométrique**~~ → fait en v17.12
+  (drawIsoBox, comme les tours, au lieu du sprite PNG à plat).
 
 - **Plusieurs cartes** pour la suite (variété au-delà de la plage
   actuelle). Pas encore décidé à quoi elles ressemblent.
 
-- **Décor sur la grille isométrique** : commencer à dessiner un petit
-  univers autour du château — par exemple une route qui part du bas du
-  château, fait quelques virages sur le côté, comme si elle menait à une
-  ville voisine. Pure idée de décor, pas de mécanique de jeu associée
-  pour l'instant.
+- ~~**Décor sur la grille isométrique** : une route qui part du bas du
+  château~~ → fait en v17.12 (chemin décoratif qui part du bord du
+  château et sort de l'écran, suit les diagonales de la grille iso —
+  purement visuel, sans virages vers une "ville" précise pour l'instant).
 
 - **Easter egg : le cheval de Troie.** Un "cheval de Troie" (à préciser
   visuellement) sort du bateau et attaque — si on le laisse passer,
@@ -430,3 +426,43 @@ Vérifié avec Playwright : formules calculées directement pour les
 paliers 1 et 300 (cohérentes avec le repère "1M or → palier 300"), achats
 répétés (20×) sans jamais buter sur un plafond, tour renforcée 10 fois de
 suite sans erreur JS, aucune erreur console.
+
+## v17.12 : correctif audio iPhone, construction jamais bloquée, château = compteur de brèches visuel, décor isométrique
+
+- **Correctif audio iPhone (interrupteur sonnerie/silence sur silence)** :
+  rapporté "aucun son, jamais". Diagnostic confirmé par l'utilisateur
+  (quiz) : iPhone, interrupteur sur silence. Cause connue et documentée
+  (bug WebKit #237322) : la Web Audio API reste muette sur iOS Safari
+  quand l'interrupteur physique est en mode silence, contrairement aux
+  balises `<audio>` classiques. Correctif standard ("unmute-ios-audio") :
+  jouer une fois un fichier `<audio>` silencieux au premier geste, ce qui
+  débloque ensuite la Web Audio API même interrupteur sur silence.
+  Sources : bugs.webkit.org/show_bug.cgi?id=237322,
+  github.com/feross/unmute-ios-audio, github.com/swevans/unmute.
+- **Construction de tour ne bloque plus jamais en silence** : si la case
+  visée par défaut (juste au-dessus du joueur) est déjà prise par une
+  tour existante, cherche automatiquement la case libre la plus proche
+  (à gauche puis à droite, le plus court détour) et construit là au lieu
+  de ne rien faire. Le joueur se décale tout seul sur le côté (la
+  collision tour/joueur déjà existante s'en charge).
+- **Château = compteur de brèches visuel** : remplace le texte
+  "Brèches : x/10" (retiré du bandeau du bas) par le petit rectangle
+  autrefois "zone de régénération verte" — maintenant un rectangle clair
+  façon pierre avec bordure/créneaux "muraille", coupé en 10 tranches
+  horizontales. Chaque brèche détruit une tranche en partant du haut ;
+  la zone reste la zone de régénération de santé du joueur (même
+  fonction, juste redessinée). Le numéro de vague migre dans le bandeau
+  du haut, centré ; le bandeau du bas n'affiche plus que l'or.
+- **Bateau et chemin en isométrique** : le bateau (ancien sprite PNG à
+  plat, hérité de Knight Wars) est redessiné avec la même technique que
+  les tours (drawIsoBox) + un mât/voile simple. Un petit chemin
+  décoratif part du bord du château et sort de l'écran en suivant les
+  diagonales de la grille isométrique (aucun effet de jeu, juste pour
+  suggérer une carte plus grande autour).
+
+Vérifié avec Playwright (iPhone 13 émulé, gestes tactiles réels via CDP) :
+déblocage audio confirmé (état "running", fichier silencieux lu sans
+erreur), 6 constructions à la suite sans chevauchement ni échec silencieux,
+château/bateau/chemin dessinés sans erreur JS pendant 30s de jeu multi-
+vagues, suite de régression complète (test-big, test-features,
+test-autofire, test-cadence, test-joyfire, test-bonusbar) toujours verte.
