@@ -9,37 +9,66 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 🚧 En cours
 
-- **Grille de construction — À REVOIR** : la v11 a remplacé la grille
-  isométrique (losange) par une grille carrée invisible, à cause d'un
-  espacement irrégulier constaté. Correction reçue : ce n'est pas ce qui
-  était demandé — c'est bien la grille en perspective isométrique
-  elle-même qui doit être utilisée (message coupé, la suite doit
-  préciser sur quoi/comment). Piste : l'irrégularité venait probablement
-  de la façon dont la case cible était calculée (case du joueur + décalage
-  fixe), pas d'un défaut inévitable des grilles en losange — à corriger
-  proprement plutôt qu'à contourner avec une grille carrée. **Ne pas
-  retoucher tant que la précision demandée n'est pas arrivée.**
+- (rien en cours — voir "à faire" ci-dessous)
 
 ## 📋 À faire (demandé, pas encore fait)
 
-- Le joueur a une "santé" visuelle : à chaque fois qu'il est attaqué par
-  un ennemi (le but des ennemis reste le château/la ligne, pas le joueur,
-  mais s'ils l'attaquent quand même ça compte), il ne rétrécit pas mais sa
-  couleur vire progressivement du jaune au rouge (~10 paliers), avec un
-  flash rouge au moment du coup. Chaque palier réduit sa vitesse de tir de
-  5%. Régénération : zones tampon marquées au sol près de la base — en
-  rester dans une, la vie remonte (+1 point flottant affiché) au rythme
-  d'environ 1 point/0,5s.
-- **Thème Vikings** : les ennemis débarquent d'un bateau (à récupérer/
-  s'inspirer du sprite bateau du jeu "Knight Wars" — autre projet du
-  portfolio — et l'adapter). Le bateau apparaît en haut de la carte, les
-  ennemis y sont "dedans" au début de la vague puis en descendent
-  progressivement. Bande d'eau bleue tout en haut (zone de plage), le bas
-  de la carte reste la zone du château fort à défendre.
+- **Économie des pubs, éthique et sans forcer** : quand on regarde la pub
+  de 30s pour continuer, ça active aussi une sauvegarde automatique de la
+  progression (en local, navigateur) — avec avertissement explicite qu'il
+  ne faut pas vider le cache sinon la progression est perdue et il faut
+  regarder une nouvelle pub. Prévoir une entrée FAQ dans le menu pour les
+  gens qui perdent leur progression sans comprendre pourquoi (cache vidé,
+  ou message pas lu) — rassurant, pas culpabilisant. Pour ces cas, un
+  "code bonus" qui redonne une partie depuis le début mais avec 100 pièces
+  offertes, en guise d'excuse. Objectif explicite : forcer à regarder au
+  maximum une pub par jour, pas plus — modèle économique qui gagne sur le
+  nombre de joueurs, pas en pressurant fort un petit nombre.
+
+- **IA des ennemis à mémoire (première règle proposée)** : plus la partie
+  avance, plus les ennemis qui arrivent "ont vu" ce qui est arrivé aux
+  précédents (mémoire collective façon fourmis) — pas besoin d'être précis
+  au pixel, un souvenir à la case (grille isométrique) suffit : quel
+  chemin a été pris, quel taux de pertes il a donné. Au fil du temps, les
+  chemins avec moins de pertes sont favorisés. Deuxième composante : ceux
+  qui ont réussi à atteindre le château sont imités — soit par ceux qui
+  veulent y aller le plus vite, soit par ceux qui veulent y aller avec le
+  moins de dégâts (deux profils d'imitateurs différents). Composante
+  aléatoire forte et volontaire : un même ennemi peut changer d'avis en
+  cours de route (comme un humain qui change de stratégie toutes les 30
+  secondes) ou au contraire rester droit dans sa idée du début à la fin —
+  ce mélange fait partie du but recherché. Troisième composante : mémoire
+  de quelles tours "tiennent le moins longtemps" (celles qui tombent vite
+  sous les coups) pour concentrer les efforts dessus. Un ennemi peut aussi
+  choisir un "mode" : détruire des tours, ou harceler le joueur (si le
+  joueur leur inflige trop de dégâts, ou pour l'empêcher/décourager
+  d'aller réparer une tour qu'il répare souvent — en se postant sur son
+  chemin ou en restant trop près de lui pour le blesser), sachant que le
+  but principal reste la destruction du château. Beaucoup de pièces
+  indépendantes plutôt qu'un système monolithique — voir aussi le principe
+  directeur "éviter la froideur mécanique" ci-dessous, c'est la même idée
+  appliquée concrètement.
+
+- **Écran de mort du joueur** (si sa santé tombe à 0 — actuellement la
+  santé ne descend jamais à 0 dans le sens "mort", juste vire au rouge) :
+  trois boutons - regarder une pub pour revivre à 100% de santé, abandonner,
+  ou "regarder la suite de la partie" (spectateur ?, à préciser).
 
 ## 💭 Idées à explorer plus tard (pas encore décidées)
 
-- (aucune en attente pour l'instant)
+- **Principe directeur : éviter la froideur mécanique** (vaut aussi pour
+  Bastion Orbit, noté dans son BACKLOG.md). Le défaut classique : ennemis
+  trop prévisibles, tous à la même vitesse, qui attaquent chacun leur tour
+  façon figurants de film de kung-fu. Voulu à la place : un bazar organique,
+  humain, imprévisible. Méthode envisagée : pas une grosse IA d'un coup,
+  mais plein de petites règles locales par ennemi qui interagissent entre
+  elles et font émerger des comportements de groupe non programmés
+  explicitement (exemple donné : "si je suis proche d'un collègue, +1
+  attaque mais -1 vitesse"). Effet secondaire voulu, pas un bug à éviter :
+  si le joueur reste passif, les ennemis pourraient s'accumuler (plusieurs
+  bateaux) puis attaquer en masse d'un coup, plutôt qu'arriver au
+  compte-goutte indéfiniment. Pas encore de règle concrète choisie — à
+  développer par petites touches, une règle à la fois.
 
 ## ✅ Décisions prises
 
@@ -84,11 +113,14 @@ Format condensé — l'idée, pas la formulation exacte.
   HTML, production seulement si le concept plaît — pour économiser les
   tokens. Chaque changement testé (Playwright si besoin) puis poussé sur
   GitHub Pages directement (pas de longue attente en review).
-- **Grille de construction (v11, remise en cause)** : voir 🚧 "En cours"
-  ci-dessus — la v11 avait remplacé la grille isométrique par une grille
-  carrée invisible pour garantir un espacement uniforme entre tours,
-  mais ce n'est pas ce qui était demandé. À reprendre avec une vraie
-  grille isométrique dès que la précision arrive.
+- **Grille de construction (v13, corrigée)** : la v11 avait remplacé la
+  grille isométrique par une grille carrée invisible, sur la base d'un
+  test d'espacement (mesuré tous les 60px) qui semblait irrégulier.
+  Correction reçue : ce n'était pas voulu. Refait un test fin (tous les
+  1px) qui a montré que l'irrégularité était un artefact du test grossier
+  — la grille en losange fonctionne bien nativement (chaque case voisine
+  touche la précédente par un bord complet, en zigzag vertical régulier,
+  normal pour un quadrillage en losange). Grille isométrique restaurée.
 - **Bug corrigé (v12)** : les ennemis "sautaient" visiblement au moment
   où ils commençaient à bouger (juste après l'apparition, ou après une
   hésitation). Cause : la position de départ ne correspondait pas à la
@@ -98,6 +130,28 @@ Format condensé — l'idée, pas la formulation exacte.
   formule — vérifié : saut nul.
 - **Équilibrage (v12)** : vitesse des ennemis -20%, vitesse de tir des
   tours +20% (le joueur garde son propre rythme de tir).
+- **Thème Vikings (v13)** : bande d'eau bleue tout en haut de la carte
+  (la plage), bateau viking centré dessus — icône reprise à l'identique
+  du sprite `boat-icon.png` du jeu Knight Wars (autre projet du
+  portfolio). Les ennemis apparaissent groupés au pied du bateau plutôt
+  que dispersés sur toute la largeur, comme s'ils en débarquaient. Le
+  reste de la carte (sous la plage) reste le château fort à défendre.
+- **Santé du joueur (v14)** : 10 paliers de couleur jaune → rouge (pas de
+  rétrécissement), flash rouge bref à chaque coup encaissé au contact
+  d'un ennemi (les ennemis visent le château, pas le joueur, mais le
+  contact compte quand même). Chaque palier perdu retire 5% à la cadence
+  de tir. Régénération dans une zone tampon marquée au sol près de la
+  base (halo vert), +1 point toutes les 0,5s avec un "+1" flottant.
+- **Bateau par vague + orientation (v15)** : la proue (pointe du sprite)
+  pointe maintenant vers le bas/la plage (rotation de base + une légère
+  inclinaison aléatoire, "posé à l'arrache"). Un nouveau bateau arrive à
+  chaque vague, glisse depuis le large jusqu'à un point d'échouage tiré
+  au sort (jamais toujours centré), et les ennemis de cette vague ne
+  sortent qu'une fois le bateau échoué.
+- **Joystick à vitesse analogique (v15)** : la vitesse de déplacement est
+  maintenant proportionnelle à la distance entre le doigt et le centre du
+  joystick (au lieu d'un tout-ou-rien au-delà de la zone morte). Le
+  clavier reste à vitesse fixe (pas d'équivalent analogique).
 
 ## 📜 Historique des versions (résumé)
 
@@ -115,3 +169,9 @@ Format condensé — l'idée, pas la formulation exacte.
 - v11 : grille de construction (carrée — à revoir, voir 🚧 ci-dessus)
 - v12 : correctif du saut visuel des ennemis au démarrage du mouvement,
   vitesse ennemis -20%, vitesse de tir des tours +20%
+- v13 : grille isométrique restaurée (le carré était une fausse bonne
+  idée), thème Vikings (bateau, plage)
+- v14 : santé du joueur (couleur jaune → rouge, cadence de tir réduite,
+  régénération en zone tampon)
+- v15 : bateau par vague (proue vers le bas, position aléatoire, animation
+  d'accostage), vitesse du joystick analogique
