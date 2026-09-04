@@ -228,6 +228,9 @@ Format condensé — l'idée, pas la formulation exacte.
   seuil entre les deux : un relâchement avant 250ms = un tap ; au-delà,
   bascule en maintien. Distinction par une vraie mesure du temps
   d'appui/relâchement, pas une estimation.
+- **Vague 1 réduite à 2 ennemis (v17.4)** : au lieu de 5, pour une entrée
+  en matière plus douce. Les vagues suivantes gardent leur progression
+  habituelle (+3 par vague).
 
 ## 📜 Historique des versions (résumé)
 
@@ -267,3 +270,4 @@ Format condensé — l'idée, pas la formulation exacte.
   pub honnête avant d'accorder le bonus (même chose sur Knight Wars)
 - v17.3 : deux cadences de tir manuel (tap répété = rapide, maintien = fixe
   et plus lent)
+- v17.4 : vague 1 réduite à 2 ennemis (au lieu de 5)

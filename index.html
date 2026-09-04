@@ -280,7 +280,7 @@ let gold = 0, wave = 1, breaches = 0, gameOver = false;
 let enemies = [];
 let projectiles = [];
 function pickNextSpawnDelay(){ return Math.max(18, 65 - wave*3) + Math.random()*55; }
-let spawnTimer = 0, spawnInterval = pickNextSpawnDelay(), enemiesThisWave = 5, spawned = 0;
+let spawnTimer = 0, spawnInterval = pickNextSpawnDelay(), enemiesThisWave = 2, spawned = 0;
 let lastShotAt = 0;
 const SHOT_INTERVAL_MS = 1000;
 const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 1.2; // tir des tours 20% plus rapide que le joueur
@@ -652,6 +652,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.4, text: "Vague 1 réduite à 2 ennemis (au lieu de 5)" },
   { v: 17.3, text: "Deux cadences de tir manuel : taper vite = tir rapide (150ms), rester appuyé = rythme fixe plus lent (500ms)" },
   { v: 17.2, text: "Tir manuel par défaut + bonus tir auto ; revenu passif à paliers ; fausse erreur de pub honnête avant le bonus ; ennemis 2× plus lents" },
   { v: 17, text: "Correctif audio (déblocage répété) ; clignotement à santé critique ; bandeau de bonus (revenu passif, dégâts, construire/renforcer une tour) ; correctif position de construction ; élan du joystick ; bouton Recommencer dans le menu" },
@@ -1274,7 +1275,7 @@ function resetGame(startingGold){
   towers = []; enemies = []; projectiles = []; floatingTexts = [];
   gold = startingGold || 0; wave = 1; breaches = 0; gameOver = false;
   playerDead = false; spectating = false;
-  spawned = 0; enemiesThisWave = 5; spawnTimer = 0; spawnInterval = pickNextSpawnDelay();
+  spawned = 0; enemiesThisWave = 2; spawnTimer = 0; spawnInterval = pickNextSpawnDelay();
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireBought = false;
