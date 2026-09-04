@@ -7,19 +7,6 @@ tracée (marquée faite) ; une idée mise de côté reste tracée (marquée
 
 Format condensé — l'idée, pas la formulation exacte.
 
-## 🚧 En cours
-
-- **Progression des types d'ennemis par vague, à revoir.** Aujourd'hui
-  (v17.9) : type 2/3 tirés au hasard dès le début (~15%/15%/70%), boss
-  toutes les 5 vagues. Demandé à la place : une introduction progressive
-  et lisible — commencer très simple, puis introduire un type à la fois
-  (exemple donné en réfléchissant à voix haute, pas une règle figée :
-  peut-être le type 2 dès la vague 5, le type 3 vers la vague 10 avec
-  "deux modèles 2 et un modèle 3"), et le boss ("le gros") repoussé
-  beaucoup plus loin — vers la vague 200 plutôt que toutes les 5 vagues,
-  très rare en début de partie. Pas encore clarifié en détail (quiz
-  envoyé), pas codé.
-
 ## 📋 À faire (demandé, pas encore fait)
 
 - **Le bateau prend en compte la mémoire des ennemis pour choisir où
@@ -518,4 +505,39 @@ Vérifié avec Playwright + capture d'écran comparée visuellement au
 croquis reçu : grille visible, château pleine largeur avec bordure
 "muraille", chemin en zigzag vers le haut-gauche façon esquisse. Suite
 de régression (audio, construction, château, bateau/chemin) toujours
+verte, aucune erreur JS.
+
+## v17.15 : château en créneaux + introduction progressive des types d'ennemis
+
+- **Château : créneaux au lieu de tranches**, corrigé sur un retour direct
+  après v17.14. Le mur reste entier (ne rétrécit plus en hauteur) ; ce
+  sont 10 créneaux égaux et régulièrement espacés le long du bord haut
+  qui font office de compteur de brèches visuel — un détruit par brèche,
+  simplement, comme des dents qui manquent sur le mur.
+- **Introduction progressive des types d'ennemis par vague**, en
+  reprenant les repères donnés (type rapide/fragile dès vague 5, type
+  rapide/costaud vers vague 10, boss repoussé vers vague 200 — voir
+  discussion en quiz) : chaque type est à 0% avant sa vague de
+  déblocage, puis grimpe doucement jusqu'à son taux plein sur quelques
+  vagues (pas de rupture nette, confirmé en quiz). Le boss n'apparaît
+  plus toutes les 5 vagues (bien trop fréquent pour un ennemi censé
+  être rare) : première apparition vers la vague 200, puis revient de
+  loin en loin (toutes les 30 vagues) — jamais plus d'un par vague.
+  Explicitement demandé ensuite : cette règle doit être un PROGRAMME
+  (formule simple, sans table figée) qui fonctionne à n'importe quelle
+  vague, même très lointaine — pas un système qui "s'arrête" à un
+  certain numéro de vague. C'est déjà le cas : `rampedRate()` et le
+  modulo du boss sont des formules pures, valables à l'infini. La
+  difficulté d'ensemble continue aussi de grimper indéfiniment via le
+  nombre d'ennemis (+1/vague) et leurs PV (linéaire, +3/vague, déjà en
+  place depuis v17.9) — le mélange de types se stabilise après quelques
+  dizaines de vagues, mais ce n'est pas ce qui porte la difficulté
+  infinie, c'est la variété plutôt que l'escalade.
+
+Vérifié avec Playwright : distribution des types échantillonnée à
+plusieurs vagues (0% avant déblocage, montée progressive confirmée,
+100% des tirages "spéciaux" à boss à la vague 200 avec un seul boss
+réellement spawné par vague dans la vraie boucle de jeu), créneaux
+détruits visibles et correctement espacés sur capture d'écran (3 brèches
+= 3 créneaux manquants à gauche), suite de régression complète toujours
 verte, aucune erreur JS.

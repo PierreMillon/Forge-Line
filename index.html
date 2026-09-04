@@ -366,12 +366,28 @@ const ENEMY_TYPES = [
   { id: 'fast_tough', hpMult: 1,   speedMult: 2,   colorA: '#cba3f2', colorB: '#7a3fc3' }, // violet, rapide et costaud
   { id: 'boss',       hpMult: 4,   speedMult: 0.5, colorA: '#f2cf9e', colorB: '#c3813f', rare: true }, // orange, lent et très résistant
 ];
-// le boss (rare, façon mini-boss) revient toutes les BOSS_WAVE_INTERVAL
-// vagues, jamais plus d'un par vague — valeur de départ, à ajuster
-const BOSS_WAVE_INTERVAL = 5;
+// introduction progressive des types par vague (revu : un type débloqué
+// d'un coup à taux fixe dès le départ donnait un mélange trop tôt et
+// trop brutal). Chaque type a une vague de déblocage et grimpe ensuite
+// doucement de 0% jusqu'à son taux plein, sur quelques vagues — pas de
+// rupture nette. Taux pleins repris de l'ancien réglage (15%/15%), juste
+// étalés dans le temps au lieu d'être actifs dès la vague 1.
+const WAVE_TYPE2_START = 5,  WAVE_TYPE2_RAMP_WAVES = 15, TYPE2_MAX_RATE = 0.15; // rapide/fragile
+const WAVE_TYPE3_START = 10, WAVE_TYPE3_RAMP_WAVES = 20, TYPE3_MAX_RATE = 0.15; // rapide/costaud
+function rampedRate(startWave, rampWaves, maxRate){
+  if (wave < startWave) return 0;
+  return maxRate * Math.min(1, (wave - startWave) / rampWaves);
+}
+// le boss était bien trop fréquent (toutes les 5 vagues) pour un ennemi
+// censé être rare/marquant — repoussé à sa première apparition vers la
+// vague 200, puis revient occasionnellement (toutes les 30 vagues après
+// ça), jamais plus d'un par vague
+const BOSS_FIRST_WAVE = 200;
+const BOSS_REPEAT_INTERVAL = 30;
 let bossSpawnedThisWave = false;
 function pickEnemyType(){
-  if (wave % BOSS_WAVE_INTERVAL === 0 && !bossSpawnedThisWave){
+  const isBossWave = wave >= BOSS_FIRST_WAVE && (wave - BOSS_FIRST_WAVE) % BOSS_REPEAT_INTERVAL === 0;
+  if (isBossWave && !bossSpawnedThisWave){
     bossSpawnedThisWave = true;
     // un ennemi plus costaud en plus, pas en plus DU total habituel : on
     // retire un ennemi simple de cette vague pour compenser (jamais sous
@@ -379,9 +395,11 @@ function pickEnemyType(){
     enemiesThisWave = Math.max(spawned + 1, enemiesThisWave - 1);
     return ENEMY_TYPES[3];
   }
+  const rate2 = rampedRate(WAVE_TYPE2_START, WAVE_TYPE2_RAMP_WAVES, TYPE2_MAX_RATE);
+  const rate3 = rampedRate(WAVE_TYPE3_START, WAVE_TYPE3_RAMP_WAVES, TYPE3_MAX_RATE);
   const r = Math.random();
-  if (r < 0.15) return ENEMY_TYPES[1];
-  if (r < 0.30) return ENEMY_TYPES[2];
+  if (r < rate2) return ENEMY_TYPES[1];
+  if (r < rate2 + rate3) return ENEMY_TYPES[2];
   return ENEMY_TYPES[0];
 }
 
@@ -847,6 +865,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.15, text: "Château : créneaux (10, un détruit par brèche) au lieu de tranches de hauteur ; introduction progressive des types d'ennemis par vague (formule infinie, plus de table figée) ; boss repoussé vers la vague 200" },
   { v: 17.14, text: "Grille de construction affichée par défaut ; château sur toute la largeur ; chemin retracé vers le haut/gauche (croquis reçu)" },
   { v: 17.13, text: "Renfort de tour garanti plus rentable qu'une tour neuve à tout niveau (incrément géométrique au lieu du total) ; tir auto en progression infinie (débit, plus un simple interrupteur)" },
   { v: 17.12, text: "Correctif audio iPhone (interrupteur silence) ; construction de tour jamais bloquée (décale sur le côté) ; château = 10 tranches détruites par les brèches (remplace le compteur texte) ; vague affichée en haut au centre ; bateau et chemin en isométrique" },
@@ -1394,43 +1413,30 @@ function drawDebugGrid(){
   }
 }
 
-// château = zone tampon de régénération, coupée en 10 tranches
-// horizontales. Chaque brèche en détruit une, en partant du haut —
-// remplace l'ancien compteur texte "Brèches : x/10" (retiré du bandeau
-// du bas), la santé du château se lit d'un coup d'œil sans lire de
-// chiffre. Rectangle clair façon pierre, bordure + créneaux "muraille".
+// château = zone tampon de régénération. Le mur reste entier (plus de
+// tranches qui rétrécissent) ; ce sont les 10 CRÉNEAUX du haut, égaux et
+// régulièrement espacés, qui font office de compteur de brèches — un
+// détruit par brèche, comme des dents qui manquent sur le mur. Remplace
+// l'ancien compteur texte "Brèches : x/10" (retiré du bandeau du bas).
 function drawCastle(){
   const { x, y, w, h } = REGEN_ZONE;
   const destroyed = Math.min(CASTLE_SEGMENTS, breaches);
-  const segH = h / CASTLE_SEGMENTS;
 
-  for (let i = 0; i < CASTLE_SEGMENTS; i++){
-    const segY = y + i * segH;
-    ctx.fillStyle = i < destroyed ? '#00000012' : '#d8cca4'; // tranche détruite : juste un creux
-    ctx.fillRect(x, segY, w, segH);
-  }
-
-  // traits fins entre les tranches encore debout seulement
-  ctx.strokeStyle = '#00000020';
-  ctx.lineWidth = 1;
-  for (let i = 1; i < CASTLE_SEGMENTS; i++){
-    if (i <= destroyed) continue;
-    const segY = y + i * segH;
-    ctx.beginPath(); ctx.moveTo(x, segY); ctx.lineTo(x + w, segY); ctx.stroke();
-  }
-
-  // contour épais façon muraille autour de ce qu'il reste, + créneaux sur
-  // le nouveau bord haut (celui de la tranche la plus haute encore là)
-  const topY = y + destroyed * segH;
+  ctx.fillStyle = '#d8cca4';
+  ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = '#6b5f45';
   ctx.lineWidth = 3;
-  ctx.strokeRect(x, topY, w, h - destroyed * segH);
-  if (destroyed < CASTLE_SEGMENTS){
-    const merlonW = 10, gap = 8;
-    ctx.fillStyle = '#6b5f45';
-    for (let mx = x + 4; mx < x + w - merlonW; mx += merlonW + gap){
-      ctx.fillRect(mx, topY - 6, merlonW, 6);
-    }
+  ctx.strokeRect(x, y, w, h);
+
+  // 10 créneaux égaux le long du bord haut ; un créneau détruit laisse
+  // juste le mur plat à sa place (pas de trou dans la pierre en dessous)
+  const slot = w / CASTLE_SEGMENTS;
+  const merlonW = slot * 0.55, merlonH = 8;
+  ctx.fillStyle = '#6b5f45';
+  for (let i = 0; i < CASTLE_SEGMENTS; i++){
+    if (i < destroyed) continue;
+    const mx = x + i * slot + (slot - merlonW) / 2;
+    ctx.fillRect(mx, y - merlonH, merlonW, merlonH);
   }
 }
 
