@@ -652,6 +652,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.5, text: "Plafond du tir manuel remonté à 20 taps/s (50ms, au lieu de 150ms)" },
   { v: 17.4, text: "Vague 1 réduite à 2 ennemis (au lieu de 5)" },
   { v: 17.3, text: "Deux cadences de tir manuel : taper vite = tir rapide (150ms), rester appuyé = rythme fixe plus lent (500ms)" },
   { v: 17.2, text: "Tir manuel par défaut + bonus tir auto ; revenu passif à paliers ; fausse erreur de pub honnête avant le bonus ; ennemis 2× plus lents" },
@@ -760,7 +761,7 @@ joyzone.addEventListener('touchend', e => { e.preventDefault(); joyEnd(); });
 // lent. Évènements pointer (pas touch/click) pour unifier souris et
 // tactile sans risquer un double déclenchement.
 function isUiTarget(el){ return el && el.closest && el.closest('#topbar, #bottombar, #bonusbar, #menu-panel, #version-panel, #faq-panel, #over, #ad-error'); }
-const MANUAL_TAP_COOLDOWN_MS = 150;   // limite anti-spam d'un tap répété — en dessous, ignoré
+const MANUAL_TAP_COOLDOWN_MS = 50;    // limite anti-spam d'un tap répété (20/s max) — en dessous, ignoré
 const MANUAL_HOLD_START_MS = 250;     // au-delà, un appui maintenu bascule en cadence fixe
 const MANUAL_HOLD_INTERVAL_MS = 500;  // rythme d'un tir toutes les 0,5s en restant appuyé
 let pointerIsDown = false, pointerDownAt = 0;

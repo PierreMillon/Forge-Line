@@ -222,12 +222,13 @@ Format condensé — l'idée, pas la formulation exacte.
   honnête qu'accorder le bonus en silence, vu qu'il n'y a pas de vraie
   pub branchée. Compteur de clics à ajouter plus tard (stats). Même
   traitement fait sur Knight Wars (bouton pub premium).
-- **Deux cadences pour le tir manuel (v17.3)** : répéter le tap tire plus
-  vite (cadence courte, 150ms — juste assez pour empêcher un spam
-  littéral), rester appuyé donne un rythme fixe plus lent (500ms). Le
-  seuil entre les deux : un relâchement avant 250ms = un tap ; au-delà,
-  bascule en maintien. Distinction par une vraie mesure du temps
-  d'appui/relâchement, pas une estimation.
+- **Deux cadences pour le tir manuel (v17.3, ajusté en v17.5)** : répéter
+  le tap tire plus vite (cadence courte, plafond anti-spam à 20 taps/s
+  soit 50ms — d'abord mis à 150ms, remonté sur demande), rester appuyé
+  donne un rythme fixe plus lent (500ms). Le seuil entre les deux : un
+  relâchement avant 250ms = un tap ; au-delà, bascule en maintien.
+  Distinction par une vraie mesure du temps d'appui/relâchement, pas une
+  estimation.
 - **Vague 1 réduite à 2 ennemis (v17.4)** : au lieu de 5, pour une entrée
   en matière plus douce. Les vagues suivantes gardent leur progression
   habituelle (+3 par vague).
@@ -271,3 +272,4 @@ Format condensé — l'idée, pas la formulation exacte.
 - v17.3 : deux cadences de tir manuel (tap répété = rapide, maintien = fixe
   et plus lent)
 - v17.4 : vague 1 réduite à 2 ennemis (au lieu de 5)
+- v17.5 : plafond du tir manuel remonté à 20 taps/s (50ms, au lieu de 150ms)
