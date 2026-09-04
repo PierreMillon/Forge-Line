@@ -205,6 +205,23 @@ Format condensé — l'idée, pas la formulation exacte.
 - **Vitesse des ennemis divisée par deux (v17.1)** : demandé après coup
   ("plus lents, moitié de la vitesse actuelle"). Vient s'ajouter au -20%
   déjà appliqué en v12.
+- **Tir manuel par défaut + bonus "tir auto" (v17.2)** : revirement sur le
+  tir automatique — il n'est plus gratuit d'office. Par défaut, le joueur
+  tire en tapant/cliquant (un simple tap, pas un glissement — fonctionne
+  même joystick en main, via les évènements pointer plutôt que touch/click
+  pour ne jamais tirer deux fois sur un seul geste). Le tir manuel reste
+  gratuit dès le début (pour ne jamais bloquer l'économie à 0 or — discuté
+  en amont). Un 4e bouton du bandeau ("🎯 Tir auto", 20 or) automatise
+  ensuite le tir ; le bonus dégâts s'applique dans les deux modes.
+- **Revenu passif à paliers (v17.2)** : le bonus "revenu auto" n'est plus
+  un achat unique — paliers de coût croissant (base 15 or, +10/palier,
+  jusqu'à 5), chaque niveau rajoute +1 or au montant gagné toutes les 2s.
+- **Fausse erreur de pub, honnête (v17.2)** : au clic sur "Regarder une
+  pub", un petit écran annonce que la vidéo n'a pas pu charger (erreur
+  technique de notre côté) et que le bonus est accordé quand même — plus
+  honnête qu'accorder le bonus en silence, vu qu'il n'y a pas de vraie
+  pub branchée. Compteur de clics à ajouter plus tard (stats). Même
+  traitement fait sur Knight Wars (bouton pub premium).
 
 ## 📜 Historique des versions (résumé)
 
@@ -239,3 +256,6 @@ Format condensé — l'idée, pas la formulation exacte.
   joueur, pas en bas à droite), élan résiduel du joystick, bouton
   "Recommencer" dans le menu
 - v17.1 : vitesse des ennemis divisée par deux
+- v17.2 : tir manuel par défaut (tap/clic) + bonus "tir auto" (4e bouton),
+  revenu passif à paliers (au lieu d'un achat unique), fausse erreur de
+  pub honnête avant d'accorder le bonus (même chose sur Knight Wars)
