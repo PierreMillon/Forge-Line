@@ -541,3 +541,224 @@ réellement spawné par vague dans la vraie boucle de jeu), créneaux
 détruits visibles et correctement espacés sur capture d'écran (3 brèches
 = 3 créneaux manquants à gauche), suite de régression complète toujours
 verte, aucune erreur JS.
+
+## 📥 Grosse vague de demandes (à trier) — reçues d'un coup, dictée vocale
+
+Beaucoup de choses arrivées en rafale. Notées ici en premier pour ne rien
+perdre, avant tri/implémentation. Certaines seront traitées tout de
+suite (petites, claires), d'autres restent en discussion (grosses,
+demandent des questions).
+
+### Petites, claires → à faire vite
+
+- ~~**Or par type d'ennemi tué**~~ → fait en v17.16 : base = 1 or,
+  rapide/fragile = 2 or, rapide/costaud = 4 or, boss = 10 or
+  (`ENEMY_TYPES[].goldReward`).
+- ~~**Panneau historique de version transparent**~~ → fait en v17.16.
+  Le vrai bug (pas juste de la transparence) : `#version-panel` est un
+  enfant de `#topbar`, qui avait le même z-index (6) que `#bonusbar`/
+  `#bottombar` mais apparaît avant eux dans le DOM — à z-index égal, le
+  navigateur affiche l'élément le plus tardif dans le DOM au-dessus,
+  donc les bandeaux du bas passaient devant le panneau quel que soit
+  SON PROPRE z-index (10), puisque celui-ci ne compte que parmi les
+  enfants de `#topbar`. Corrigé en montant le z-index de `#topbar` à 20
+  (au-dessus de tout le reste). Ajouté aussi : `max-height` + `overflow-y:
+  auto` pour pouvoir défiler jusqu'en bas d'une longue liste.
+- ~~**Texte du FAQ à corriger**~~ → fait en v17.16 : retiré la mention
+  d'hébergement (dit "pour soutenir le jeu" à la place), retiré la
+  promesse fausse "jamais plus d'une pub par jour", et clarifié le
+  positionnement pay-to-win (stratégie optimale = jamais besoin de payer
+  ni de pub ; un petit bonus d'or existe pour repartir en cas de vrai
+  blocage, sans condition de pub regardée).
+- ~~**Tours plus rapides en montant de niveau**~~ → fait en v17.16 :
+  cadence de tir des tours en progression infinie elle aussi (même taux
+  que le reste, +5%/palier), avec un plancher (jamais plus de 4x la
+  cadence de départ) — `towerShotInterval(t)`.
+- **Dégâts au château selon la taille/le type d'ennemi** : toujours pas
+  fait — reste en discussion (voir plus bas, propositions à faire).
+
+### Indicateur "quelle tour va être renforcée" → fait en v17.16
+
+Halo doré pulsé autour de la tour actuellement à portée d'upgrade
+(même logique que `pickNearestTower` + `CONTACT_RANGE_PX` déjà utilisée
+pour le bouton du bandeau).
+
+### Bug signalé (vague 51, en spectateur) → diagnostiqué et corrigé en v17.16
+
+Après la mort du joueur (choix "continuer à regarder"), 3 ennemis se
+sont arrêtés en plein milieu de la carte, immobiles, jamais plus revenus
+en mouvement — bloque la partie (le jeu ne peut plus se terminer tout
+seul puisqu'ils n'avancent plus). Le joueur rappelle que le système de
+collision n'est pas censé permettre à plusieurs ennemis d'être
+exactement au même endroit — pour rappel côté notes internes : il
+n'existe actuellement PAS de collision ennemi-contre-ennemi implémentée
+(seulement joueur/tour et ennemi/tour) — la "collision souple entre
+ennemis" reste dans le backlog ci-dessous, pas encore codée. Donc le
+chevauchement visuel en lui-même n'était pas le bug.
+
+**Diagnostic confirmé par simulation Playwright** : ce n'était PAS un
+vrai gel du mouvement, mais un siège réel devenu bien trop lent pour se
+voir à l'œil nu. Cause : v17.13 a rendu la progression des tours
+infinie et TOUJOURS plus rentable en renfort — ce qui encourage
+justement à tout miser sur une seule "super-tour". Si le joueur a fait
+ça sur ~50 vagues, cette tour peut atteindre des dizaines de milliers de
+PV. Trois attackers ne lui infligent que ~0,6 PV/frame à eux trois
+(36 PV/s) : simulation confirmée, une tour à 13 462 PV encaisse
+réellement des dégâts (11 627 PV après 50s simulées) mais mettrait
+plus de 6 minutes à tomber — invisible à l'observation normale, d'où
+l'impression de blocage total. Le siège était réel, juste trop lent.
+
+**Correctif** : `SIEGE_GIVEUP_MS` (8 secondes) — un attacker qui reste
+immobile au contact de la même tour sans être parvenu à la détruire
+abandonne définitivement cette cible après ce délai et repart en ligne
+droite vers le château (comme un rusher, via `driftTowardPreferred`),
+quel que soit le niveau de la tour visée. Garantit que la vague peut
+toujours se terminer, peu importe à quel point une tour a été
+renforcée. Vérifié par simulation : après ~8s de siège sans succès, les
+ennemis marqués `siegeGaveUp` recommencent à avancer normalement vers
+le bas de l'écran.
+
+### Combat : 3 boutons séparés au lieu de 2
+
+Actuellement 2 boutons liés au combat (Dégâts = puissance, Tir auto =
+cadence). Demandé : les séparer clairement en 3 dimensions, chacune son
+bouton, en progression infinie comme les autres :
+- **Puissance** (dégâts par tir) — déjà là (bouton Dégâts).
+- **Cadence** (vitesse de tir) — déjà là en pratique (bouton Tir auto,
+  qui fait aussi office de déblocage du tir auto) — à re-décrire comme
+  "Cadence" plutôt que "Tir auto" ?
+- **Précision** (nouveau) : chaque palier augmente la précision de ~10%
+  par rapport au fait qu'on "tire un peu n'importe comment", sans
+  jamais atteindre 100% (asymptote). Vient s'ajouter au système de
+  précision par distance déjà existant (hitChanceForDistance), pas le
+  remplacer.
+Implique de revoir le bandeau de bonus (actuellement 4 boutons pile) —
+comment caser un 5e ? à voir (bandeau scrollable ? bouton repensé ?).
+
+### Indicateur visuel "quelle tour va être renforcée"
+
+Quand on s'approche d'une tour à portée d'upgrade, elle doit afficher un
+petit halo/anneau doré tout autour — pour qu'on puisse se positionner
+précisément sur celle qu'on veut renforcer quand plusieurs sont proches.
+
+### Pipeline graphique 3D → isométrique (question posée par l'utilisateur)
+
+L'utilisateur peut fournir un modèle 3D (Blender) ou un screenshot rendu
+du modèle, et demande comment on pourrait le "vectoriser" pour l'intégrer
+et avoir de meilleurs graphismes. Piste de réponse (pas encore discutée
+en détail) : rendre le modèle depuis Blender avec une caméra orthographique
+calée sur l'angle isométrique du jeu (le même ratio 2:1 que GRID_TW/GRID_TH),
+exporter en PNG transparent, l'intégrer comme sprite (data URI, comme
+l'était l'ancien bateau) plutôt que du vecteur pur (le rendu 3D préexporté
+donne un bien meilleur résultat visuel qu'un tracé SVG à la main). À
+creuser ensemble.
+
+### 🔮 Grosses idées de gameplay (discussion nécessaire avant tout code)
+
+- **Effet de particules d'ambiance** : petites particules de 3 tailles
+  (1px, 4px, 9px) qui dérivent en diagonale suivant les lignes
+  isométriques (haut-gauche vers bas-droite), juste décoratif.
+
+- **Mort d'un ennemi → croix qui monte au ciel** : à la mort, remplacer
+  l'ennemi par une petite croix qui s'élève rapidement puis disparaît
+  (au lieu de disparaître instantanément).
+
+- **Nuage de fumée noire à la mort** : juste avant la disparition, un
+  petit nuage/fumée apparaît, se dissipe rapidement, et la croix en sort.
+
+- **Effet de morale/contagion à la mort** : les ennemis proches d'un
+  camarade qui meurt perdent un peu de vie ("touchés par la fumée de la
+  mort"). Doit nourrir l'IA à mémoire existante : les ennemis
+  pourraient apprendre qu'attaquer en groupe compact est risqué, qu'il
+  vaut mieux un éclaireur isolé pendant que le groupe reste à distance,
+  ou qu'un ennemi affaibli devrait s'éloigner du groupe par "empathie"
+  pour ne pas les blesser en mourant près d'eux.
+
+- **Ennemis affaiblis qui fuient vers le bateau** : un ennemi très
+  affaibli peut fuir hors-écran (gauche/droite) ou tenter de retourner
+  au bateau. Au bateau, il peut se soigner UNE SEULE FOIS dans sa vie
+  (pas plus), récupérant la moitié de sa vie manquante (pas tout) —
+  ex : à 25% de vie (75% manquant), il regagne la moitié de 75% = 37,5%,
+  se retrouve à 62,5%. Une deuxième visite au bateau plus tard dans sa
+  vie ne fait plus rien.
+
+- **Cimetière quand une tour est détruite** : l'emplacement affiche une
+  croix/pierre tombale et devient inconstructible tant qu'elle est là.
+  Se retire automatiquement à la fin de la vague OU si le joueur se
+  place dessus et reste 1-2 secondes (une bulle avec une petite croix
+  s'affiche au-dessus de sa tête, façon prière) — thème : il y avait des
+  gens dans la tour, ils sont morts, il faut prier pour qu'ils partent
+  avant de reconstruire dessus (sinon manque de respect).
+
+- **Easter egg des marchands** (idée développée en détail, LA plus
+  grosse — demande explicitement des questions de ma part avant de
+  concevoir) :
+  - Condition de déclenchement : si aucun ennemi n'est passé par une
+    case du chemin décoratif depuis au moins une vague, ET que le
+    joueur reste sur le chemin 5 secondes, une caravane de marchands
+    apparaît et avance vers le château en suivant le chemin (une grosse
+    bille suivie de 3 petites, façon chenille).
+  - Récompense si elle arrive au château : 20% de ce que la vague
+    actuelle aurait rapporté si tous les ennemis avaient été tués,
+    affiché en animation de chiffres.
+  - Les marchands ont une barre de vie. S'ils arrivent intacts (jamais
+    touchés), ils se transforment en 4 soldats à notre service (taille
+    uniforme, on oublie la différence grosse bille/petites billes) —
+    chaque soldat a la moitié de la force du joueur. S'ils sont juste
+    blessés (pas tués) en route, ils rebroussent chemin vers le bateau
+    pour se soigner (voir "ennemis qui fuient" ci-dessus — même
+    mécanique de soin à 50% de la vie manquante, une fois dans leur
+    vie) et retentent leur chance ensuite. S'ils meurent avant
+    d'arriver, ils meurent, point final — pas de seconde chance.
+  - Nombre de marchands par caravane : aléatoire, entre 1 et 8.
+  - Les 4 soldats obtenus ont un comportement autonome piloté par une
+    "jauge de moral" (nom de code à définir) : parfois ils restent
+    cachés dans le château sans bouger, parfois ils partent sur le
+    chemin, parfois ils se battent, parfois ils restent à côté du
+    joueur, parfois ils se cachent derrière un mur/une tour, parfois
+    ils vont se soigner au bateau. Ils sont autonomes et peuvent mourir
+    s'ils ne sont pas "défendus" (pas vraiment des vrais soldats).
+  - Progression des soldats : s'ils survivent à une vague, ils gagnent
+    de l'expérience automatiquement (prennent moins de risques, se
+    soignent tout seuls, restent près du joueur, se cachent derrière
+    les murs, développent des stratégies) — un système de grade sans
+    plafond (comme le reste du jeu). Survivre à 20 vagues doit les
+    rendre "vraiment beaux" (forts). Toujours moins forts que le joueur
+    en principe, mais l'utilisateur n'est pas fermé à l'idée qu'ils
+    puissent un jour devenir plus forts que lui — pas tranché.
+  - Effet recherché : sentiment de compagnie, des alliés qui se
+    battent avec nous, qui "expérimentent" et développent mémoire et
+    apprentissage comme les ennemis. Explicitement demandé : lui poser
+    des questions en quiz là-dessus avant de concevoir — pas encore
+    fait à l'heure de cette note.
+
+- **Mécanique de la Forge** (nom du jeu = Forge Line, le mot "forge" pas
+  encore exploité littéralement) : une zone délimitée en bas à droite du
+  château. Si on y reste et qu'on y dépense de l'or (ex. 100 or), ça crée
+  "une forge" ; en y retournant, on peut acheter de nouveaux boutons de
+  compétence (ex : tours plus fortes), chaque bouton ayant sa propre
+  "vie"/progression. Question ouverte posée par l'utilisateur lui-même,
+  pas encore tranchée : est-ce que TOUT le système de progression
+  (dégâts, or passif, tours...) devrait finalement passer par cette
+  forge plutôt que par le bandeau de bonus actuel ? Ou est-ce un système
+  parallèle/additionnel ? À clarifier en quiz avant de concevoir.
+
+Pas encore trié ni implémenté au moment de cette note, sauf les points
+listés "petites, claires" qui seront attaqués dans la foulée.
+
+## v17.16 : or par type, correctifs UI, tours plus rapides, correctif siège infini
+
+Voir la section "Grosse vague de demandes" ci-dessus pour le détail
+complet de chaque point traité et de ceux qui restent ouverts. Résumé :
+or variable par type d'ennemi tué (1/2/4/10), panneau de version
+vraiment opaque et scrollable (vrai bug de z-index diagnostiqué, pas
+juste de la transparence), FAQ plus honnête sur les pubs/achats, tours
+qui tirent plus vite en montant de niveau, halo doré sur la tour ciblée
+par un upgrade, et correctif du "siège infini" (un attacker abandonne
+après 8s s'il n'arrive pas à bout de sa cible, pour que la vague puisse
+toujours se terminer même contre une tour très renforcée).
+
+Vérifié avec Playwright : suite de régression complète toujours verte,
+simulation dédiée du scénario de siège (tour niveau 60, 3 attackers)
+confirmant le diagnostic ET l'efficacité du correctif, panneau de
+version vérifié scrollable et opaque par capture d'écran avant/après.

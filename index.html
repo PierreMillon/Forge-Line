@@ -8,7 +8,7 @@
   :root{ --topbar-h:52px; --bottombar-h:64px; --bonusbar-h:58px; }
   html,body{margin:0;height:100%;background:#e8dfc8;color:#3a3529;font-family:system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
 
-  #topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);display:flex;align-items:center;background:#00000012;z-index:6}
+  #topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);display:flex;align-items:center;background:#00000012;z-index:20}
   #menu-btn{margin-left:10px;width:38px;height:38px;border-radius:8px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:18px;line-height:1;cursor:pointer}
   #menu-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);left:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:170px;z-index:10;overflow:hidden}
   #menu-panel a, #menu-panel .disabled{display:block;padding:10px 14px;font-size:14px;color:#3a3529;text-decoration:none}
@@ -17,7 +17,7 @@
 
   #wave-label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:14px;font-weight:600;white-space:nowrap;pointer-events:none}
   #version-btn{margin-left:auto;margin-right:12px;padding:6px 10px;border-radius:8px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:13px;font-family:inherit;cursor:pointer}
-  #version-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);right:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:230px;max-width:280px;z-index:10;padding:10px 14px;font-size:13px;line-height:1.7}
+  #version-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);right:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:230px;max-width:280px;max-height:calc(100vh - var(--topbar-h) - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;padding:10px 14px;font-size:13px;line-height:1.7}
   #version-panel .v{font-weight:600;margin-right:4px}
   #version-panel .row:not(:last-child){border-bottom:1px solid #00000012;padding-bottom:4px;margin-bottom:4px}
 
@@ -113,7 +113,8 @@
     </div>
   </div>
   <div id="faq-panel">
-    <p><strong>Pourquoi une pub ?</strong> Forge Line est gratuit et sans achat intégré : la pub récompensée finance simplement son hébergement. On ne t'en propose jamais plus d'une par jour.</p>
+    <p><strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.</p>
+    <p><strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.</p>
     <p><strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.</p>
     <button id="bonus-btn">🎁 Code bonus : recommencer avec 100 or</button>
   </div>
@@ -252,6 +253,14 @@ function screenToGridCell(x, y){
 // le contact/les dégâts — pas une zone floue plus large
 const TOWER_SOLID_RADIUS = 20;
 const ATTACKER_STOP_PX = TOWER_SOLID_RADIUS;
+// une tour trop renforcée peut résister très longtemps à quelques
+// attackers (bug signalé vague 51 : 3 ennemis "figés" en spectateur —
+// en fait un siège réel mais si lent que la vague ne finit jamais).
+// Passé ce délai de siège sans avoir eu raison de la tour, l'attacker
+// abandonne définitivement cette cible et fonce vers le château comme
+// un rusher — la vague peut toujours se terminer, quel que soit le
+// niveau de la tour visée.
+const SIEGE_GIVEUP_MS = 8000;
 const CONTACT_RANGE_PX = TOWER_SOLID_RADIUS + 6;
 const TOWER_FLASH_MS = 160; // durée du flash translucide quand une tour encaisse
 
@@ -347,11 +356,19 @@ let projectiles = [];
 function pickNextSpawnDelay(){ return Math.max(18, 65 - wave*3) + Math.random()*55; }
 let spawnTimer = 0, spawnInterval = pickNextSpawnDelay(), enemiesThisWave = 2, spawned = 0;
 const SHOT_INTERVAL_MS = 1000;
-const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 1.2; // tir des tours 20% plus rapide que le joueur
+const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 1.2; // tir des tours 20% plus rapide que le joueur, au niveau 1
+// une tour renforcée doit aussi tirer plus vite, pas juste taper plus
+// fort — même taux que le reste de la progression infinie (+5%/palier),
+// avec un plancher pour ne jamais devenir absurde (jamais plus de 4x la
+// cadence de départ)
+function towerShotInterval(t){
+  return Math.max(TOWER_SHOT_INTERVAL_MS / 4, TOWER_SHOT_INTERVAL_MS / Math.pow(UPGRADE_POWER_GROWTH, (t.level||1) - 1));
+}
 const PLAYER_DMG = 12;
 const BASE_ENEMY_HP = 12;
 const WAVE_HP_STEP = 3; // croissance LINÉAIRE (pas exponentielle) : +3 PV par vague
-const KILL_REWARD = 1;   // or gagné en tuant un ennemi (rien s'il atteint la ligne)
+// or gagné en tuant un ennemi (rien s'il atteint la ligne) — varie par
+// type depuis v17.16, voir ENEMY_TYPES.goldReward ci-dessous
 
 // --- types d'ennemis (couleur + PV/vitesse relatifs au type de base) ---
 // vitesse : plus de montée avec la vague — chaque type a une vitesse de
@@ -361,10 +378,10 @@ const KILL_REWARD = 1;   // or gagné en tuant un ennemi (rien s'il atteint la l
 const ENEMY_BASE_SPEED = 0.55; // px/frame, référence pour le type de base
 const ENEMY_PACE_AMPLITUDE = 0.3; // +/- 30% de variation individuelle autour de la vitesse du type
 const ENEMY_TYPES = [
-  { id: 'base',       hpMult: 1,   speedMult: 1,   colorA: '#f2a3a3', colorB: '#c33f3f' }, // rouge, référence
-  { id: 'fast_frail', hpMult: 0.5, speedMult: 2,   colorA: '#a3d3f2', colorB: '#3f7fc3' }, // bleu clair, rapide et fragile
-  { id: 'fast_tough', hpMult: 1,   speedMult: 2,   colorA: '#cba3f2', colorB: '#7a3fc3' }, // violet, rapide et costaud
-  { id: 'boss',       hpMult: 4,   speedMult: 0.5, colorA: '#f2cf9e', colorB: '#c3813f', rare: true }, // orange, lent et très résistant
+  { id: 'base',       hpMult: 1,   speedMult: 1,   colorA: '#f2a3a3', colorB: '#c33f3f', goldReward: 1 },  // rouge, référence
+  { id: 'fast_frail', hpMult: 0.5, speedMult: 2,   colorA: '#a3d3f2', colorB: '#3f7fc3', goldReward: 2 },  // bleu clair, rapide et fragile
+  { id: 'fast_tough', hpMult: 1,   speedMult: 2,   colorA: '#cba3f2', colorB: '#7a3fc3', goldReward: 4 },  // violet, rapide et costaud
+  { id: 'boss',       hpMult: 4,   speedMult: 0.5, colorA: '#f2cf9e', colorB: '#c3813f', goldReward: 10, rare: true }, // orange, lent et très résistant
 ];
 // introduction progressive des types par vague (revu : un type débloqué
 // d'un coup à taux fixe dès le départ donnait un mélange trop tôt et
@@ -865,7 +882,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
-  { v: 17.15, text: "Château : créneaux (10, un détruit par brèche) au lieu de tranches de hauteur ; introduction progressive des types d'ennemis par vague (formule infinie, plus de table figée) ; boss repoussé vers la vague 200" },
+  { v: 17.16, text: "Or par type d'ennemi (1/2/4/10) ; correctif panneau version (transparence + scroll) ; FAQ plus honnête sur les pubs/achats ; tours plus rapides en montant de niveau ; halo doré sur la tour à portée d'upgrade ; correctif siège infini (un attacker abandonne après 8s)" },
   { v: 17.14, text: "Grille de construction affichée par défaut ; château sur toute la largeur ; chemin retracé vers le haut/gauche (croquis reçu)" },
   { v: 17.13, text: "Renfort de tour garanti plus rentable qu'une tour neuve à tout niveau (incrément géométrique au lieu du total) ; tir auto en progression infinie (débit, plus un simple interrupteur)" },
   { v: 17.12, text: "Correctif audio iPhone (interrupteur silence) ; construction de tour jamais bloquée (décale sur le côté) ; château = 10 tranches détruites par les brèches (remplace le compteur texte) ; vague affichée en haut au centre ; bateau et chemin en isométrique" },
@@ -1060,7 +1077,11 @@ function spawnEnemy(now){
     spawnedAt: now,
     // certains hésitent avant de s'avancer — l'impression qu'ils attendent
     // une occasion plutôt que de foncer tous en rang
-    waitFrames: Math.random() < 0.4 ? Math.floor(20 + Math.random()*70) : 0
+    waitFrames: Math.random() < 0.4 ? Math.floor(20 + Math.random()*70) : 0,
+    // un siège trop long (tour bien trop renforcée pour tomber vite) doit
+    // pouvoir être abandonné — sinon un attacker peut camper indéfiniment
+    // sur une "super-tour" et bloquer la fin de la vague (voir SIEGE_GIVEUP_MS)
+    siegeStartedAt: null, siegeGaveUp: false
   };
   if (role === 'attacker') e.target = pickTargetTower(baseX, 0);
   enemies.push(e);
@@ -1201,7 +1222,7 @@ function update(now){
   // pas de barre de vie séparée — leur hauteur EST leur vie (voir draw())
   for (const t of towers){
     if (t.lastShotAt === undefined) t.lastShotAt = 0;
-    if (now - t.lastShotAt >= TOWER_SHOT_INTERVAL_MS){
+    if (now - t.lastShotAt >= towerShotInterval(t)){
       let target = null, best = TOWER_RANGE_PX;
       for (const e of enemies){
         const d = Math.hypot(e.x-t.x, e.y-t.y);
@@ -1295,11 +1316,19 @@ function update(now){
     }
     if (e.waitFrames > 0){
       e.waitFrames--; // hésite/se planque un instant avant de s'avancer
-    } else if (e.role === 'attacker'){
-      if (!e.target || !towers.includes(e.target)) e.target = pickTargetTower(e.x, e.y);
+    } else if (e.role === 'attacker' && !e.siegeGaveUp){
+      if (!e.target || !towers.includes(e.target)){ e.target = pickTargetTower(e.x, e.y); e.siegeStartedAt = null; }
       if (e.target){
         const dx = e.target.x-e.x, dy = e.target.y-e.y, d = Math.hypot(dx, dy);
-        if (d > ATTACKER_STOP_PX){ e.x += dx/d*e.speed; e.y += dy/d*e.speed; }
+        if (d > ATTACKER_STOP_PX){ e.x += dx/d*e.speed; e.y += dy/d*e.speed; e.siegeStartedAt = null; }
+        else {
+          // arrivé au contact : le siège démarre (ou continue) ici
+          if (e.siegeStartedAt === null) e.siegeStartedAt = now;
+          else if (now - e.siegeStartedAt > SIEGE_GIVEUP_MS){
+            e.siegeGaveUp = true; e.target = null;
+            e.baseX = e.x; // évite un saut visible : driftTowardPreferred repart d'ici, pas du spawn d'origine
+          }
+        }
       } else {
         driftTowardPreferred(e, now);
       }
@@ -1318,7 +1347,9 @@ function update(now){
     e.x = Math.max(16, Math.min(STAGE_W-16, e.x));
     if (e.hp <= 0){
       if (!e.dead){
-        gold += KILL_REWARD; // l'or vient de la mise à mort, pas de l'arrivée sur la carte
+        // l'or vient de la mise à mort, pas de l'arrivée sur la carte —
+        // varie par type (le type de base reste à 1, comme avant)
+        gold += (e.type || ENEMY_TYPES[0]).goldReward;
         ensureColumnStats();
         columnStats[columnOf(e.x)].deaths++;
       }
@@ -1477,6 +1508,13 @@ function draw(now){
 
   const layers = [];
 
+  // quelle tour serait renforcée si on appuie sur le bouton maintenant —
+  // affiche un halo doré tout autour pour se positionner précisément
+  // quand plusieurs tours sont proches les unes des autres
+  const nearTowerCandidate = pickNearestTower(player.x, player.y);
+  const nearUpgradeTower = (nearTowerCandidate && Math.hypot(nearTowerCandidate.x-player.x, nearTowerCandidate.y-player.y) < CONTACT_RANGE_PX)
+    ? nearTowerCandidate : null;
+
   // pas de barre de vie : la hauteur du pavé EST sa vie — une tour qui
   // encaisse rétrécit vers le sol, et disparaît une fois "coulée". Elle
   // devient brièvement translucide pendant qu'elle se fait attaquer.
@@ -1492,7 +1530,17 @@ function draw(now){
     // hauteur max rétrécit avec les dégâts encaissés comme avant
     const sh = TOWER_MAX_SH * visualLevel * Math.max(0, t.hp/t.maxHp);
     const flashing = now < (t.flashUntil || 0);
+    const highlighted = t === nearUpgradeTower;
     layers.push({ y: t.y, draw: () => {
+      if (highlighted){
+        // halo doré au sol, pulsé doucement pour bien attirer l'œil
+        const pulse = 0.6 + 0.4 * Math.sin(now / 200);
+        ctx.save();
+        ctx.strokeStyle = `rgba(217, 164, 65, ${0.5 + 0.3*pulse})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(t.x, t.y, TOWER_HW*2.2, TOWER_HH*2.2, 0, 0, Math.PI*2); ctx.stroke();
+        ctx.restore();
+      }
       if (flashing) ctx.globalAlpha = 0.45;
       drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments);
       if (flashing) ctx.globalAlpha = 1;
