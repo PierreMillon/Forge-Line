@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Forge Line — prototype</title>
 <style>
-  :root{ --topbar-h:52px; --bottombar-h:64px; --bonusbar-h:58px; }
+  :root{ --topbar-h:52px; --bottombar-h:64px; --bonusbar-row-h:58px; --bonusbar-h:calc(var(--bonusbar-row-h) * 2 + 4px); }
   html,body{margin:0;height:100%;background:#e8dfc8;color:#3a3529;font-family:system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
 
   #topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);display:flex;align-items:center;background:#00000012;z-index:20}
@@ -24,8 +24,11 @@
   #bottombar{position:fixed;bottom:0;left:0;right:0;height:var(--bottombar-h);display:flex;align-items:center;justify-content:center;background:#00000012;z-index:6}
   #hud{font-size:14px;line-height:1.4;text-align:center}
 
-  /* bandeau de bonus achetables, juste au-dessus du bandeau d'infos */
-  #bonusbar{position:fixed;bottom:var(--bottombar-h);left:0;right:0;height:var(--bonusbar-h);display:flex;align-items:stretch;justify-content:center;gap:8px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
+  /* bandeau de bonus achetables, juste au-dessus du bandeau d'infos —
+     deux étages : le 1er étage garde ses 4 boutons d'origine, le 2e
+     étage accueille les nouveaux (Précision, et les suivants) */
+  #bonusbar{position:fixed;bottom:var(--bottombar-h);left:0;right:0;height:var(--bonusbar-h);display:flex;flex-direction:column;gap:4px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
+  .bonusbar-row{display:flex;align-items:stretch;justify-content:center;gap:8px;flex:1}
   #bonusbar button{flex:1;max-width:100px;padding:4px 3px;border-radius:9px;border:1px solid #00000030;background:#faf6ea;color:#3a3529;font-size:10.5px;line-height:1.3;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
   #bonusbar button:disabled{opacity:.42}
   #bonusbar button .b-icon{font-size:16px}
@@ -121,10 +124,15 @@
 </div>
 
 <div id="bonusbar">
-  <button id="autogold-btn"><span class="b-icon">💰</span><span>Revenu auto</span><span class="b-cost" id="autogold-cost"></span></button>
-  <button id="damage-btn"><span class="b-icon">💥</span><span>Dégâts</span><span class="b-cost" id="damage-cost"></span></button>
-  <button id="tower-btn"><span class="b-icon">🏰</span><span id="tower-label"></span><span class="b-cost" id="tower-cost"></span></button>
-  <button id="autofire-btn"><span class="b-icon">🎯</span><span>Tir auto</span><span class="b-cost" id="autofire-cost"></span></button>
+  <div class="bonusbar-row">
+    <button id="autogold-btn"><span class="b-icon">💰</span><span>Revenu auto</span><span class="b-cost" id="autogold-cost"></span></button>
+    <button id="damage-btn"><span class="b-icon">💥</span><span>Dégâts</span><span class="b-cost" id="damage-cost"></span></button>
+    <button id="tower-btn"><span class="b-icon">🏰</span><span id="tower-label"></span><span class="b-cost" id="tower-cost"></span></button>
+    <button id="autofire-btn"><span class="b-icon">🎯</span><span>Cadence</span><span class="b-cost" id="autofire-cost"></span></button>
+  </div>
+  <div class="bonusbar-row">
+    <button id="precision-btn"><span class="b-icon">🔬</span><span>Précision</span><span class="b-cost" id="precision-cost"></span></button>
+  </div>
 </div>
 
 <div id="bottombar">
@@ -684,6 +692,21 @@ let autoFireLevel = 0;
 function autoFireCost(){ return Math.round(AUTO_FIRE_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, autoFireLevel)); }
 function autoFireInterval(){ return Math.max(AUTO_FIRE_MIN_INTERVAL_MS, SHOT_INTERVAL_MS / Math.pow(UPGRADE_POWER_GROWTH, autoFireLevel)); }
 
+// 5. précision : 3e dimension du combat, séparée de la puissance et de
+//    la cadence — chaque palier referme 10% de l'écart restant vers
+//    100% de précision, sans jamais l'atteindre (asymptote), comme
+//    demandé. S'applique par-dessus la précision par distance déjà
+//    existante (hitChanceForDistance) : ferme une partie du "tire un
+//    peu n'importe comment" de base, pas une précision indépendante.
+const PRECISION_COST_BASE = 15;
+const PRECISION_CLOSE_RATE = 0.9; // referme 10% de l'écart restant par palier
+let precisionLevel = 0;
+function precisionCost(){ return Math.round(PRECISION_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, precisionLevel)); }
+// multiplie la chance de RATER (jamais la chance de réussir directement,
+// pour ne jamais atteindre 100% pile) — proche de 0 à très haut niveau,
+// jamais exactement 0
+function precisionMissFactor(){ return Math.pow(PRECISION_CLOSE_RATE, precisionLevel); }
+
 // la tour se cale sur la case de la grille juste au-dessus du joueur (côté
 // ennemis) — comme cette case dépend d'où le joueur se trouve à l'instant
 // de l'appui, marcher le long d'une ligne et construire plusieurs fois
@@ -803,8 +826,14 @@ document.getElementById('autofire-btn').addEventListener('click', () => {
   gold -= cost;
   autoFireLevel++;
 });
+document.getElementById('precision-btn').addEventListener('click', () => {
+  const cost = precisionCost();
+  if (gold < cost) return;
+  gold -= cost;
+  precisionLevel++;
+});
 
-// affiche l'état courant des 4 boutons (coût, grisé si pas assez d'or) —
+// affiche l'état courant des boutons (coût, grisé si pas assez d'or) —
 // rappelé à chaque frame, comme le reste du HUD. Plus de "Max"/"Actif" :
 // la progression est infinie, seul le manque d'or bloque l'achat (le tir
 // auto se voit directement à l'écran une fois le 1er palier acheté).
@@ -819,6 +848,11 @@ function refreshBonusbar(){
   const afBtn = document.getElementById('autofire-btn');
   afBtn.disabled = disabledAll || gold < afCost;
   document.getElementById('autofire-cost').textContent = afCost + ' or';
+
+  const pCost = precisionCost();
+  const pBtn = document.getElementById('precision-btn');
+  pBtn.disabled = disabledAll || gold < pCost;
+  document.getElementById('precision-cost').textContent = pCost + ' or';
 
   const dCost = dmgUpgradeCost();
   const dBtn = document.getElementById('damage-btn');
@@ -882,6 +916,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.17, text: "Bouton Précision (3e dimension du combat, avec Puissance et Cadence) — bandeau de bonus à 2 étages" },
   { v: 17.16, text: "Or par type d'ennemi (1/2/4/10) ; correctif panneau version (transparence + scroll) ; FAQ plus honnête sur les pubs/achats ; tours plus rapides en montant de niveau ; halo doré sur la tour à portée d'upgrade ; correctif siège infini (un attacker abandonne après 8s)" },
   { v: 17.14, text: "Grille de construction affichée par défaut ; château sur toute la largeur ; chemin retracé vers le haut/gauche (croquis reçu)" },
   { v: 17.13, text: "Renfort de tour garanti plus rentable qu'une tour neuve à tout niveau (incrément géométrique au lieu du total) ; tir auto en progression infinie (débit, plus un simple interrupteur)" },
@@ -1122,7 +1157,12 @@ function playerShoot(now, manualInterval){
   // sinon elle deviendrait énorme à très haut niveau
   const r = 4 + Math.sqrt(dmgLevel) * 3;
   const dmg = effectivePlayerDmg();
-  if (Math.random() < hitChanceForDistance(best)){
+  // le bonus précision referme une partie de la chance de rater — jamais
+  // toute (asymptote vers 100%, jamais pile) ; s'applique par-dessus la
+  // précision par distance déjà existante, pas à la place
+  const baseHitChance = hitChanceForDistance(best);
+  const effectiveHitChance = 1 - (1 - baseHitChance) * precisionMissFactor();
+  if (Math.random() < effectiveHitChance){
     projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg, r, source: 'player' });
   } else {
     // raté : le tir part quand même, mais dévie nettement à côté — et
@@ -1653,7 +1693,7 @@ function resetGame(startingGold){
   repairingTower = null;
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
-  autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0;
+  autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0; precisionLevel = 0;
   lastAutoShotAt = 0; lastManualShotAt = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 })); recentSuccesses = [];
   player.x = STAGE_W/2; player.y = STAGE_H - 70;

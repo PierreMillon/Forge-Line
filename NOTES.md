@@ -583,7 +583,7 @@ Halo doré pulsé autour de la tour actuellement à portée d'upgrade
 (même logique que `pickNearestTower` + `CONTACT_RANGE_PX` déjà utilisée
 pour le bouton du bandeau).
 
-### Bug signalé (vague 51, en spectateur) → diagnostiqué et corrigé en v17.16
+### Bug signalé (vague 51, en spectateur) → 1er diagnostic ANNULÉ par l'utilisateur, cause réelle encore ouverte
 
 Après la mort du joueur (choix "continuer à regarder"), 3 ennemis se
 sont arrêtés en plein milieu de la carte, immobiles, jamais plus revenus
@@ -596,44 +596,53 @@ n'existe actuellement PAS de collision ennemi-contre-ennemi implémentée
 ennemis" reste dans le backlog ci-dessous, pas encore codée. Donc le
 chevauchement visuel en lui-même n'était pas le bug.
 
-**Diagnostic confirmé par simulation Playwright** : ce n'était PAS un
-vrai gel du mouvement, mais un siège réel devenu bien trop lent pour se
-voir à l'œil nu. Cause : v17.13 a rendu la progression des tours
-infinie et TOUJOURS plus rentable en renfort — ce qui encourage
-justement à tout miser sur une seule "super-tour". Si le joueur a fait
-ça sur ~50 vagues, cette tour peut atteindre des dizaines de milliers de
-PV. Trois attackers ne lui infligent que ~0,6 PV/frame à eux trois
-(36 PV/s) : simulation confirmée, une tour à 13 462 PV encaisse
-réellement des dégâts (11 627 PV après 50s simulées) mais mettrait
-plus de 6 minutes à tomber — invisible à l'observation normale, d'où
-l'impression de blocage total. Le siège était réel, juste trop lent.
+**1er diagnostic (ANNULÉ) : hypothèse d'un siège de tour trop lent pour
+se voir.** J'avais supposé qu'une tour très renforcée (v17.13) mettait
+plusieurs minutes à tomber sous 3 attackers, donnant l'illusion d'un gel
+— confirmé par simulation, mais l'utilisateur a corrigé : **il n'y avait
+pas de tour du tout dans son cas**, juste 3 ennemis au même endroit,
+immobiles. Cette hypothèse ne s'applique donc pas à ce qu'il a vu.
 
-**Correctif** : `SIEGE_GIVEUP_MS` (8 secondes) — un attacker qui reste
-immobile au contact de la même tour sans être parvenu à la détruire
-abandonne définitivement cette cible après ce délai et repart en ligne
-droite vers le château (comme un rusher, via `driftTowardPreferred`),
-quel que soit le niveau de la tour visée. Garantit que la vague peut
+**Cause réelle : pas encore confirmée.** Piste la plus probable vu
+l'absence de tour : un rôle non-attacker (rusher/harasser/drift) qui
+finit, pour une raison à creuser, avec une vitesse quasi nulle — à
+vérifier dans `driftTowardPreferred`/le rôle harasser (le calcul
+`e.speed` dépend de `paceMult`, qui oscille mais ne devrait jamais
+tomber à 0 ; à vérifier si un cas limite existe). Le simple
+chevauchement (plusieurs ennemis à la même position) n'est lui pas un
+bug en soi tant que la "collision souple entre ennemis" n'est pas codée
+— reste à confirmer si les 3 ennemis étaient VRAIMENT immobiles
+(vitesse nulle) ou juste très lents et superposés.
+
+**Gardé quand même** : `SIEGE_GIVEUP_MS` (8 secondes, un attacker
+abandonne une tour trop résistante après ce délai) reste une
+amélioration légitime en soi (empêche un vrai siège interminable de
+bloquer une vague), même si elle ne corrige pas le bug tel que
+rapporté. Un attacker qui reste immobile au contact de la même tour
+sans être parvenu à la détruire abandonne définitivement cette cible
+après ce délai et repart en ligne droite vers le château (comme un
+rusher, via `driftTowardPreferred`), quel que soit le niveau de la tour
+visée. Garantit que la vague peut
 toujours se terminer, peu importe à quel point une tour a été
 renforcée. Vérifié par simulation : après ~8s de siège sans succès, les
 ennemis marqués `siegeGaveUp` recommencent à avancer normalement vers
 le bas de l'écran.
 
-### Combat : 3 boutons séparés au lieu de 2
+### Combat : 3 boutons séparés au lieu de 2 → fait en v17.17
 
-Actuellement 2 boutons liés au combat (Dégâts = puissance, Tir auto =
-cadence). Demandé : les séparer clairement en 3 dimensions, chacune son
-bouton, en progression infinie comme les autres :
-- **Puissance** (dégâts par tir) — déjà là (bouton Dégâts).
-- **Cadence** (vitesse de tir) — déjà là en pratique (bouton Tir auto,
-  qui fait aussi office de déblocage du tir auto) — à re-décrire comme
-  "Cadence" plutôt que "Tir auto" ?
-- **Précision** (nouveau) : chaque palier augmente la précision de ~10%
-  par rapport au fait qu'on "tire un peu n'importe comment", sans
-  jamais atteindre 100% (asymptote). Vient s'ajouter au système de
-  précision par distance déjà existant (hitChanceForDistance), pas le
-  remplacer.
-Implique de revoir le bandeau de bonus (actuellement 4 boutons pile) —
-comment caser un 5e ? à voir (bandeau scrollable ? bouton repensé ?).
+- **Puissance** (dégâts par tir) — déjà là (bouton Dégâts), inchangé.
+- **Cadence** — le bouton "Tir auto" est renommé "Cadence" (même
+  mécanique qu'avant, juste un nom plus juste).
+- **Précision** (nouveau bouton) : chaque palier referme 10% de l'écart
+  restant vers 100% de précision (`precisionMissFactor`), sans jamais
+  l'atteindre pile — vient réduire la chance de RATER déjà calculée par
+  `hitChanceForDistance` (distance), pas la remplacer. Coût géométrique
+  comme le reste (base 15 or, +2,7%/palier).
+- **Bandeau de bonus** : réponse à "comment caser un 5e bouton" — un
+  2e étage de boutons sous le premier ("on rajoute un étage de
+  bouton"), pas un scroll ni une refonte. Le 1er étage garde ses 4
+  boutons d'origine tels quels, le 2e étage accueille Précision (et les
+  suivants, s'il y en a).
 
 ### Indicateur visuel "quelle tour va être renforcée"
 
@@ -762,3 +771,25 @@ Vérifié avec Playwright : suite de régression complète toujours verte,
 simulation dédiée du scénario de siège (tour niveau 60, 3 attackers)
 confirmant le diagnostic ET l'efficacité du correctif, panneau de
 version vérifié scrollable et opaque par capture d'écran avant/après.
+
+## v17.17 : bouton Précision, correctif du diagnostic vague 51, retour utilisateur intégré
+
+- **Bouton Précision** ajouté (3e dimension du combat, avec Puissance
+  et Cadence — "Tir auto" renommé "Cadence"). Progression infinie comme
+  le reste, referme 10% de l'écart restant vers 100% par palier, sans
+  jamais l'atteindre. Le bandeau de bonus passe à 2 étages pour
+  l'accueillir, sur demande explicite ("on rajoute un étage de
+  bouton") plutôt qu'un scroll ou une refonte.
+- **Correction honnête du diagnostic vague 51** (v17.16) : l'utilisateur
+  a signalé que mon hypothèse de "siège de tour trop lent" était fausse
+  pour son cas précis — il n'y avait pas de tour du tout, juste 3
+  ennemis superposés et immobiles. Annulé dans les notes (pas
+  supprimé) ; la cause réelle reste à confirmer, piste la plus probable
+  notée pour la prochaine fois. Le correctif `SIEGE_GIVEUP_MS` reste en
+  place (amélioration légitime indépendamment de ce bug précis).
+
+Vérifié avec Playwright : formule de précision cohérente à plusieurs
+paliers (0%, 10%, 41%, 88%, ~99,997% de l'écart refermé), bouton
+désactivé sans assez d'or puis achat confirmé, bandeau à 2 lignes
+vérifié par capture d'écran, suite de régression complète toujours
+verte, aucune erreur JS.
