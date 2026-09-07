@@ -701,9 +701,8 @@ creuser ensemble.
   gens dans la tour, ils sont morts, il faut prier pour qu'ils partent
   avant de reconstruire dessus (sinon manque de respect).
 
-- **Easter egg des marchands** (idée développée en détail, LA plus
-  grosse — demande explicitement des questions de ma part avant de
-  concevoir) :
+- ~~**Easter egg des marchands**~~ → fait en v17.20 (idée développée en
+  détail, LA plus grosse) :
   - Condition de déclenchement : si aucun ennemi n'est passé par une
     case du chemin décoratif depuis au moins une vague, ET que le
     joueur reste sur le chemin 5 secondes, une caravane de marchands
@@ -743,11 +742,28 @@ creuser ensemble.
   - Effet recherché : sentiment de compagnie, des alliés qui se
     battent avec nous, qui "expérimentent" et développent mémoire et
     apprentissage comme les ennemis.
-  - **Reste ouvert avant de coder** : mécanique précise du tracking
-    "aucun ennemi passé sur le chemin depuis 1 vague" (granularité par
-    case ? par segment ?), détail visuel de la caravane, animation du
-    changement caravane→soldats. Pas encore implémenté, plus gros
-    chantier restant de la liste.
+  - **Implémentation (v17.20)** : le chemin est "sali" quand un ennemi
+    passe à moins de 26px d'un point du tracé (`PATH_TOUCH_RADIUS`),
+    suivi vague par vague (`pathClearWaveStreak`) ; le joueur doit être
+    à moins de 26px du chemin pendant 5s d'affilée pour déclencher.
+    Récompense en or = approximation grossière `enemiesThisWave × 1,5`
+    (moyenne pondérée des récompenses par type), documentée comme
+    approximative — donnée à la première arrivée (blessée ou non) de la
+    caravane au château. La conversion en 4 soldats est réservée au
+    premier marchand qui arrive JAMAIS touché (`everWounded`, un
+    drapeau à vie, pas remis à zéro par le soin) — un marchand blessé
+    qui revient sain après un soin ne peut plus jamais convertir, il
+    continue juste à faire l'aller-retour. Soldats : dégâts et PV
+    calculés par les mêmes formules `Math.pow(UPGRADE_POWER_GROWTH,
+    grade)` que le reste du jeu (grade++ à chaque vague survécue, sans
+    plafond), comportement choisi par tirage pondéré parmi 4 options
+    (combattre/garder/cacher/soigner) re-tiré toutes les ~3-4,5s, le
+    poids de prudence grimpe avec le grade. Choix simplifiés
+    volontairement pour une 1re version : les 4 soldats sont toujours de
+    taille uniforme (pas de distinction grosse/petite bille reprise), le
+    "retour au bateau" pour se soigner (marchands et soldats) vise en
+    fait le bout du chemin plutôt que la position exacte et mobile du
+    bateau — approximation visuelle, pas fonctionnellement gênante.
 
 - ~~**Mécanique de la Forge**~~ → fait en v17.19 (nom du jeu = Forge
   Line, le mot "forge" enfin exploité littéralement). Zone délimitée en
@@ -831,3 +847,28 @@ confirmé sur plusieurs paliers avec la garantie renfort/neuf toujours
 intacte (ratio identique avant/après), rendu visuel vérifié par
 capture d'écran (zone grisée avant construction, braise orange après),
 suite de régression complète toujours verte, aucune erreur JS.
+
+## v17.20 : l'easter egg des marchands (caravane, soldats, grade sans plafond)
+
+Plus gros morceau du backlog, implémenté en une passe après le quiz sur
+l'IA des soldats et le plafond de puissance. Détail complet dans la
+section "Grosse vague de demandes" ci-dessus. Résumé : chemin "sali" par
+le passage d'ennemis, suivi vague par vague ; 5s d'immobilité sur un
+chemin resté propre depuis 1 vague déclenche une caravane (1-8
+marchands) ; dégâts de contact, retraite-soin-retentative pour les
+blessés, mort définitive s'ils tombent à 0 PV ; récompense en or à la
+première arrivée, conversion en 4 soldats réservée à un marchand jamais
+touché ; soldats avec IA à tirage pondéré (poids de prudence croissant
+avec le grade) et progression de grade sans plafond, cohérente avec le
+reste du système de progression infinie du jeu.
+
+Vérifié avec Playwright : condition de déclenchement (chemin sale
+bloque, joueur qui ressort du chemin relance le minuteur), cycle complet
+blessure→retraite→soin (une fois)→nouvelle tentative, conversion en
+soldats réservée à un marchand jamais touché (testé isolément avec un
+marchand neuf), récompense en or vérifiée au montant attendu, soldats
+fonctionnels sur 600 frames simulées (aucun crash, dégâts qui montent
+avec le grade), rendu vérifié par capture d'écran (caravane le long du
+chemin avec barres de vie, 4 soldats verts autour du joueur), suite de
+régression complète + 30s de jeu multi-vagues sans surveillance
+toujours vertes, aucune erreur JS.

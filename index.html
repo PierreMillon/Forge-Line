@@ -300,12 +300,13 @@ function inRegenZone(x, y){
          y >= REGEN_ZONE.y - pad && y <= REGEN_ZONE.y + REGEN_ZONE.h + pad;
 }
 
-// petit chemin décoratif : part du bord du château vers le haut ou la
-// gauche (retracé sur un croquis reçu, suivi à ~50% de précision comme
+// petit chemin : part du bord du château vers le haut ou la gauche
+// (retracé sur un croquis reçu, suivi à ~50% de précision comme
 // demandé), en suivant les diagonales de la grille isométrique (comme
 // les cases de construction) pour rester cohérent avec la perspective.
-// Pas de gameplay ici — juste pour donner l'impression qu'il existe une
-// carte plus grande autour.
+// Décoratif à l'origine (v17.12), sert depuis v17.20 de tracé à
+// l'easter egg des marchands (voir plus bas) — index 0 = bord du
+// château, dernier index = vers le large.
 let pathScreenPoints = [];
 function buildPath(){
   const start = screenToGridCell(STAGE_W*0.52, REGEN_ZONE.y);
@@ -319,6 +320,210 @@ function buildPath(){
     else if (i % 4 === 3) gy += 1; // ...ou un peu vers la droite, pour zigzaguer
     pathScreenPoints.push(gridToScreen(gx, gy));
   }
+}
+function posOnPath(idxFloat){
+  const n = pathScreenPoints.length;
+  const i0 = Math.max(0, Math.min(n-1, Math.floor(idxFloat)));
+  const i1 = Math.max(0, Math.min(n-1, Math.ceil(idxFloat)));
+  const t = idxFloat - i0;
+  const a = pathScreenPoints[i0], b = pathScreenPoints[i1];
+  return { x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t };
+}
+
+// --- Easter egg des marchands ---
+// Condition : le chemin doit être resté "propre" (aucun ennemi passé
+// dessus) pendant au moins 1 vague entière, ET le joueur reste dessus 5
+// secondes — alors une caravane (1 à 8 marchands) apparaît et remonte le
+// chemin vers le château. Reçoivent des dégâts de contact des ennemis
+// croisés en route (le chemin n'est pas gardé pendant tout le trajet,
+// juste "propre" au moment du départ). Un marchand blessé qui atteint
+// quand même le château repart se soigner au large (une fois dans sa
+// vie, moitié du manquant) puis retente sa chance. Un marchand qui
+// meurt en route meurt, point final. Le premier marchand qui atteint le
+// château JAMAIS touché convertit toute la caravane en 4 soldats à
+// notre service — un seul évènement de récompense par caravane.
+const PATH_TOUCH_RADIUS = 26;       // distance à laquelle un ennemi "salit" le chemin
+const MERCHANT_STAND_MS = 5000;
+const MERCHANT_MIN = 1, MERCHANT_MAX = 8;
+const MERCHANT_SPEED_IDX = 0.03;    // en "indices de chemin" par frame
+const MERCHANT_HP = 20;
+const MERCHANT_CONTACT_DMG = 0.15;  // dégâts/frame d'un ennemi au contact
+const MERCHANT_HEAL_FRACTION = 0.5; // guérit la moitié du manquant, une fois dans sa vie
+const SOLDIER_COUNT_REWARD = 4;
+let pathDisturbedThisWave = false;  // un ennemi a-t-il traîné sur le chemin cette vague ?
+let pathClearWaveStreak = 0;        // nb de vagues consécutives sans ennemi sur le chemin
+let playerOnPathSince = null;
+let activeCaravan = null;           // { rewardGiven, soldiersGiven } — un seul évènement à la fois
+let merchants = [];                 // { pathIdx, x, y, hp, maxHp, retreating, wounded, everWounded, healUsed, dead }
+
+// approximation volontairement grossière : la moyenne pondérée des
+// récompenses par type (base 1, rapide/fragile 2, rapide/costaud 4,
+// boss 10, rare) tourne autour de 1,5 or/ennemi en usage courant
+function waveValueEstimate(){ return Math.round(enemiesThisWave * 1.5); }
+
+function tryTriggerCaravan(now){
+  if (activeCaravan || pathScreenPoints.length < 2) return;
+  const { dist } = nearestPathIndex(player.x, player.y);
+  if (dist >= PATH_TOUCH_RADIUS){ playerOnPathSince = null; return; }
+  if (playerOnPathSince === null) playerOnPathSince = now;
+  if (pathClearWaveStreak < 1) return; // le chemin doit être resté propre au moins 1 vague
+  if (now - playerOnPathSince < MERCHANT_STAND_MS) return;
+  spawnCaravan();
+  playerOnPathSince = null;
+}
+function nearestPathIndex(x, y){
+  let best = Infinity, idx = 0;
+  for (let i = 0; i < pathScreenPoints.length; i++){
+    const d = Math.hypot(pathScreenPoints[i].x-x, pathScreenPoints[i].y-y);
+    if (d < best){ best = d; idx = i; }
+  }
+  return { idx, dist: best };
+}
+function spawnCaravan(){
+  const count = MERCHANT_MIN + Math.floor(Math.random() * (MERCHANT_MAX - MERCHANT_MIN + 1));
+  merchants = [];
+  for (let i = 0; i < count; i++){
+    merchants.push({
+      pathIdx: pathScreenPoints.length - 1 - i*0.6, // étalés façon chenille
+      x: 0, y: 0, hp: MERCHANT_HP, maxHp: MERCHANT_HP,
+      retreating: false, wounded: false, everWounded: false, healUsed: false, dead: false,
+    });
+  }
+  activeCaravan = { rewardGiven: false, soldiersGiven: false };
+}
+function updateMerchants(now){
+  if (!merchants.length) return;
+  for (const m of merchants){
+    if (m.dead) continue;
+    const pos = posOnPath(m.pathIdx);
+    m.x = pos.x; m.y = pos.y;
+    for (const e of enemies){
+      if (Math.hypot(e.x-m.x, e.y-m.y) < 20){
+        m.hp -= MERCHANT_CONTACT_DMG;
+        m.wounded = true; m.everWounded = true;
+      }
+    }
+    if (m.hp <= 0){ m.dead = true; continue; }
+
+    m.pathIdx += (m.retreating ? 1 : -1) * MERCHANT_SPEED_IDX;
+    m.pathIdx = Math.max(0, Math.min(pathScreenPoints.length - 1, m.pathIdx));
+
+    if (!m.retreating && m.pathIdx <= 0){
+      // arrivé au château
+      if (activeCaravan && !activeCaravan.rewardGiven){
+        const reward = waveValueEstimate();
+        gold += reward;
+        floatingTexts.push({ x: REGEN_ZONE.x + REGEN_ZONE.w/2, y: REGEN_ZONE.y - 10, text: '+'+reward, createdAt: now, color: '#d9a441' });
+        activeCaravan.rewardGiven = true;
+      }
+      if (!m.everWounded && activeCaravan && !activeCaravan.soldiersGiven){
+        spawnSoldiers(now);
+        activeCaravan.soldiersGiven = true;
+      }
+      if (!m.everWounded){
+        m.dead = true; // absorbé (converti en soldat, ou juste arrivé si le lot de soldats est déjà donné)
+      } else {
+        m.retreating = true; // blessé : repart se soigner au large avant de retenter
+        m.wounded = false;
+      }
+    } else if (m.retreating && m.pathIdx >= pathScreenPoints.length - 1){
+      if (!m.healUsed){
+        m.hp = Math.min(m.maxHp, m.hp + (m.maxHp - m.hp) * MERCHANT_HEAL_FRACTION);
+        m.healUsed = true;
+      }
+      m.retreating = false; // retente sa chance
+    }
+  }
+  merchants = merchants.filter(m => !m.dead);
+  if (!merchants.length) activeCaravan = null;
+}
+
+// --- Soldats (récompense de l'easter egg des marchands) ---
+// Comportement piloté par un choix ALÉATOIRE PONDÉRÉ (tranché en quiz,
+// pas un score de moral calculé) — la pondération se déplace vers les
+// comportements prudents (se cacher, se soigner) à mesure que le grade
+// monte. PAS de plafond de puissance à terme (tranché en quiz) : un
+// vétéran qui survit très longtemps peut un jour dépasser la force du
+// joueur — grade sans limite, comme le reste de la progression.
+const SOLDIER_BASE_DMG_FRACTION = 0.5; // moitié de la force du joueur au grade 0
+const SOLDIER_BASE_HP = PLAYER_MAX_HEALTH * 3;
+const SOLDIER_SHOT_INTERVAL_MS = 900;
+const SOLDIER_BEHAVIOR_REROLL_MS = 3000;
+let soldiers = []; // { x, y, hp, maxHp, grade, behavior, behaviorUntil, healUsedAtBoat, lastShotAt, dead }
+function soldierDmg(s){ return Math.round(effectivePlayerDmg() * SOLDIER_BASE_DMG_FRACTION * Math.pow(UPGRADE_POWER_GROWTH, s.grade)); }
+function soldierMaxHp(s){ return Math.round(SOLDIER_BASE_HP * Math.pow(UPGRADE_POWER_GROWTH, s.grade)); }
+function spawnSoldiers(now){
+  for (let i = 0; i < SOLDIER_COUNT_REWARD; i++){
+    const s = {
+      x: REGEN_ZONE.x + REGEN_ZONE.w/2 + (i - (SOLDIER_COUNT_REWARD-1)/2) * 22,
+      y: REGEN_ZONE.y - 20,
+      grade: 0, behavior: 'guard', behaviorUntil: now + SOLDIER_BEHAVIOR_REROLL_MS,
+      healUsedAtBoat: false, lastShotAt: 0, dead: false,
+    };
+    s.maxHp = soldierMaxHp(s); s.hp = s.maxHp;
+    soldiers.push(s);
+  }
+}
+// tirage pondéré parmi 4 comportements ; les poids évoluent avec le
+// grade (prudence croissante) plutôt qu'un score de moral calculé
+function pickSoldierBehavior(s){
+  const caution = Math.min(0.7, s.grade * 0.03);
+  const weights = [
+    ['fight', Math.max(0.1, 0.5 - caution)],
+    ['guard', 0.25],
+    ['hide', 0.1 + caution * 0.5],
+    ['heal', (s.hp < s.maxHp * 0.5 && !s.healUsedAtBoat) ? 0.35 : 0.05],
+  ];
+  const total = weights.reduce((sum, [, w]) => sum + w, 0);
+  let r = Math.random() * total;
+  for (const [name, w] of weights){ r -= w; if (r <= 0) return name; }
+  return 'guard';
+}
+function updateSoldiers(now){
+  for (const s of soldiers){
+    if (s.dead) continue;
+    if (now >= s.behaviorUntil){
+      s.behavior = pickSoldierBehavior(s);
+      s.behaviorUntil = now + SOLDIER_BEHAVIOR_REROLL_MS + Math.random() * 1500;
+    }
+    if (s.behavior === 'fight'){
+      let target = null, best = Infinity;
+      for (const e of enemies){
+        const d = Math.hypot(e.x-s.x, e.y-s.y);
+        if (d < best){ best = d; target = e; }
+      }
+      if (target){
+        if (best > 30){ s.x += (target.x-s.x)/best*0.7; s.y += (target.y-s.y)/best*0.7; }
+        else if (now - s.lastShotAt > SOLDIER_SHOT_INTERVAL_MS){
+          s.lastShotAt = now;
+          projectiles.push({ x: s.x, y: s.y, target, speed: SHOT_SPEED_PX, dmg: soldierDmg(s), source: 'soldier' });
+          sfxShoot();
+        }
+      }
+    } else if (s.behavior === 'guard'){
+      const d = Math.hypot(player.x-s.x, player.y-s.y);
+      if (d > 40){ s.x += (player.x-s.x)/d*0.6; s.y += (player.y-s.y)/d*0.6; }
+    } else if (s.behavior === 'hide'){
+      const tx = REGEN_ZONE.x + REGEN_ZONE.w/2, ty = REGEN_ZONE.y + REGEN_ZONE.h/2;
+      const d = Math.hypot(tx-s.x, ty-s.y);
+      if (d > 10){ s.x += (tx-s.x)/d*0.5; s.y += (ty-s.y)/d*0.5; }
+    } else if (s.behavior === 'heal'){
+      const last = pathScreenPoints.length ? pathScreenPoints[pathScreenPoints.length-1] : { x: s.x, y: s.y };
+      const d = Math.hypot(last.x-s.x, last.y-s.y);
+      if (d > 12){ s.x += (last.x-s.x)/d*0.6; s.y += (last.y-s.y)/d*0.6; }
+      else if (!s.healUsedAtBoat){
+        s.hp = Math.min(s.maxHp, s.hp + (s.maxHp-s.hp)*0.5);
+        s.healUsedAtBoat = true;
+        s.behavior = 'guard'; s.behaviorUntil = now;
+      }
+    }
+    // pas invincibles : subissent le contact ennemi comme le joueur
+    for (const e of enemies){
+      if (Math.hypot(e.x-s.x, e.y-s.y) < PLAYER_CONTACT_RANGE) s.hp -= PLAYER_DAMAGE_RATE;
+    }
+    if (s.hp <= 0) s.dead = true;
+  }
+  soldiers = soldiers.filter(s => !s.dead);
 }
 // --- La Forge : système à part, EN PLUS du bandeau de bonus (tranché en
 // quiz) — le bandeau actuel ne change pas. Une zone délimitée près du
@@ -990,6 +1195,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.20, text: "Easter egg des marchands : reste 5s sur un chemin resté propre, une caravane apparaît — récompense en or, et 4 soldats alliés si un marchand arrive jamais touché (grade sans plafond)" },
   { v: 17.19, text: "La Forge : zone à rejoindre près du château, construction (100 or) puis \"Tours d'élite\" (multiplicateur global infini) — système à part, en plus du bandeau" },
   { v: 17.18, text: "Dégâts au château selon le type d'ennemi (1/1/2/3 créneaux) au lieu d'1 créneau pour tout le monde" },
   { v: 17.17, text: "Bouton Précision (3e dimension du combat, avec Puissance et Cadence) — bandeau de bonus à 2 étages" },
@@ -1425,6 +1631,19 @@ function update(now){
     spawnInterval = pickNextSpawnDelay();
     spawnBoat(now); // un nouveau bateau arrive pour cette vague
     saveProgress(); // point de sauvegarde naturel : entre deux vagues
+    // le chemin des marchands : la vague qui vient de se terminer était-elle
+    // propre (aucun ennemi dessus) ? condition de déclenchement de la caravane
+    pathClearWaveStreak = pathDisturbedThisWave ? 0 : pathClearWaveStreak + 1;
+    pathDisturbedThisWave = false;
+    // les soldats gagnent un grade par vague survécue (sans plafond, voir
+    // soldierDmg/soldierMaxHp) — la vie gagnée suit la même proportion que
+    // le plafond, sans soin gratuit complet
+    for (const s of soldiers){
+      const oldMax = s.maxHp;
+      s.grade++;
+      s.maxHp = soldierMaxHp(s);
+      s.hp += (s.maxHp - oldMax);
+    }
   }
 
   for (const e of enemies){
@@ -1466,6 +1685,8 @@ function update(now){
     }
     resolveTowerCollision(e, TOWER_SOLID_RADIUS); // ne peut pas traverser une tour
     e.x = Math.max(16, Math.min(STAGE_W-16, e.x));
+    // le chemin des marchands : "sali" si un ennemi traîne dessus cette vague
+    if (!pathDisturbedThisWave && nearestPathIndex(e.x, e.y).dist < PATH_TOUCH_RADIUS) pathDisturbedThisWave = true;
     if (e.hp <= 0){
       if (!e.dead){
         // l'or vient de la mise à mort, pas de l'arrivée sur la carte —
@@ -1490,6 +1711,12 @@ function update(now){
     }
   }
   enemies = enemies.filter(e => !e.dead);
+
+  if (!playerDead){
+    tryTriggerCaravan(now);
+  }
+  updateMerchants(now);
+  updateSoldiers(now);
 
   if (!playerDead && playerHealth <= 0){
     playerDead = true;
@@ -1700,6 +1927,30 @@ function draw(now){
     }});
   }
 
+  // marchands : billes dorées (une barre de vie au-dessus, seuls eux en
+  // ont une — demandé explicitement, contrairement aux ennemis/tours)
+  for (const m of merchants){
+    layers.push({ y: m.y, draw: () => {
+      ctx.fillStyle = m.retreating ? '#e0a94a' : '#d9a441';
+      ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2); ctx.fill();
+      const barW = 16, frac = Math.max(0, m.hp/m.maxHp);
+      ctx.fillStyle = '#00000030'; ctx.fillRect(m.x-barW/2, m.y-20, barW, 3);
+      ctx.fillStyle = frac > 0.4 ? '#4a9d4a' : '#c33f3f';
+      ctx.fillRect(m.x-barW/2, m.y-20, barW*frac, 3);
+    }});
+  }
+  // soldats : alliés obtenus via les marchands — bleu/vert, distinct des
+  // ennemis (rouge/violet/orange) et du joueur (jaune)
+  for (const s of soldiers){
+    layers.push({ y: s.y, draw: () => {
+      const grad = ctx.createRadialGradient(s.x-3, s.y-8-3, 1, s.x, s.y-8, 9);
+      grad.addColorStop(0, '#a3e0c0');
+      grad.addColorStop(1, '#3f9d6f');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(s.x, s.y-8, 8, 0, Math.PI*2); ctx.fill();
+    }});
+  }
+
   for (const pr of projectiles){
     layers.push({ y: pr.y, draw: () => {
       const r = pr.r || 4;
@@ -1796,6 +2047,8 @@ function resetGame(startingGold){
   playerAggroScore = 0;
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0; precisionLevel = 0;
   forgeBuilt = false; forgeEliteLevel = 0;
+  merchants = []; soldiers = []; activeCaravan = null;
+  pathDisturbedThisWave = false; pathClearWaveStreak = 0; playerOnPathSince = null;
   lastAutoShotAt = 0; lastManualShotAt = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 })); recentSuccesses = [];
   player.x = STAGE_W/2; player.y = STAGE_H - 70;
