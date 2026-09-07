@@ -617,6 +617,17 @@ const WAVE_HP_STEP = 3; // croissance LINÉAIRE (pas exponentielle) : +3 PV par 
 // plafonnée par ENEMY_PACE_AMPLITUDE — jamais un vrai pic incontrôlé.
 const ENEMY_BASE_SPEED = 0.55; // px/frame, référence pour le type de base
 const ENEMY_PACE_AMPLITUDE = 0.3; // +/- 30% de variation individuelle autour de la vitesse du type
+// un ennemi très affaibli tente de fuir vers le bateau pour se soigner
+// (une fois dans sa vie, moitié du manquant) — même mécanique que les
+// marchands/soldats, cette fois côté ennemis
+const FLEE_HP_FRACTION = 0.25;      // sous ce seuil de PV, la fuite devient possible
+const FLEE_CHECK_CHANCE = 0.02;     // par frame sous le seuil — pas systématique, pas de bascule immédiate
+const FLEE_HEAL_FRACTION = 0.5;
+// mort d'un ennemi : les voisins proches perdent un peu de vie ("touchés
+// par la fumée de la mort") — un effet de contagion simple, purement
+// mécanique (pas d'apprentissage/mémoire ajouté ici, voir NOTES.md)
+const DEATH_MORALE_RADIUS = 40;
+const DEATH_MORALE_DMG = 1;
 // breachDamage : nombre de créneaux détruits quand ce type atteint le
 // château (au lieu d'1 créneau pour tout le monde) — proportionnel à la
 // résistance du type (hpMult), pas juste à sa vitesse. Il n'y a que 10
@@ -664,6 +675,69 @@ function pickEnemyType(){
   if (r < rate2 + rate3) return ENEMY_TYPES[2];
   return ENEMY_TYPES[0];
 }
+
+// --- effet de mort : un nuage de fumée apparaît, se dissipe vite, une
+// croix en sort et monte au ciel avant de disparaître à son tour ---
+const DEATH_EFFECT_SMOKE_MS = 300;
+const DEATH_EFFECT_TOTAL_MS = 1000;
+let deathEffects = []; // { x, y, createdAt }
+function spawnDeathEffect(x, y, now){ deathEffects.push({ x, y, createdAt: now }); }
+function updateDeathEffects(now){
+  deathEffects = deathEffects.filter(d => now - d.createdAt < DEATH_EFFECT_TOTAL_MS);
+}
+function drawDeathEffect(d, now){
+  const t = now - d.createdAt;
+  if (t < DEATH_EFFECT_SMOKE_MS){
+    const p = t / DEATH_EFFECT_SMOKE_MS;
+    ctx.fillStyle = `rgba(50,50,50,${0.5*(1-p)})`;
+    ctx.beginPath(); ctx.arc(d.x, d.y-8, 6+p*10, 0, Math.PI*2); ctx.fill();
+  } else {
+    const p = (t - DEATH_EFFECT_SMOKE_MS) / (DEATH_EFFECT_TOTAL_MS - DEATH_EFFECT_SMOKE_MS);
+    const riseY = d.y - 8 - p*30;
+    ctx.strokeStyle = `rgba(90,80,60,${0.7*(1-p)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(d.x, riseY-6); ctx.lineTo(d.x, riseY+6);
+    ctx.moveTo(d.x-4, riseY-2); ctx.lineTo(d.x+4, riseY-2);
+    ctx.stroke();
+  }
+}
+
+// --- particules d'ambiance : dérivent en diagonale le long des lignes
+// isométriques (haut-gauche vers bas-droite, ratio 2:1 comme la grille),
+// purement décoratif ---
+const PARTICLE_COUNT = 40;
+const PARTICLE_SIZES = [1, 4, 9];
+let particles = [];
+function spawnParticle(fromEdge){
+  const roll = Math.random();
+  const size = roll < 0.6 ? PARTICLE_SIZES[0] : (roll < 0.85 ? PARTICLE_SIZES[1] : PARTICLE_SIZES[2]);
+  const speed = 0.15 + Math.random()*0.15;
+  return {
+    x: fromEdge ? -20 : Math.random()*STAGE_W,
+    y: fromEdge ? Math.random()*STAGE_H*0.6 - 40 : Math.random()*STAGE_H,
+    size,
+    vx: speed*2, vy: speed, // suit la diagonale iso 2:1 (comme GRID_TW/GRID_TH)
+    opacity: 0.06 + Math.random()*0.08,
+  };
+}
+function initParticles(){
+  particles = [];
+  for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(spawnParticle(false));
+}
+function updateParticles(){
+  for (const p of particles){
+    p.x += p.vx; p.y += p.vy;
+    if (p.x > STAGE_W + 20 || p.y > STAGE_H + 20) Object.assign(p, spawnParticle(true));
+  }
+}
+function drawParticles(){
+  for (const p of particles){
+    ctx.fillStyle = `rgba(90,80,60,${p.opacity})`;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  }
+}
+initParticles(); // STAGE_W/STAGE_H déjà posés par le resizeCanvas() du tout début du script
 
 // --- mémoire collective des ennemis ---
 // la carte est découpée en colonnes ; chaque mort/percée y est comptée,
@@ -947,6 +1021,28 @@ function precisionCost(){ return Math.round(PRECISION_COST_BASE * Math.pow(UPGRA
 // jamais exactement 0
 function precisionMissFactor(){ return Math.pow(PRECISION_CLOSE_RATE, precisionLevel); }
 
+// --- cimetière des tours ---
+// quand une tour est détruite, il y avait des gens dedans — l'emplacement
+// devient une croix/pierre tombale, inconstructible tant qu'elle est là.
+// Se retire automatiquement à la fin de la vague, OU si le joueur se
+// place dessus et reste GRAVE_PRAY_MS (façon prière pour les morts,
+// bulle avec une petite croix au-dessus de sa tête).
+const GRAVE_PRAY_MS = 1500;
+const GRAVE_PRAY_RADIUS = 20;
+let towerGraves = []; // { x, y }
+let playerPrayingSince = null;
+let playerPrayingAt = null; // position de la tombe en cours de prière (pour la bulle)
+function updateGraves(now){
+  if (!towerGraves.length){ playerPrayingSince = null; playerPrayingAt = null; return; }
+  const near = towerGraves.find(g => Math.hypot(g.x-player.x, g.y-player.y) < GRAVE_PRAY_RADIUS);
+  if (!near){ playerPrayingSince = null; playerPrayingAt = null; return; }
+  if (playerPrayingAt !== near){ playerPrayingSince = now; playerPrayingAt = near; }
+  if (now - playerPrayingSince >= GRAVE_PRAY_MS){
+    towerGraves = towerGraves.filter(g => g !== near);
+    playerPrayingSince = null; playerPrayingAt = null;
+  }
+}
+
 // la tour se cale sur la case de la grille juste au-dessus du joueur (côté
 // ennemis) — comme cette case dépend d'où le joueur se trouve à l'instant
 // de l'appui, marcher le long d'une ligne et construire plusieurs fois
@@ -980,7 +1076,9 @@ function tryBuild(){
   let chosen = null;
   for (const c of candidates){
     const p = gridToScreen(c.gx, c.gy);
-    if (!towers.some(t => Math.hypot(t.x-p.x, t.y-p.y) < 10)){ chosen = p; break; }
+    const occupied = towers.some(t => Math.hypot(t.x-p.x, t.y-p.y) < 10) ||
+                      towerGraves.some(g => Math.hypot(g.x-p.x, g.y-p.y) < 10);
+    if (!occupied){ chosen = p; break; }
   }
   if (!chosen) return; // vraiment aucune case libre à proximité (très rare)
   gold -= TOWER_BUILD_COST;
@@ -1195,7 +1293,8 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
-  { v: 17.20, text: "Easter egg des marchands : reste 5s sur un chemin resté propre, une caravane apparaît — récompense en or, et 4 soldats alliés si un marchand arrive jamais touché (grade sans plafond)" },
+  { v: "17.21", text: "Particules d'ambiance, croix/fumée à la mort d'un ennemi, morale de groupe, ennemis affaiblis qui fuient se soigner, cimetière des tours (prière pour reconstruire)" },
+  { v: "17.20", text: "Easter egg des marchands : reste 5s sur un chemin resté propre, une caravane apparaît — récompense en or, et 4 soldats alliés si un marchand arrive jamais touché (grade sans plafond)" },
   { v: 17.19, text: "La Forge : zone à rejoindre près du château, construction (100 or) puis \"Tours d'élite\" (multiplicateur global infini) — système à part, en plus du bandeau" },
   { v: 17.18, text: "Dégâts au château selon le type d'ennemi (1/1/2/3 créneaux) au lieu d'1 créneau pour tout le monde" },
   { v: 17.17, text: "Bouton Précision (3e dimension du combat, avec Puissance et Cadence) — bandeau de bonus à 2 étages" },
@@ -1204,7 +1303,7 @@ const CHANGELOG = [
   { v: 17.13, text: "Renfort de tour garanti plus rentable qu'une tour neuve à tout niveau (incrément géométrique au lieu du total) ; tir auto en progression infinie (débit, plus un simple interrupteur)" },
   { v: 17.12, text: "Correctif audio iPhone (interrupteur silence) ; construction de tour jamais bloquée (décale sur le côté) ; château = 10 tranches détruites par les brèches (remplace le compteur texte) ; vague affichée en haut au centre ; bateau et chemin en isométrique" },
   { v: 17.11, text: "Progression infinie par formule (or total dépensé, coût +2,7%/palier, puissance +5%/palier) — remplace les paliers plafonnés (or passif, dégâts, tours) de v17.9" },
-  { v: 17.10, text: "Réparer une tour coûte 1 or par session (gratuit tant qu'on reste, recoûte si on part et revient)" },
+  { v: "17.10", text: "Réparer une tour coûte 1 or par session (gratuit tant qu'on reste, recoûte si on part et revient)" },
   { v: 17.9, text: "4 types d'ennemis (couleurs, boss rare) ; PV linéaires (plus exponentiels) ; vitesse fixe + variation organique ; +1 ennemi/vague ; dégâts ennemis sur tours ÷2 ; renforcer une tour plus rentable que construire à côté" },
   { v: 17.8, text: "Annule le correctif v17.6 (malentendu) : rester appuyé tire même en bougeant le joueur" },
   { v: 17.7, text: "Portée du joueur illimitée ; précision dégradée par la distance (10 paliers, 100%→20%) ; un tir raté dévie visiblement et peut toucher un autre ennemi par hasard" },
@@ -1398,7 +1497,10 @@ function spawnEnemy(now){
     // un siège trop long (tour bien trop renforcée pour tomber vite) doit
     // pouvoir être abandonné — sinon un attacker peut camper indéfiniment
     // sur une "super-tour" et bloquer la fin de la vague (voir SIEGE_GIVEUP_MS)
-    siegeStartedAt: null, siegeGaveUp: false
+    siegeStartedAt: null, siegeGaveUp: false,
+    // un ennemi très affaibli peut fuir vers le bateau pour se soigner —
+    // une seule fois dans sa vie, moitié du manquant (voir FLEE_HP_FRACTION)
+    fleeing: false, healUsedAtBoat: false,
   };
   if (role === 'attacker') e.target = pickTargetTower(baseX, 0);
   enemies.push(e);
@@ -1459,10 +1561,12 @@ function playerShoot(now, manualInterval){
 }
 
 function update(now){
+  updateParticles(); // ambiance : continue même écran de mort/pause, purement décoratif
   if (gameOver) return;
   // écran de mort affiché, en attente du choix du joueur : tout est gelé
   // (sauf s'il a choisi "continuer à regarder", spectating=true)
   if (playerDead && !spectating) return;
+  updateDeathEffects(now);
 
   if (!playerDead){
     // déplacement fluide (clavier 8 directions à vitesse fixe, joystick à
@@ -1573,7 +1677,11 @@ function update(now){
       if (now - (t.lastHitSoundAt||0) > 350){ sfxTowerHit(); t.lastHitSoundAt = now; }
     }
   }
-  towers = towers.filter(t => t.hp > 0); // à 0, la tour a "coulé" jusqu'au sol, sans bruit
+  // à 0, la tour a "coulé" jusqu'au sol, sans bruit — mais il y avait des
+  // gens dedans : l'emplacement devient une tombe (voir towerGraves)
+  for (const t of towers){ if (t.hp <= 0) towerGraves.push({ x: t.x, y: t.y }); }
+  towers = towers.filter(t => t.hp > 0);
+  updateGraves(now);
 
   for (const pr of projectiles){
     if (pr.wild){
@@ -1631,6 +1739,7 @@ function update(now){
     spawnInterval = pickNextSpawnDelay();
     spawnBoat(now); // un nouveau bateau arrive pour cette vague
     saveProgress(); // point de sauvegarde naturel : entre deux vagues
+    towerGraves = []; playerPrayingSince = null; playerPrayingAt = null; // les tombes se retirent à la fin de la vague
     // le chemin des marchands : la vague qui vient de se terminer était-elle
     // propre (aucun ennemi dessus) ? condition de déclenchement de la caravane
     pathClearWaveStreak = pathDisturbedThisWave ? 0 : pathClearWaveStreak + 1;
@@ -1654,7 +1763,23 @@ function update(now){
       const paceMult = 1 + ENEMY_PACE_AMPLITUDE * Math.sin(now * e.paceRate + e.pacePhase);
       e.speed = ENEMY_BASE_SPEED * e.type.speedMult * paceMult;
     }
-    if (e.waitFrames > 0){
+    // très affaibli : tente de fuir vers le bateau pour se soigner (une
+    // fois dans sa vie, moitié du manquant) — passe devant tout le reste
+    // du comportement tant que la fuite est en cours
+    if (!e.fleeing && !e.healUsedAtBoat && e.hp/e.maxHp < FLEE_HP_FRACTION && Math.random() < FLEE_CHECK_CHANCE){
+      e.fleeing = true;
+    }
+    if (e.fleeing){
+      const ty = WATER_H - 10;
+      if (e.y > ty){ e.y -= e.speed; e.x += Math.sin(now*0.002 + e.pacePhase)*0.3; }
+      else {
+        if (!e.healUsedAtBoat){
+          e.hp = Math.min(e.maxHp, e.hp + (e.maxHp - e.hp) * FLEE_HEAL_FRACTION);
+          e.healUsedAtBoat = true;
+        }
+        e.fleeing = false; // reprend son rôle normal, redescend
+      }
+    } else if (e.waitFrames > 0){
       e.waitFrames--; // hésite/se planque un instant avant de s'avancer
     } else if (e.role === 'attacker' && !e.siegeGaveUp){
       if (!e.target || !towers.includes(e.target)){ e.target = pickTargetTower(e.x, e.y); e.siegeStartedAt = null; }
@@ -1694,6 +1819,14 @@ function update(now){
         gold += (e.type || ENEMY_TYPES[0]).goldReward;
         ensureColumnStats();
         columnStats[columnOf(e.x)].deaths++;
+        spawnDeathEffect(e.x, e.y, now); // fumée puis croix qui monte
+        // effet de morale : les ennemis proches sont "touchés par la
+        // fumée de la mort", perdent un peu de vie (peut en tuer un
+        // autre par effet domino, voulu — organique, pas garanti)
+        for (const other of enemies){
+          if (other === e || other.dead) continue;
+          if (Math.hypot(other.x-e.x, other.y-e.y) < DEATH_MORALE_RADIUS) other.hp -= DEATH_MORALE_DMG;
+        }
       }
       e.dead = true;
     } else if (e.y >= STAGE_H - 16){
@@ -1915,6 +2048,37 @@ function draw(now){
     }});
   }
 
+  // cimetière des tours : une croix par emplacement détruit, bloque la
+  // reconstruction tant qu'elle est là (voir towerGraves/updateGraves)
+  for (const g of towerGraves){
+    layers.push({ y: g.y, draw: () => {
+      ctx.strokeStyle = '#5c5347';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(g.x, g.y-2); ctx.lineTo(g.x, g.y-18);
+      ctx.moveTo(g.x-6, g.y-13); ctx.lineTo(g.x+6, g.y-13);
+      ctx.stroke();
+      if (playerPrayingAt === g){
+        // petite bulle avec une croix au-dessus de la tête du joueur —
+        // façon prière, montre la progression du délai GRAVE_PRAY_MS
+        const p = Math.min(1, (performance.now() - playerPrayingSince) / GRAVE_PRAY_MS);
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = '#faf6ea';
+        ctx.strokeStyle = '#3a3529';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(player.x, player.y-32, 9, 0, Math.PI*2*p); ctx.lineTo(player.x, player.y-32); ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = '#5c5347'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(player.x, player.y-36); ctx.lineTo(player.x, player.y-28);
+        ctx.moveTo(player.x-3, player.y-33); ctx.lineTo(player.x+3, player.y-33);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }});
+  }
+
   for (const e of enemies){
     layers.push({ y: e.y, draw: () => {
       const t = e.type || ENEMY_TYPES[0];
@@ -1986,6 +2150,9 @@ function draw(now){
   layers.sort((a, b) => a.y - b.y);
   for (const l of layers) l.draw();
 
+  for (const d of deathEffects) drawDeathEffect(d, now);
+  drawParticles(); // par-dessus tout le reste, ambiance discrète
+
   for (const f of floatingTexts){
     const t = (now - f.createdAt) / 700;
     ctx.globalAlpha = Math.max(0, 1-t);
@@ -2049,6 +2216,8 @@ function resetGame(startingGold){
   forgeBuilt = false; forgeEliteLevel = 0;
   merchants = []; soldiers = []; activeCaravan = null;
   pathDisturbedThisWave = false; pathClearWaveStreak = 0; playerOnPathSince = null;
+  towerGraves = []; playerPrayingSince = null; playerPrayingAt = null;
+  deathEffects = [];
   lastAutoShotAt = 0; lastManualShotAt = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 })); recentSuccesses = [];
   player.x = STAGE_W/2; player.y = STAGE_H - 70;

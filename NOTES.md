@@ -666,40 +666,42 @@ creuser ensemble.
 
 ### 🔮 Grosses idées de gameplay (discussion nécessaire avant tout code)
 
-- **Effet de particules d'ambiance** : petites particules de 3 tailles
-  (1px, 4px, 9px) qui dérivent en diagonale suivant les lignes
-  isométriques (haut-gauche vers bas-droite), juste décoratif.
+- ~~**Effet de particules d'ambiance**~~ → fait en v17.21. 40 particules
+  de 3 tailles (1/4/9px), dérivent en diagonale (vx:vy = 2:1, ratio de
+  la grille GRID_TW/GRID_TH), recyclées quand elles sortent de l'écran —
+  purement décoratif, par-dessus tout le reste.
 
-- **Mort d'un ennemi → croix qui monte au ciel** : à la mort, remplacer
-  l'ennemi par une petite croix qui s'élève rapidement puis disparaît
-  (au lieu de disparaître instantanément).
+- ~~**Mort d'un ennemi → croix qui monte au ciel**~~ → fait en v17.21,
+  avec le nuage de fumée (ci-dessous), un seul effet combiné.
 
-- **Nuage de fumée noire à la mort** : juste avant la disparition, un
-  petit nuage/fumée apparaît, se dissipe rapidement, et la croix en sort.
+- ~~**Nuage de fumée noire à la mort**~~ → fait en v17.21. Nuage gris
+  qui grandit et se dissipe (300ms), puis une croix sort du même point
+  et monte en s'effaçant (700ms) — `spawnDeathEffect`/`drawDeathEffect`.
 
-- **Effet de morale/contagion à la mort** : les ennemis proches d'un
-  camarade qui meurt perdent un peu de vie ("touchés par la fumée de la
-  mort"). Doit nourrir l'IA à mémoire existante : les ennemis
-  pourraient apprendre qu'attaquer en groupe compact est risqué, qu'il
-  vaut mieux un éclaireur isolé pendant que le groupe reste à distance,
-  ou qu'un ennemi affaibli devrait s'éloigner du groupe par "empathie"
-  pour ne pas les blesser en mourant près d'eux.
+- ~~**Effet de morale/contagion à la mort**~~ → fait en v17.21, MAIS
+  seulement la partie mécanique (les ennemis à moins de 40px perdent 1
+  PV à la mort d'un voisin, peut faire boule de neige si ça en tue un
+  autre au passage — assumé, pas un bug). La partie "apprentissage" (les
+  ennemis qui repèrent que le regroupement est risqué et adaptent leur
+  stratégie) N'EST PAS implémentée — ça demanderait de faire évoluer le
+  système de mémoire à colonnes existant, pas juste un effet ponctuel ;
+  gardée ici comme idée non tranchée pour une prochaine passe.
 
-- **Ennemis affaiblis qui fuient vers le bateau** : un ennemi très
-  affaibli peut fuir hors-écran (gauche/droite) ou tenter de retourner
-  au bateau. Au bateau, il peut se soigner UNE SEULE FOIS dans sa vie
-  (pas plus), récupérant la moitié de sa vie manquante (pas tout) —
-  ex : à 25% de vie (75% manquant), il regagne la moitié de 75% = 37,5%,
-  se retrouve à 62,5%. Une deuxième visite au bateau plus tard dans sa
-  vie ne fait plus rien.
+- ~~**Ennemis affaiblis qui fuient vers le bateau**~~ → fait en v17.21,
+  avec une différence assumée : fuient toujours vers le bateau (zone en
+  haut de l'écran), pas "hors-écran gauche/droite" comme alternative —
+  simplifié pour une 1re version. Sous 25% de PV, chance de fuir à
+  chaque frame (pas systématique) ; une fois au bateau, guérit la moitié
+  du manquant, une seule fois dans sa vie (`healUsedAtBoat`), puis
+  reprend son rôle normal.
 
-- **Cimetière quand une tour est détruite** : l'emplacement affiche une
-  croix/pierre tombale et devient inconstructible tant qu'elle est là.
-  Se retire automatiquement à la fin de la vague OU si le joueur se
-  place dessus et reste 1-2 secondes (une bulle avec une petite croix
-  s'affiche au-dessus de sa tête, façon prière) — thème : il y avait des
-  gens dans la tour, ils sont morts, il faut prier pour qu'ils partent
-  avant de reconstruire dessus (sinon manque de respect).
+- ~~**Cimetière quand une tour est détruite**~~ → fait en v17.21. Une
+  croix apparaît à l'emplacement (`towerGraves`), bloque la
+  reconstruction exactement dessus (le système de case de secours de
+  v17.12 trouve un emplacement voisin à la place, comme pour une tour
+  déjà là). Se retire automatiquement à la fin de la vague, ou si le
+  joueur reste dessus 1,5s (`GRAVE_PRAY_MS`) — bulle avec une petite
+  croix au-dessus de sa tête pendant la prière, progression visible.
 
 - ~~**Easter egg des marchands**~~ → fait en v17.20 (idée développée en
   détail, LA plus grosse) :
@@ -872,3 +874,27 @@ avec le grade), rendu vérifié par capture d'écran (caravane le long du
 chemin avec barres de vie, 4 soldats verts autour du joueur), suite de
 régression complète + 30s de jeu multi-vagues sans surveillance
 toujours vertes, aucune erreur JS.
+
+## v17.21 : particules, mort (fumée/croix), morale de groupe, fuite/soin, cimetière des tours
+
+Reste de la liste "atmosphère" traité en une passe. Détail complet dans
+la section "Grosse vague de demandes" ci-dessus.
+
+**Bug trouvé et corrigé au passage, sans lien avec l'atmosphère** : les
+numéros de version type "17.20"/"17.10" s'affichaient "17.2"/"17.1" —
+en JS, `17.20` et `17.10` sont des NOMBRES, et `17.20 === 17.2`
+(le zéro final disparaît). Pire : ça faisait entrer en collision
+l'affichage de deux entrées bien réelles et différentes (la vraie
+v17.2 de "tir manuel par défaut" et la v17.20 des marchands
+s'affichaient identiquement "v17.2"). Corrigé en stockant ces
+numéros-là comme des CHAÎNES ("17.20", "17.10") plutôt que des
+nombres — seuls ceux avec un zéro final étaient concernés.
+
+Vérifié avec Playwright : particules qui dérivent et se recyclent aux
+bords, effet de mort confirmé sur simulation directe (fumée → croix),
+contagion vérifiée (PV du voisin qui baisse), cycle fuite → soin
+confirmé sur simulation longue, cimetière vérifié de bout en bout
+(tombe créée, construction bloquée exactement dessus mais pas à côté,
+prière qui fonctionne, tombe retirée), affichage de version vérifié
+("v17.21" au lieu de "v17.2"), suite de régression complète + capture
+d'écran de tous les nouveaux éléments, aucune erreur JS.
