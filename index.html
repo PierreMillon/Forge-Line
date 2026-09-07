@@ -385,11 +385,16 @@ const WAVE_HP_STEP = 3; // croissance LINÉAIRE (pas exponentielle) : +3 PV par 
 // plafonnée par ENEMY_PACE_AMPLITUDE — jamais un vrai pic incontrôlé.
 const ENEMY_BASE_SPEED = 0.55; // px/frame, référence pour le type de base
 const ENEMY_PACE_AMPLITUDE = 0.3; // +/- 30% de variation individuelle autour de la vitesse du type
+// breachDamage : nombre de créneaux détruits quand ce type atteint le
+// château (au lieu d'1 créneau pour tout le monde) — proportionnel à la
+// résistance du type (hpMult), pas juste à sa vitesse. Il n'y a que 10
+// créneaux au total, donc le boss (rare, dès la vague 200) reste à 3
+// pour ne pas trivialiser une défaite en un seul passage.
 const ENEMY_TYPES = [
-  { id: 'base',       hpMult: 1,   speedMult: 1,   colorA: '#f2a3a3', colorB: '#c33f3f', goldReward: 1 },  // rouge, référence
-  { id: 'fast_frail', hpMult: 0.5, speedMult: 2,   colorA: '#a3d3f2', colorB: '#3f7fc3', goldReward: 2 },  // bleu clair, rapide et fragile
-  { id: 'fast_tough', hpMult: 1,   speedMult: 2,   colorA: '#cba3f2', colorB: '#7a3fc3', goldReward: 4 },  // violet, rapide et costaud
-  { id: 'boss',       hpMult: 4,   speedMult: 0.5, colorA: '#f2cf9e', colorB: '#c3813f', goldReward: 10, rare: true }, // orange, lent et très résistant
+  { id: 'base',       hpMult: 1,   speedMult: 1,   colorA: '#f2a3a3', colorB: '#c33f3f', goldReward: 1,  breachDamage: 1 }, // rouge, référence
+  { id: 'fast_frail', hpMult: 0.5, speedMult: 2,   colorA: '#a3d3f2', colorB: '#3f7fc3', goldReward: 2,  breachDamage: 1 }, // bleu clair, rapide et fragile
+  { id: 'fast_tough', hpMult: 1,   speedMult: 2,   colorA: '#cba3f2', colorB: '#7a3fc3', goldReward: 4,  breachDamage: 2 }, // violet, rapide et costaud
+  { id: 'boss',       hpMult: 4,   speedMult: 0.5, colorA: '#f2cf9e', colorB: '#c3813f', goldReward: 10, breachDamage: 3, rare: true }, // orange, lent et très résistant
 ];
 // introduction progressive des types par vague (revu : un type débloqué
 // d'un coup à taux fixe dès le départ donnait un mélange trop tôt et
@@ -916,6 +921,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.18, text: "Dégâts au château selon le type d'ennemi (1/1/2/3 créneaux) au lieu d'1 créneau pour tout le monde" },
   { v: 17.17, text: "Bouton Précision (3e dimension du combat, avec Puissance et Cadence) — bandeau de bonus à 2 étages" },
   { v: 17.16, text: "Or par type d'ennemi (1/2/4/10) ; correctif panneau version (transparence + scroll) ; FAQ plus honnête sur les pubs/achats ; tours plus rapides en montant de niveau ; halo doré sur la tour à portée d'upgrade ; correctif siège infini (un attacker abandonne après 8s)" },
   { v: 17.14, text: "Grille de construction affichée par défaut ; château sur toute la largeur ; chemin retracé vers le haut/gauche (croquis reçu)" },
@@ -1402,7 +1408,10 @@ function update(now){
         recentSuccesses.push({ col, speed: now - (e.spawnedAt||now) });
         if (recentSuccesses.length > 10) recentSuccesses.shift();
       }
-      e.dead = true; breaches++;
+      // les créneaux détruits dépendent de la résistance du type (voir
+      // ENEMY_TYPES.breachDamage) — un boss fait plus de dégâts qu'un
+      // ennemi de base, pas juste 1 créneau pour tout le monde
+      e.dead = true; breaches += (e.type || ENEMY_TYPES[0]).breachDamage;
     }
   }
   enemies = enemies.filter(e => !e.dead);

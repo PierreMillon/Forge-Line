@@ -574,8 +574,10 @@ demandent des questions).
   cadence de tir des tours en progression infinie elle aussi (même taux
   que le reste, +5%/palier), avec un plancher (jamais plus de 4x la
   cadence de départ) — `towerShotInterval(t)`.
-- **Dégâts au château selon la taille/le type d'ennemi** : toujours pas
-  fait — reste en discussion (voir plus bas, propositions à faire).
+- ~~**Dégâts au château selon la taille/le type d'ennemi**~~ → fait en
+  v17.18. Choix confirmé en quiz : proportionnel à la résistance du
+  type. `ENEMY_TYPES[].breachDamage` : base = 1 créneau, rapide/fragile
+  = 1, rapide/costaud = 2, boss = 3 (sur 10 créneaux au total).
 
 ### Indicateur "quelle tour va être renforcée" → fait en v17.16
 
@@ -732,28 +734,36 @@ creuser ensemble.
     soignent tout seuls, restent près du joueur, se cachent derrière
     les murs, développent des stratégies) — un système de grade sans
     plafond (comme le reste du jeu). Survivre à 20 vagues doit les
-    rendre "vraiment beaux" (forts). Toujours moins forts que le joueur
-    en principe, mais l'utilisateur n'est pas fermé à l'idée qu'ils
-    puissent un jour devenir plus forts que lui — pas tranché.
+    rendre "vraiment beaux" (forts).
+  - **Tranché en quiz** : comportement piloté par un choix aléatoire
+    pondéré (pas un score de moral calculé), pondération qui favorise
+    les comportements prudents (soin, cachette) à mesure que le grade
+    monte. Pas de plafond de puissance à terme — un vétéran peut un
+    jour dépasser la force du joueur, assumé.
   - Effet recherché : sentiment de compagnie, des alliés qui se
     battent avec nous, qui "expérimentent" et développent mémoire et
-    apprentissage comme les ennemis. Explicitement demandé : lui poser
-    des questions en quiz là-dessus avant de concevoir — pas encore
-    fait à l'heure de cette note.
+    apprentissage comme les ennemis.
+  - **Reste ouvert avant de coder** : mécanique précise du tracking
+    "aucun ennemi passé sur le chemin depuis 1 vague" (granularité par
+    case ? par segment ?), détail visuel de la caravane, animation du
+    changement caravane→soldats. Pas encore implémenté, plus gros
+    chantier restant de la liste.
 
 - **Mécanique de la Forge** (nom du jeu = Forge Line, le mot "forge" pas
   encore exploité littéralement) : une zone délimitée en bas à droite du
   château. Si on y reste et qu'on y dépense de l'or (ex. 100 or), ça crée
   "une forge" ; en y retournant, on peut acheter de nouveaux boutons de
   compétence (ex : tours plus fortes), chaque bouton ayant sa propre
-  "vie"/progression. Question ouverte posée par l'utilisateur lui-même,
-  pas encore tranchée : est-ce que TOUT le système de progression
-  (dégâts, or passif, tours...) devrait finalement passer par cette
-  forge plutôt que par le bandeau de bonus actuel ? Ou est-ce un système
-  parallèle/additionnel ? À clarifier en quiz avant de concevoir.
+  "vie"/progression.
+  **Tranché en quiz** : système à part, EN PLUS du bandeau de bonus
+  actuel (pas une migration/refonte) — le bandeau actuel (Revenu
+  auto/Puissance/Cadence/Précision/Construire) reste inchangé, la Forge
+  débloque des compétences supplémentaires et différentes une fois
+  construite. Pas encore implémenté.
 
 Pas encore trié ni implémenté au moment de cette note, sauf les points
-listés "petites, claires" qui seront attaqués dans la foulée.
+listés "petites, claires" et "dégâts au château" qui ont été attaqués
+dans la foulée (voir v17.18).
 
 ## v17.16 : or par type, correctifs UI, tours plus rapides, correctif siège infini
 
