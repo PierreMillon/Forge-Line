@@ -85,12 +85,15 @@
     <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
     <a id="grid-toggle" href="#">Afficher la grille (debug)</a>
     <a id="faq-toggle" href="#">Aide / FAQ</a>
+    <a id="mute-toggle" href="#">Couper la musique</a>
     <a id="menu-restart" href="#">Recommencer une nouvelle partie</a>
   </div>
   <div id="wave-label">Vague <span id="wave">1</span></div>
   <button id="version-btn" aria-label="Historique des versions"></button>
   <div id="version-panel"></div>
 </div>
+
+<audio id="bg-music" src="assets/ambience.ogg" loop preload="auto"></audio>
 
 <div id="stage">
   <canvas id="c"></canvas>
@@ -187,36 +190,60 @@ const WATER_H = 46;
 const BOAT_W = 74, BOAT_H = 74; // encombrement pour le calcul de la zone de débarquement des ennemis
 const BOAT_HW = 24, BOAT_HH = 14, BOAT_SH = 10; // dimensions de la coque isométrique
 
-// un bateau par vague : arrive en glissant depuis le large (au-dessus de
-// l'écran) jusqu'à un point d'échouage tiré au sort, avec une légère
-// rotation aléatoire ("posé à l'arrache"). Les ennemis de la vague ne
-// sortent qu'une fois le bateau échoué.
-let boat = null; // {x, y, targetX, targetY, rot, startedAt, duration, landed}
+// un ou plusieurs bateaux par vague : arrivent en glissant depuis le
+// large (au-dessus de l'écran) jusqu'à un point d'échouage tiré au sort
+// chacun, avec une légère rotation aléatoire ("posés à l'arrache"). Les
+// ennemis de la vague ne sortent qu'une fois AU MOINS un bateau échoué.
+// La plupart des vagues n'ont qu'un bateau ; parfois deux, rarement
+// trois — plus de monde à gérer d'un coup, sans que ce soit systématique
+// (voir BOAT_COUNT_WEIGHTS). Contribue au côté "malgré le hasard,
+// tendance globale qui reste lisible" recherché pour la difficulté.
+const BOAT_COUNT_WEIGHTS = [0.8, 0.17, 0.03]; // 1 bateau / 2 bateaux / 3 bateaux
+let boats = []; // [{x, y, targetX, targetY, rot, startedAt, duration, landed}, ...]
+function pickBoatCount(){
+  const r = Math.random();
+  let acc = 0;
+  for (let i = 0; i < BOAT_COUNT_WEIGHTS.length; i++){
+    acc += BOAT_COUNT_WEIGHTS[i];
+    if (r < acc) return i + 1;
+  }
+  return 1;
+}
 function spawnBoat(now){
+  const count = pickBoatCount();
+  boats = [];
   const margin = BOAT_W*0.7;
-  const targetX = margin + Math.random() * Math.max(1, STAGE_W - margin*2);
-  const targetY = WATER_H - BOAT_H*0.6;
-  boat = {
-    x: targetX, y: -BOAT_H,
-    targetX, targetY,
-    rot: (Math.random()-0.5) * 0.35, // +/- ~10°, échoué "à l'arrache"
-    startedAt: now, duration: 900,
-    landed: false
-  };
+  for (let i = 0; i < count; i++){
+    const targetX = margin + Math.random() * Math.max(1, STAGE_W - margin*2);
+    const targetY = WATER_H - BOAT_H*0.6;
+    boats.push({
+      x: targetX, y: -BOAT_H,
+      targetX, targetY,
+      rot: (Math.random()-0.5) * 0.35, // +/- ~10°, échoué "à l'arrache"
+      startedAt: now + i*250, // légèrement décalés, pas tous d'un coup pile au même instant
+      duration: 900,
+      landed: false
+    });
+  }
 }
 function updateBoat(now){
-  if (!boat || boat.landed) return;
-  const t = Math.min(1, (now - boat.startedAt) / boat.duration);
-  const eased = 1 - Math.pow(1-t, 3); // ease-out : ralentit en touchant la plage
-  boat.y = -BOAT_H + eased * (boat.targetY - (-BOAT_H));
-  if (t >= 1){ boat.y = boat.targetY; boat.landed = true; }
+  for (const b of boats){
+    if (b.landed || now < b.startedAt) continue;
+    const t = Math.min(1, (now - b.startedAt) / b.duration);
+    const eased = 1 - Math.pow(1-t, 3); // ease-out : ralentit en touchant la plage
+    b.y = -BOAT_H + eased * (b.targetY - (-BOAT_H));
+    if (t >= 1){ b.y = b.targetY; b.landed = true; }
+  }
 }
 function drawBoat(){
-  if (!boat) return;
-  const cx = boat.x, cy = boat.y + BOAT_H/2;
+  for (const b of boats) drawOneBoat(b);
+}
+function drawOneBoat(b){
+  if (b.y < -BOAT_H) return; // pas encore "sorti" (départ décalé)
+  const cx = b.x, cy = b.y + BOAT_H/2;
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(boat.rot); // légère inclinaison, échoué "à l'arrache"
+  ctx.rotate(b.rot); // légère inclinaison, échoué "à l'arrache"
   // coque : un pavé isométrique large et bas, couleur bois (même
   // fonction que les tours, juste des proportions différentes)
   drawIsoBox(0, 0, BOAT_HW, BOAT_HH, BOAT_SH, '#a9764a', '#7a5233', '#5c3f26', 1);
@@ -873,9 +900,34 @@ const SILENT_WAV_B64 = 'data:audio/wav;base64,UklGRmQfAABXQVZFZm10IBAAAAABAAEAQB
 const iosUnmuteAudio = new Audio(SILENT_WAV_B64);
 iosUnmuteAudio.loop = false;
 iosUnmuteAudio.setAttribute('playsinline', '');
+
+// --- musique de fond (ambiance) --- fichier fourni par l'utilisateur,
+// servi à part (assets/ambience.ogg) plutôt qu'encodé en base64 dans la
+// page : ~6,7 Mo, bien trop lourd pour rester dans un seul fichier HTML
+// (aurait ajouté ~9 Mo à la page). Volume modéré pour ne pas couvrir les
+// bruitages. Coupure mémorisée (localStorage), bouton dans le menu.
+const bgMusic = document.getElementById('bg-music');
+bgMusic.volume = 0.35;
+bgMusic.setAttribute('playsinline', '');
+let musicMuted = false;
+try { musicMuted = localStorage.getItem('fl_musicMuted') === '1'; } catch (e) { /* ignore */ }
+function applyMusicMuteState(){
+  document.getElementById('mute-toggle').textContent = musicMuted ? 'Remettre la musique' : 'Couper la musique';
+  if (musicMuted) bgMusic.pause();
+}
+applyMusicMuteState();
+document.getElementById('mute-toggle').addEventListener('click', e => {
+  e.preventDefault();
+  musicMuted = !musicMuted;
+  try { localStorage.setItem('fl_musicMuted', musicMuted ? '1' : '0'); } catch (err) { /* ignore */ }
+  if (musicMuted) bgMusic.pause(); else bgMusic.play().catch(() => {});
+  applyMusicMuteState();
+});
+
 function tryUnlockAudio(){
   const ac = getAudioCtx();
   iosUnmuteAudio.play().catch(() => {}); // ignoré si ça échoue (pas grave, retenté au geste suivant)
+  if (!musicMuted) bgMusic.play().catch(() => {});
   if (ac.state === 'running'){
     window.removeEventListener('pointerdown', tryUnlockAudio);
     window.removeEventListener('touchstart', tryUnlockAudio);
@@ -1293,6 +1345,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.22", text: "Parfois 2-3 bateaux par vague (au lieu d'un seul), musique de fond avec bouton mute dans le menu" },
   { v: "17.21", text: "Particules d'ambiance, croix/fumée à la mort d'un ennemi, morale de groupe, ennemis affaiblis qui fuient se soigner, cimetière des tours (prière pour reconstruire)" },
   { v: "17.20", text: "Easter egg des marchands : reste 5s sur un chemin resté propre, une caravane apparaît — récompense en or, et 4 soldats alliés si un marchand arrive jamais touché (grade sans plafond)" },
   { v: 17.19, text: "La Forge : zone à rejoindre près du château, construction (100 or) puis \"Tours d'élite\" (multiplicateur global infini) — système à part, en plus du bandeau" },
@@ -1456,7 +1509,12 @@ function spawnEnemy(now){
   // croissance LINÉAIRE (pas exponentielle) : +WAVE_HP_STEP par vague,
   // puis multipliée par le type (le boss encaisse 4x, le rapide-fragile moitié)
   const hp = Math.round((BASE_ENEMY_HP + WAVE_HP_STEP * (wave-1)) * type.hpMult);
-  const boatX = boat ? boat.x : STAGE_W/2;
+  // choisit un bateau échoué au hasard parmi ceux de la vague (plusieurs
+  // bateaux possibles depuis v17.22) — chaque ennemi débarque au pied
+  // de l'un d'eux, pas forcément toujours le même
+  const landedBoats = boats.filter(b => b.landed);
+  const sourceBoat = landedBoats.length ? landedBoats[Math.floor(Math.random()*landedBoats.length)] : null;
+  const boatX = sourceBoat ? sourceBoat.x : STAGE_W/2;
   const baseX = boatX + (Math.random()-0.5) * BOAT_W * 0.85;
   const startY = WATER_H - 4; // au pied du bateau, sur la plage
   const driftPhase = Math.random()*Math.PI*2;
@@ -1715,9 +1773,9 @@ function update(now){
 
   // vagues organiques : par à-coups (1, parfois 2-3 d'un coup), avec un
   // délai irrégulier entre chaque décision plutôt qu'un tapis roulant
-  // régulier — et seulement une fois le bateau de cette vague échoué
+  // régulier — et seulement une fois AU MOINS un bateau de cette vague échoué
   if (spawned < enemiesThisWave){
-    if (boat && boat.landed){
+    if (boats.some(b => b.landed)){
       spawnTimer++;
       if (spawnTimer > spawnInterval){
         const remaining = enemiesThisWave - spawned;

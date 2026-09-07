@@ -898,3 +898,82 @@ confirmé sur simulation longue, cimetière vérifié de bout en bout
 prière qui fonctionne, tombe retirée), affichage de version vérifié
 ("v17.21" au lieu de "v17.2"), suite de régression complète + capture
 d'écran de tous les nouveaux éléments, aucune erreur JS.
+
+## v17.22 : parfois 2-3 bateaux par vague, musique de fond + bouton mute, simulateur de difficulté
+
+**Bateaux multiples.** La plupart des vagues n'ont toujours qu'un seul
+bateau, mais désormais parfois deux (17%) et rarement trois (3%) —
+tirage pondéré à chaque nouvelle vague. Chaque bateau s'échoue et
+débarque ses ennemis indépendamment ; chaque ennemi qui spawn choisit
+au hasard l'un des bateaux déjà échoués de la vague comme point de
+départ (pas toujours le même). La condition "au moins un bateau
+échoué avant de spawner" s'applique à l'ensemble (`boats.some(b =>
+b.landed)`), pas à un seul bateau fixe.
+
+**Musique de fond.** Ajout du morceau fourni par l'utilisateur
+(`assets/ambience.ogg`, ~6,8 Mo, ambiance pluie/nuit). Servi comme
+fichier séparé plutôt qu'encodé en base64 dans la page : ça aurait
+ajouté ~9 Mo au fichier HTML unique (décision historique "un seul
+fichier, pas de dépendances externes" — voir plus haut) pour un
+morceau qui n'a pas besoin d'être présent tant que le menu n'est pas
+ouvert. C'est un vrai écart à cette règle, assumé : le jeu n'est plus
+strictement mono-fichier depuis cette version. À garder en tête si un
+jour le site est dupliqué/archivé ailleurs — il faut aussi copier
+`assets/`.
+Volume modéré (0,35) pour ne pas couvrir les bruitages synthétisés.
+Démarrage sur le premier geste utilisateur (comme le reste de
+l'audio, contrainte des navigateurs). Bouton "Couper la musique" /
+"Remettre la musique" dans le menu, état mémorisé en localStorage.
+**Licence/attribution non vérifiée** : le lien d'origine donné
+(opengameart.org) était bloqué par la politique réseau de cet
+environnement ; l'utilisateur a fourni le fichier directement à la
+place. À vérifier/créditer si besoin avant une diffusion plus large.
+
+**Simulateur de difficulté (`simulate.mjs`).** Nouvel outil, hors
+page de jeu, pour tester des dizaines de parties sans dépenser des
+milliers de tokens à jouer à la main : un seul navigateur headless,
+toutes les parties tournent en boucle synchrone dans la page avec des
+timestamps synthétiques (aucune attente réelle, aucune capture
+d'écran). Deux stratégies simulées : "solo" (ne construit jamais,
+tir manuel en continu) et "towers" (construit une tour dès que
+possible puis alterne renfort/dégâts). Voir l'en-tête du fichier pour
+l'usage.
+
+Deux bugs trouvés et corrigés **dans l'outil de test lui-même** (pas
+dans le jeu) pendant sa mise au point :
+- la boucle `requestAnimationFrame` native de la page continuait de
+  tourner en parallèle de nos appels manuels à `update()` avec des
+  timestamps synthétiques — deux horloges (temps réel vs. simulé) qui
+  se marchaient dessus, corrompant l'état sur les parties longues
+  (vagues bloquées, jusqu'à un crash de rendu observé : rayon négatif
+  passé à `arc()`). Corrigé en neutralisant `requestAnimationFrame`
+  dès le chargement de la page (`page.addInitScript`).
+- `endWave` n'était mis à jour qu'en cas de mort (brèche ou santé à
+  0) ; une partie qui atteignait la limite de frames sans mourir
+  rapportait "vague 1" quel que soit son avancement réel. Corrigé en
+  reportant la vague courante dans ce cas.
+
+Résultat obtenu une fois l'outil fiable (8-10 essais par stratégie,
+45000 frames ≈ 750s de jeu simulé) : la stratégie "solo" (aucun achat,
+tir manuel continu façon joueur qui tape vite) échoue de façon très
+régulière entre les vagues 16 et 22 ; la stratégie "towers" (une tour
++ dégâts en boucle) va nettement plus loin, vagues 31 à 46+.
+**Écart avec l'objectif énoncé** (tour obligatoire dès la vague ~3
+sans investissement) : le bot "solo" simulé tape en continu à un
+rythme irréaliste (~20 tirs/s, cadence limitée seulement par le
+cooldown anti-spam) qu'aucun joueur humain ne soutient réellement —
+ça le rend artificiellement fort. Plutôt que de rééquilibrer les
+courbes de PV/vague à l'aveugle sur la base d'un bot non représentatif
+d'un vrai joueur (risque réel de rendre le jeu trop dur pour de vrais
+joueurs plus lents), le choix a été de ne PAS toucher aux constantes
+de difficulté cette fois-ci, et de documenter la mesure ici : à
+reprendre avec un bot au rythme de tir plus réaliste (ou des données
+de vrais joueurs) avant de trancher.
+
+Vérifié avec Playwright : distribution 1/2/3 bateaux confirmée proche
+des poids attendus (~80/17/3%) sur un grand nombre de vagues,
+`#bg-music`/bouton mute testés (lecture démarre au premier geste,
+bascule pause/lecture, libellé à jour, persistance localStorage après
+rechargement), suite de régression complète (construction/renfort,
+tir manuel/auto, cadence, forge, marchands, atmosphère, panneau de
+version, progression infinie) toujours verte, aucune erreur JS.
