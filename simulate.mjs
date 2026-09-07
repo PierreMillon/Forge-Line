@@ -8,7 +8,7 @@
 // résumé JSON renvoyé au bout.
 //
 // Usage :
-//   node simulate.mjs [--trials=30] [--maxFrames=60000] [--url=http://localhost:PORT/index.html]
+//   node simulate.mjs [--trials=30] [--maxFrames=60000] [--manualIntervalMs=50] [--url=http://localhost:PORT/index.html]
 //
 // Nécessite un serveur local sur le fichier (ex: python3 -m http.server)
 // et Playwright installé globalement (voir NOTES.md pour le NODE_PATH).
@@ -23,6 +23,13 @@
 //                loin, et que la difficulté progresse de façon lisible
 //                malgré le hasard des vagues (1-3 bateaux, salves).
 //
+// --manualIntervalMs : intervalle entre deux tirs manuels du bot. Par
+// défaut MANUAL_TAP_COOLDOWN_MS (50ms = 20 tirs/s) : c'est le plancher
+// anti-spam du jeu, PAS un rythme humain réaliste — aucun joueur ne tape
+// 20x/s en continu. Pour une mesure représentative d'un vrai joueur,
+// passer quelque chose comme 220-300ms (≈3-4,5 tirs/s), plus proche d'un
+// tap répété soutenu à la main sur mobile.
+//
 // Le bot ne bouge jamais et ne relève jamais après une mort (pas de
 // pub/revivre simulée) — la partie s'arrête au premier échec (10 brèches
 // ou santé à 0), ce qui donne directement "à quelle vague ça casse".
@@ -36,6 +43,7 @@ function argVal(name, def){
 
 const TRIALS = parseInt(argVal('trials', '30'), 10);
 const MAX_FRAMES = parseInt(argVal('maxFrames', '60000'), 10); // ~1000s de jeu simulé, garde-fou
+const MANUAL_INTERVAL_MS = argVal('manualIntervalMs', null); // null = utilise le cooldown du jeu (MANUAL_TAP_COOLDOWN_MS)
 const URL = argVal('url', 'http://localhost:8930/index.html');
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
@@ -51,7 +59,8 @@ page.on('pageerror', e => pageErrors.push(String(e)));
 await page.goto(URL);
 await page.waitForTimeout(300);
 
-const result = await page.evaluate(({ trials, maxFrames }) => {
+const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs }) => {
+  const manualInterval = manualIntervalMs != null ? manualIntervalMs : MANUAL_TAP_COOLDOWN_MS;
   function runOne(strategy){
     resetGame(0);
     // point fixe : juste au-dessus du château, dans la zone de
@@ -65,7 +74,7 @@ const result = await page.evaluate(({ trials, maxFrames }) => {
       const now = start + frame*16.67;
       update(now);
       // tir continu, façon joueur qui tape vite en boucle
-      playerShoot(now, MANUAL_TAP_COOLDOWN_MS);
+      playerShoot(now, manualInterval);
 
       if (strategy === 'towers' && frame % 30 === 0){
         // décision toutes les ~0,5s : construit sa tour dès que possible,
@@ -113,7 +122,7 @@ const result = await page.evaluate(({ trials, maxFrames }) => {
     soloSample: runs.solo.slice(0, 5),
     towersSample: runs.towers.slice(0, 5),
   };
-}, { trials: TRIALS, maxFrames: MAX_FRAMES });
+}, { trials: TRIALS, maxFrames: MAX_FRAMES, manualIntervalMs: MANUAL_INTERVAL_MS != null ? parseInt(MANUAL_INTERVAL_MS, 10) : null });
 
 console.log(JSON.stringify(result, null, 2));
 if (pageErrors.length) console.log('Erreurs JS pendant la simulation:', pageErrors);

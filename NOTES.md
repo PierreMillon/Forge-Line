@@ -646,11 +646,11 @@ le bas de l'écran.
   boutons d'origine tels quels, le 2e étage accueille Précision (et les
   suivants, s'il y en a).
 
-### Indicateur visuel "quelle tour va être renforcée"
+### Indicateur visuel "quelle tour va être renforcée" — doublon, déjà fait en v17.16
 
-Quand on s'approche d'une tour à portée d'upgrade, elle doit afficher un
-petit halo/anneau doré tout autour — pour qu'on puisse se positionner
-précisément sur celle qu'on veut renforcer quand plusieurs sont proches.
+(Cette entrée était restée non barrée par erreur — même demande que
+plus haut, déjà traitée : voir "Indicateur 'quelle tour va être
+renforcée' → fait en v17.16".)
 
 ### Pipeline graphique 3D → isométrique (question posée par l'utilisateur)
 
@@ -977,3 +977,50 @@ bascule pause/lecture, libellé à jour, persistance localStorage après
 rechargement), suite de régression complète (construction/renfort,
 tir manuel/auto, cadence, forge, marchands, atmosphère, panneau de
 version, progression infinie) toujours verte, aucune erreur JS.
+
+## v17.23 : courbe de difficulté resserrée (tour nécessaire dès la vague ~3)
+
+Suite directe de la mesure v17.22 : le simulateur donnait un signal
+biaisé (bot à 20 tirs/s, irréaliste). Ajout d'un paramètre
+`--manualIntervalMs` à `simulate.mjs` pour rejouer la mesure à un
+rythme de tap humain plausible (testé entre 250 et 450ms, soit
+2-4 tirs/s). Résultat à ce rythme, AVANT retouche : le solo survivait
+jusqu'à la vague 7-11 selon le rythme choisi — loin de l'objectif
+"vague 3". Question posée à l'utilisateur (resserrer fort / modéré /
+ne rien changer) : réponse "resserrer fort, viser vague 3".
+
+**Ce qui a été retouché :**
+- `WAVE_HP_STEP` : 3 → 6 PV/vague (toujours linéaire, juste 2x plus
+  raide). Testé seul d'abord : quasi aucun effet sur le point de
+  rupture (le goulet d'étranglement n'est pas la résistance d'un
+  ennemi mais LE NOMBRE d'ennemis à traiter un par un avant qu'ils
+  n'atteignent le château).
+- Nombre d'ennemis par vague : **pas** un simple pas permanent plus
+  fort (testé, mais un pas de +6 à +8/vague appliqué pour toujours
+  aurait fait exploser la population d'ennemis en fin de partie — à la
+  vague 300 par exemple, ça donnait ~2400 ennemis dans une seule vague
+  au lieu de ~300). À la place : une "ruée" resserrée sur les 8
+  premières vagues seulement (`EARLY_RUSH_WAVES`, `EARLY_RUSH_STEP` =
+  +8 ennemis/vague pendant la ruée), qui rejoint ensuite SANS À-COUP le
+  rythme de croisière d'origine (`WAVE_ENEMY_COUNT_STEP` = +1/vague,
+  inchangé) — le calcul se fait maintenant par une fonction
+  `enemiesForWave(w)` plutôt qu'un `+=` cumulatif, pour que ce
+  recollage soit exact. Effet à long terme : un décalage fixe et
+  modeste (+49 ennemis/vague, pour toujours) au lieu d'un facteur qui
+  grandit indéfiniment — vérifié par calcul direct aux vagues 50, 100,
+  200, 300, 500 (voir script de test), aucune explosion.
+
+**Résultat mesuré** (10 essais/stratégie, 300ms/tir, 60000 frames) :
+solo échoue désormais vagues 3-4 (moyenne 3,9, minimum 3 — jamais avant
+la vague 3, jamais après la vague 4) ; "towers" (une seule tour fixe,
+bot volontairement simple) va de la vague 4 à 9, parfois plus loin. Le
+bot "towers" reste un plancher, pas un plafond : un vrai joueur qui
+bouge, vise mieux et construit plusieurs tours ira sensiblement plus
+loin — pas mesuré ici faute d'un bot multi-tours, à garder en tête si
+le calibrage doit être affiné encore.
+
+Vérifié avec Playwright : suite de régression complète (construction/
+renfort, tir manuel/auto, cadence, forge, marchands, atmosphère,
+panneau de version, progression infinie, distribution des types
+d'ennemis) toujours verte, aucune erreur JS. Densité d'ennemis en fin
+de partie vérifiée directement (vagues 50 à 500) : pas d'explosion.

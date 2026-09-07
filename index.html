@@ -633,7 +633,31 @@ function towerShotInterval(t){
 }
 const PLAYER_DMG = 12;
 const BASE_ENEMY_HP = 12;
-const WAVE_HP_STEP = 3; // croissance LINÉAIRE (pas exponentielle) : +3 PV par vague
+// v17.23 : courbe resserrée pour que la tour devienne nécessaire dès la
+// vague ~3 pour un joueur qui tape à un rythme humain réaliste (mesuré au
+// simulateur avec un intervalle de tir manuel de 250-450ms, PAS le
+// plancher anti-spam de 50ms qu'aucun joueur ne soutient réellement) —
+// avant ce resserrage, un joueur seul survivait jusqu'à la vague 7-11.
+// Toujours une croissance LINÉAIRE (pas exponentielle) : +6 PV/vague
+// (au lieu de 3). Pour le NOMBRE d'ennemis en revanche, on ne pouvait
+// pas se contenter d'augmenter le pas partout — ça explose le nombre
+// d'ennemis simultanés en fin de partie (à la vague 300, un pas de +8
+// au lieu de +1 donne ~2400 ennemis dans la vague au lieu de ~300).
+// Solution : une "ruée" resserrée SEULEMENT sur les premières vagues
+// (voir enemiesForWave ci-dessous), qui rejoint ensuite le rythme de
+// croisière d'origine sans à-coup — le long terme n'est pas touché.
+const WAVE_HP_STEP = 6;
+const BASE_ENEMY_COUNT = 2;
+const WAVE_ENEMY_COUNT_STEP = 1; // rythme de croisière, identique à avant
+const EARLY_RUSH_WAVES = 8;      // vagues 1 à 8 : période resserrée
+const EARLY_RUSH_STEP = 8;       // pendant la ruée, +8 ennemis/vague au lieu de +1
+function enemiesForWave(w){
+  if (w <= EARLY_RUSH_WAVES) return BASE_ENEMY_COUNT + EARLY_RUSH_STEP * (w - 1);
+  // après la ruée, on repart du rythme normal SANS à-coup : on continue
+  // depuis le total atteint à la fin de la ruée
+  const atRushEnd = BASE_ENEMY_COUNT + EARLY_RUSH_STEP * (EARLY_RUSH_WAVES - 1);
+  return atRushEnd + WAVE_ENEMY_COUNT_STEP * (w - EARLY_RUSH_WAVES);
+}
 // or gagné en tuant un ennemi (rien s'il atteint la ligne) — varie par
 // type depuis v17.16, voir ENEMY_TYPES.goldReward ci-dessous
 
@@ -1345,6 +1369,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.23", text: "Courbe de difficulté resserrée : construire une tour devient nécessaire dès la vague ~3 pour un joueur qui joue seul" },
   { v: "17.22", text: "Parfois 2-3 bateaux par vague (au lieu d'un seul), musique de fond avec bouton mute dans le menu" },
   { v: "17.21", text: "Particules d'ambiance, croix/fumée à la mort d'un ennemi, morale de groupe, ennemis affaiblis qui fuient se soigner, cimetière des tours (prière pour reconstruire)" },
   { v: "17.20", text: "Easter egg des marchands : reste 5s sur un chemin resté propre, une caravane apparaît — récompense en or, et 4 soldats alliés si un marchand arrive jamais touché (grade sans plafond)" },
@@ -1792,7 +1817,7 @@ function update(now){
   } else if (enemies.length === 0){
     wave++;
     spawned = 0;
-    enemiesThisWave += 1; // +1 par vague (au lieu de +3) — plein de petites variations pour ajuster la difficulté
+    enemiesThisWave = enemiesForWave(wave);
     bossSpawnedThisWave = false;
     spawnInterval = pickNextSpawnDelay();
     spawnBoat(now); // un nouveau bateau arrive pour cette vague
@@ -2266,7 +2291,7 @@ function resetGame(startingGold){
   towers = []; enemies = []; projectiles = []; floatingTexts = [];
   gold = startingGold || 0; wave = 1; breaches = 0; gameOver = false;
   playerDead = false; spectating = false;
-  spawned = 0; enemiesThisWave = 2; spawnTimer = 0; spawnInterval = pickNextSpawnDelay(); bossSpawnedThisWave = false;
+  spawned = 0; enemiesThisWave = enemiesForWave(1); spawnTimer = 0; spawnInterval = pickNextSpawnDelay(); bossSpawnedThisWave = false;
   repairingTower = null;
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
