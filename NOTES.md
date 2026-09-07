@@ -902,10 +902,9 @@ Volume modéré (0,35) pour ne pas couvrir les bruitages synthétisés.
 Démarrage sur le premier geste utilisateur (comme le reste de
 l'audio, contrainte des navigateurs). Bouton "Couper la musique" /
 "Remettre la musique" dans le menu, état mémorisé en localStorage.
-**Licence/attribution non vérifiée** : le lien d'origine donné
-(opengameart.org) était bloqué par la politique réseau de cet
-environnement ; l'utilisateur a fourni le fichier directement à la
-place. À vérifier/créditer si besoin avant une diffusion plus large.
+**Licence** : confirmée par l'utilisateur — licence libre, utilisation
+autorisée sans attribution obligatoire. Sujet clos, pas de ligne de
+crédit à ajouter.
 
 **Simulateur de difficulté (`simulate.mjs`).** Nouvel outil, hors
 page de jeu, pour tester des dizaines de parties sans dépenser des
