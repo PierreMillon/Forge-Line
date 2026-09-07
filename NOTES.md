@@ -9,21 +9,8 @@ Format condensé — l'idée, pas la formulation exacte.
 
 ## 📋 À faire (demandé, pas encore fait)
 
-- **Le bateau prend en compte la mémoire des ennemis pour choisir où
-  accoster** (aujourd'hui : position aléatoire, indépendante des colonnes
-  qui réussissent le mieux). Et surtout : les ennemis de la vague doivent
-  être visibles SUR le bateau pendant qu'il glisse/accoste, physiquement
-  groupés dessus, plutôt que d'apparaître seulement une fois qu'il a
-  touché la plage — pour qu'on les voie vraiment "arriver en groupe".
-  Demandé, pas encore fait (nécessite de repenser le lien entre
-  spawnBoat/spawnEnemy et l'affichage du bateau).
-
-- **Collision souple entre ennemis (une fois débarqués du bateau)** : ils
-  ne doivent plus se chevaucher — cercles adjacents, bords qui se touchent
-  sans se traverser — mais avec une petite élasticité/souplesse (ils
-  peuvent un peu s'enfoncer les uns dans les autres, pas une paroi rigide).
-  Pendant qu'ils sont encore sur le bateau, le chevauchement reste permis
-  (lié à l'idée ci-dessus). Demandé, pas encore fait.
+(vide pour l'instant — les deux items ci-dessous, seuls restants, ont
+été faits en v17.24, voir plus bas)
 
 ## 💭 Idées à explorer plus tard (pas encore décidées)
 
@@ -31,20 +18,16 @@ Format condensé — l'idée, pas la formulation exacte.
   (drawIsoBox, comme les tours, au lieu du sprite PNG à plat).
 
 - **Plusieurs cartes** pour la suite (variété au-delà de la plage
-  actuelle). Pas encore décidé à quoi elles ressemblent.
+  actuelle). Pas encore décidé à quoi elles ressemblent — question posée
+  à nouveau en v17.24, réponse : garder en note pour l'instant.
 
 - ~~**Décor sur la grille isométrique** : une route qui part du bas du
   château~~ → fait en v17.12 (chemin décoratif qui part du bord du
   château et sort de l'écran, suit les diagonales de la grille iso —
   purement visuel, sans virages vers une "ville" précise pour l'instant).
 
-- **Easter egg : le cheval de Troie.** Un "cheval de Troie" (à préciser
-  visuellement) sort du bateau et attaque — si on le laisse passer,
-  défaite immédiate ; si on le détruit, des soldats en descendent (détail
-  à définir). Déclencheur pas encore choisi — piste évoquée : si le
-  joueur reste trop longtemps dans l'eau, un message d'avertissement
-  apparaît ("attention à ne pas rester trop dans l'eau, vous risquez de
-  fâcher les dieux") avant que ça se déclenche. Idée brute, à retravailler.
+- ~~**Easter egg : le cheval de Troie**~~ → fait en v17.24, détail plus
+  bas.
 
 - **Principe directeur : éviter la froideur mécanique** (vaut aussi pour
   Bastion Orbit, noté dans son BACKLOG.md). Le défaut classique : ennemis
@@ -678,14 +661,9 @@ creuser ensemble.
   qui grandit et se dissipe (300ms), puis une croix sort du même point
   et monte en s'effaçant (700ms) — `spawnDeathEffect`/`drawDeathEffect`.
 
-- ~~**Effet de morale/contagion à la mort**~~ → fait en v17.21, MAIS
-  seulement la partie mécanique (les ennemis à moins de 40px perdent 1
-  PV à la mort d'un voisin, peut faire boule de neige si ça en tue un
-  autre au passage — assumé, pas un bug). La partie "apprentissage" (les
-  ennemis qui repèrent que le regroupement est risqué et adaptent leur
-  stratégie) N'EST PAS implémentée — ça demanderait de faire évoluer le
-  système de mémoire à colonnes existant, pas juste un effet ponctuel ;
-  gardée ici comme idée non tranchée pour une prochaine passe.
+- ~~**Effet de morale/contagion à la mort**~~ → fait en v17.21 (partie
+  mécanique) puis v17.24 (partie "apprentissage", détail plus bas :
+  `clusterRisk` dans le système de mémoire à colonnes).
 
 - ~~**Ennemis affaiblis qui fuient vers le bateau**~~ → fait en v17.21,
   avec une différence assumée : fuient toujours vers le bateau (zone en
@@ -1024,3 +1002,105 @@ renfort, tir manuel/auto, cadence, forge, marchands, atmosphère,
 panneau de version, progression infinie, distribution des types
 d'ennemis) toujours verte, aucune erreur JS. Densité d'ennemis en fin
 de partie vérifiée directement (vagues 50 à 500) : pas d'explosion.
+
+## v17.24 : ennemis "niveau 1" toujours 1 coup, cheval de Troie, apprentissage de la morale, bateau + collision
+
+Grosse passe, quatre décisions tranchées par quiz puis tout implémenté
+d'un coup ("fais tout, le reste pose question").
+
+**Ennemis de base toujours 1 balle = 1 mort.** Précision demandée après
+v17.23 : la difficulté ne doit JAMAIS venir de PV qui montent sur le
+type de base ("niveau 1"), seulement du NOMBRE d'ennemis, puis de
+l'arrivée de types plus forts. Nouveau champ `type.scalesWithWave`
+(false pour `base`, true pour les autres) : le type de base reste figé
+à `BASE_ENEMY_HP` pour toujours, les autres types montent en PV avec la
+vague comme avant — ce sont eux qui doivent se "sentir" plus forts en
+avançant.
+
+Conséquence mesurée : geler les PV du type de base rendait le solo
+bien plus résistant qu'avant (chaque tir devient un kill garanti,
+aucun gâché) — le calibrage v17.23 (vague ~3) ne tenait plus, mesuré à
+nouveau autour de la vague 7. **Découverte en retunant** : augmenter le
+NOMBRE total d'ennemis par vague seul ne suffit pas — ça allonge juste
+la vague (plus d'ennemis à traiter), sans forcément augmenter le
+risque de brèche, parce que la CADENCE d'arrivée (`pickNextSpawnDelay`)
+est indépendante du total et n'avait pas bougé. Le vrai levier de
+pression, c'est la cadence. Solution : pendant les 8 premières vagues,
+spawn 2x plus vite (constante dupliquée en dur dans
+`pickNextSpawnDelay`, appelée avant que `EARLY_RUSH_WAVES` n'existe
+encore au chargement de la page — ordre du script), combiné à
+`EARLY_RUSH_STEP` recalibré (11, contre 8 en v17.23). Résultat retesté
+: solo échoue de nouveau vagues 3-4 (moyenne 3,5, jamais avant la
+vague 3), tour = vagues 3-6.
+
+**Cheval de Troie (easter egg).** Rester trop longtemps dans l'eau
+(au-dessus de la plage) déclenche un avertissement (3s) puis fait
+sortir un cheval de Troie du bateau (6s), qui descend vers le château
+comme un ennemi normal (implémenté comme une entrée de `enemies` avec
+`isTrojan:true`, réutilise tout le pipeline existant — ciblage,
+collision, dessin — plutôt qu'un système à part). Tranché avec
+l'utilisateur : s'il atteint le château, défaite immédiate
+(`breachDamage:10`, fait sauter directement le seuil des 10 brèches,
+modal dédiée "Le cheval de Troie a atteint le château") ; s'il est
+détruit à temps, **3 ENNEMIS** (`fast_tough`, pas des alliés — décision
+explicite de l'utilisateur, à l'inverse de ma proposition par défaut)
+en descendent et doivent être combattus normalement. Peut se
+reproduire, avec 15 vagues de recharge après chaque déclenchement (pas
+un piège répétitif à chaque fois qu'on traîne un peu dans l'eau).
+
+**Apprentissage de la morale de groupe.** Partie qui manquait depuis
+v17.21 : `columnStats` gagne un champ `clusterRisk`, incrémenté
+spécifiquement quand une mort est elle-même le fruit d'un effet
+domino de la contagion de morale (`e.tookMoraleDamage`), pas une mort
+au combat normal — distinct des `deaths` déjà comptés. `pickPreferredX()`
+pénalise les colonnes à `clusterRisk` élevé, donc les ennemis
+(nouveaux spawns ET rerolls des indécis) évitent de plus en plus les
+endroits où se regrouper a coûté cher — l'apprentissage recherché,
+sans plafond ni décote (comme le reste de la mémoire à colonnes, jamais
+remise à zéro en cours de partie). **Bug trouvé au passage** :
+`resetGame()` reconstruisait `columnStats` à la main avec l'ancienne
+forme (sans `clusterRisk`) — après un reset, tous les poids de
+`pickPreferredX()` seraient devenus `NaN`. Corrigé.
+
+**Bateau : mémoire d'accostage + passagers visibles.** L'accostage
+choisit sa position à 70% via `pickPreferredX()` (la même mémoire de
+colonnes que les ennemis, favorise les zones qui ont "payé") et à 30%
+au hasard, au lieu de purement aléatoire. Les ennemis de la vague sont
+désormais décidés D'UN COUP à l'arrivée du bateau (`buildWaveEnemyQueue`,
+appelle `pickEnemyType()` en boucle — garde tous ses effets de bord
+habituels, boss unique par vague compris) et répartis entre les
+bateaux (`assignBoatPassengers`), affichés en petits points colorés
+massés sur le pont pendant qu'il glisse puis tant qu'ils n'ont pas
+débarqué (`drawBoatPassengers`, plafonné à 10 points affichés + "+N").
+`spawnEnemy` consomme en priorité les passagers du bateau choisi
+plutôt que de retirer un type au hasard — l'ennemi qui débarque est
+exactement celui qu'on voyait sur le pont. Renommage : l'appel initial
+`spawnBoat` devient `startWaveBoats` (spawnBoat + assignBoatPassengers),
+utilisé aux 3 points d'entrée (vague 1 au chargement, chaque nouvelle
+vague, resetGame) — l'appel du tout premier bateau a dû être déplacé
+plus bas dans le script (après `pickEnemyType`/`pickPreferredX`, qui
+n'existent pas encore tout en haut du fichier au chargement).
+
+**Collision souple entre ennemis débarqués.** `resolveEnemyCollisions()`,
+appelée une fois par frame après le nettoyage des morts : pousse
+doucement les paires trop proches (moins de `ENEMY_MIN_DIST` avec 40%
+de chevauchement toléré avant correction), correction partielle
+(25%/frame, pas instantanée) pour rester souple et pas une paroi
+rigide — demandé explicitement. Les ennemis en fuite (`fleeing`) sont
+exclus (laissés traverser). Plafonnée à 150 ennemis simultanés
+(O(n²) — au-delà, très rare, le chevauchement redevient juste visuel
+comme avant cette version, sans coût de calcul).
+
+Vérifié avec Playwright : type de base confirmé 1 coup à la vague 50,
+type qui monte confirmé (306 PV à la vague 50), passagers du bateau
+correctement assignés et consommés (0 restant après écoulement complet
+de la vague), forme de `columnStats` correcte (`clusterRisk` présent),
+collision qui pousse bien deux ennemis superposés, cheval de Troie
+déclenché après immersion prolongée, entité bien dans `enemies`,
+destruction confirmée : 3 ennemis (`fast_tough`) ajoutés, AUCUN allié
+(`soldiers.length` inchangé), référence nettoyée après. Suite de
+régression complète (construction/renfort, tir manuel/auto, cadence,
+forge, marchands, atmosphère, panneau de version, progression infinie,
+distribution des types, musique/mute) toujours verte, aucune erreur JS.
+Densité d'ennemis en fin de partie revérifiée (vagues 50-500) : pas
+d'explosion malgré le nouveau décalage de la ruée.
