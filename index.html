@@ -430,6 +430,10 @@ function posOnPath(idxFloat){
 const PATH_TOUCH_RADIUS = 26;       // distance à laquelle un ennemi "salit" le chemin
 const MERCHANT_STAND_MS = 5000;
 const MERCHANT_MIN = 1, MERCHANT_MAX = 8;
+// v17.26 : le chemin démarre pile au point d'apparition du joueur — sans
+// ce seuil, rester immobile à l'apparition comptait déjà comme "sur le
+// chemin" (voir tryTriggerCaravan)
+const MERCHANT_MIN_PATH_IDX = 3;
 // v17.25 : 3x plus lent qu'avant (0.03 -> 0.01) — les marchands, pas les
 // soldats qu'ils peuvent devenir : les soldats ont leur propre système de
 // déplacement (updateSoldiers, indépendant de pathIdx), donc marchent déjà
@@ -462,8 +466,15 @@ function tryTriggerCaravan(now){
   // par personne), mais jamais deux caravanes à moins de
   // CARAVAN_MIN_WAVE_GAP vagues d'écart l'une de l'autre
   if (wave - lastCaravanWave < CARAVAN_MIN_WAVE_GAP) return;
-  const { dist } = nearestPathIndex(player.x, player.y);
-  if (dist >= PATH_TOUCH_RADIUS){ playerOnPathSince = null; return; }
+  const { idx, dist } = nearestPathIndex(player.x, player.y);
+  // v17.26 (bug corrigé) : le point de départ du chemin est quasiment
+  // collé au point d'apparition du joueur — sans ce garde-fou, NE PAS
+  // BOUGER du tout après le début d'une partie comptait déjà comme "sur
+  // le chemin", et déclenchait une caravane sans que le joueur ait
+  // jamais volontairement marché dessus. On exige d'être au moins à
+  // MERCHANT_MIN_PATH_IDX crans du départ (vers le large), pas juste
+  // "à moins de PATH_TOUCH_RADIUS px du premier point".
+  if (dist >= PATH_TOUCH_RADIUS || idx < MERCHANT_MIN_PATH_IDX){ playerOnPathSince = null; return; }
   if (playerOnPathSince === null) playerOnPathSince = now;
   if (pathDisturbedThisWave) return; // le chemin doit être resté propre CETTE vague
   if (now - playerOnPathSince < MERCHANT_STAND_MS) return;
@@ -760,8 +771,18 @@ function enemiesForWave(w){
 // base FIXE, et chaque ennemi varie individuellement autour d'elle (un peu
 // plus vite, un peu plus lent, ça oscille organiquement dans le temps),
 // plafonnée par ENEMY_PACE_AMPLITUDE — jamais un vrai pic incontrôlé.
-const ENEMY_BASE_SPEED = 0.55; // px/frame, référence pour le type de base
+const ENEMY_BASE_SPEED = 0.66; // px/frame, référence pour le type de base — +20% (v17.26, était 0.55)
 const ENEMY_PACE_AMPLITUDE = 0.3; // +/- 30% de variation individuelle autour de la vitesse du type
+// v17.26 : certains ennemis peuvent "décider" d'attendre en groupe près de
+// l'eau pour attaquer ensemble, plutôt que d'avancer en ordre dispersé —
+// détourne le waitFrames existant (déjà une pause avant d'avancer) en une
+// pause bien plus longue, mais relâchée dès qu'assez d'ennemis en attente
+// se sont rassemblés à proximité (voir la boucle d'ennemis) ; sinon, un
+// délai maximum les libère quand même pour ne jamais bloquer une vague.
+const GROUP_WAIT_CHANCE = 0.15;
+const GROUP_WAIT_MAX_FRAMES = 400;   // ~6,7s à 60fps, filet de sécurité si le groupe ne se forme jamais
+const GROUP_WAIT_MIN_COUNT = 3;      // taille de groupe qui déclenche la ruée commune
+const GROUP_WAIT_RADIUS = 60;
 // un ennemi très affaibli tente de fuir vers le bateau pour se soigner
 // (une fois dans sa vie, moitié du manquant) — même mécanique que les
 // marchands/soldats, cette fois côté ennemis
@@ -1585,6 +1606,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.26", text: "Correctif : caravane qui se déclenchait sans marcher sur le chemin ; ennemis 20% plus rapides ; certains ennemis attendent en groupe avant d'attaquer ensemble" },
   { v: "17.25", text: "Marchands 3x plus lents et amortis, caravanes possibles dès la vague 1 mais max une fois toutes les 2 vagues, tours 2x plus chères, zone de sable hors construction" },
   { v: "17.24", text: "Ennemis de base toujours 1 balle = 1 mort, easter egg du cheval de Troie, ennemis qui évitent les regroupements risqués, bateau avec passagers visibles + mémoire d'accostage, collision souple entre ennemis" },
   { v: "17.23", text: "Courbe de difficulté resserrée : construire une tour devient nécessaire dès la vague ~3 pour un joueur qui joue seul" },
@@ -1784,6 +1806,10 @@ function spawnEnemy(now){
   const role = roll < 0.3 ? 'attacker' : (roll < 0.3 + harasserChance ? 'harasser' : 'rusher');
 
   const commitment = Math.random(); // proche de 0 : change souvent d'avis ; proche de 1 : s'y tient
+  // v17.26 : certains attendent en groupe près de l'eau plutôt que
+  // d'avancer dispersés — voir GROUP_WAIT_* et la boucle d'ennemis pour
+  // la libération synchronisée
+  const groupWait = Math.random() < GROUP_WAIT_CHANCE;
   const e = {
     // x initial calculé avec la même formule que le mouvement (voir plus
     // bas) : sinon, au premier instant où l'ennemi bouge, il "saute" de
@@ -1805,8 +1831,11 @@ function spawnEnemy(now){
     nextRerollAt: commitment < 0.35 ? now + 3000 + Math.random()*4000 : Infinity,
     spawnedAt: now,
     // certains hésitent avant de s'avancer — l'impression qu'ils attendent
-    // une occasion plutôt que de foncer tous en rang
-    waitFrames: Math.random() < 0.4 ? Math.floor(20 + Math.random()*70) : 0,
+    // une occasion plutôt que de foncer tous en rang ; ceux qui attendent
+    // EN GROUPE (groupWait) ont une attente bien plus longue, mais coupée
+    // court dès qu'assez de monde s'est rassemblé (voir plus bas)
+    groupWait,
+    waitFrames: groupWait ? GROUP_WAIT_MAX_FRAMES : (Math.random() < 0.4 ? Math.floor(20 + Math.random()*70) : 0),
     // un siège trop long (tour bien trop renforcée pour tomber vite) doit
     // pouvoir être abandonné — sinon un attacker peut camper indéfiniment
     // sur une "super-tour" et bloquer la fin de la vague (voir SIEGE_GIVEUP_MS)
@@ -2093,7 +2122,26 @@ function update(now){
         e.fleeing = false; // reprend son rôle normal, redescend
       }
     } else if (e.waitFrames > 0){
-      e.waitFrames--; // hésite/se planque un instant avant de s'avancer
+      // v17.26 : ceux qui attendent EN GROUPE (groupWait) scrutent les
+      // autres ennemis en attente autour d'eux — assez de monde rassemblé
+      // (GROUP_WAIT_MIN_COUNT, soi-même inclus) déclenche une ruée
+      // commune, sinon ils patientent (jusqu'à GROUP_WAIT_MAX_FRAMES,
+      // filet de sécurité si le groupe ne se forme jamais)
+      if (e.groupWait){
+        let nearby = 0;
+        for (const other of enemies){
+          if (other.groupWait && other.waitFrames > 0 && Math.hypot(other.x-e.x, other.y-e.y) < GROUP_WAIT_RADIUS) nearby++;
+        }
+        if (nearby >= GROUP_WAIT_MIN_COUNT){
+          for (const other of enemies){
+            if (other.groupWait && other.waitFrames > 0 && Math.hypot(other.x-e.x, other.y-e.y) < GROUP_WAIT_RADIUS) other.waitFrames = 0;
+          }
+        } else {
+          e.waitFrames--;
+        }
+      } else {
+        e.waitFrames--; // hésite/se planque un instant avant de s'avancer
+      }
     } else if (e.role === 'attacker' && !e.siegeGaveUp){
       if (!e.target || !towers.includes(e.target)){ e.target = pickTargetTower(e.x, e.y); e.siegeStartedAt = null; }
       if (e.target){

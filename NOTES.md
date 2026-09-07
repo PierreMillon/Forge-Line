@@ -1156,3 +1156,54 @@ script de test (pas dans le jeu) : un marchand construit à la main sans
 le nouveau champ `speed` faisait planter `posOnPath` (NaN) — corrigé
 dans le script. Suite de régression complète toujours verte, aucune
 erreur JS.
+
+## v17.26 : bug des marchands au point d'apparition corrigé, ennemis +20% plus rapides, attente de groupe
+
+**Bug corrigé (signalé par l'utilisateur) : caravane qui se déclenche
+sans que le joueur ait marché sur le chemin.** Cause réelle : le
+chemin décoratif démarre pile au point d'apparition du joueur (calculé
+depuis `REGEN_ZONE.y`, à quelques pixels de là où `resetGame` place le
+joueur) — rester complètement immobile après le début d'une partie
+comptait déjà comme "sur le chemin" (distance ~10px, largement sous
+`PATH_TOUCH_RADIUS`), et déclenchait une caravane après 5s sans que le
+joueur ait rien fait. Confirmé par test direct : à l'apparition,
+`nearestPathIndex` renvoie l'indice 1 (sur 17) à 10px. Corrigé en
+exigeant en plus d'être au moins à `MERCHANT_MIN_PATH_IDX` (3) crans du
+départ du chemin, pas seulement "à moins de 26px du premier point".
+
+**Vitesse des ennemis +20%.** `ENEMY_BASE_SPEED` : 0,55 → 0,66 px/frame.
+S'applique à tous les types (proportionnel via `speedMult`) et au
+cheval de Troie (qui réutilise la même constante).
+
+**Attente de groupe près de l'eau.** Idée de l'utilisateur : certains
+ennemis peuvent "décider" d'attendre en groupe avant d'attaquer
+ensemble, plutôt que d'avancer en ordre dispersé. Implémenté en
+détournant le `waitFrames` déjà existant (hésitation avant de
+s'avancer) : 15% des ennemis (`groupWait`) tirent une attente bien plus
+longue (jusqu'à `GROUP_WAIT_MAX_FRAMES`, ~6,7s) au lieu de la courte
+hésitation habituelle. Chaque frame passée à attendre, un ennemi en
+`groupWait` compte ses voisins en `groupWait` également en attente dans
+un rayon (`GROUP_WAIT_RADIUS`) — dès que `GROUP_WAIT_MIN_COUNT` (3, lui
+compris) sont réunis, TOUS ceux du rassemblement sont relâchés
+d'un coup et reprennent leur rôle normal en même temps (une ruée
+commune). Filet de sécurité : si le groupe ne se forme jamais, l'attente
+s'épuise normalement et l'ennemi part seul — jamais de blocage de
+vague. Coût de calcul contenu naturellement : seuls les ennemis en
+attente de groupe scrutent leurs voisins (pas tous les ennemis), et
+l'attente a un plafond dans le temps.
+
+**Constat mesuré, pas retouché** : avec le coût des tours doublé
+(v17.25) ET les ennemis 20% plus rapides (v17.26) cumulés, le
+simulateur montre que la stratégie "tour" ne dépasse presque plus la
+stratégie solo (vagues 3-4 dans les deux cas, contre un net avantage
+avant ces deux changements). Ce sont deux demandes explicites et
+précises de l'utilisateur, pas retouchées de mon propre chef — mesure
+remontée pour information, à trancher si besoin.
+
+Vérifié avec Playwright : vitesse confirmée (0,66), caravane qui NE se
+déclenche PLUS en restant immobile à l'apparition (testé sur 400
+frames), caravane qui se déclenche toujours normalement plus loin sur
+le chemin, groupe de 3 ennemis en attente relâché ensemble à la même
+frame confirmé, ennemi seul en attente qui continue de décompter
+normalement (pas de relâchement prématuré). Suite de régression
+complète toujours verte, aucune erreur JS.
