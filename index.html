@@ -132,6 +132,7 @@
   </div>
   <div class="bonusbar-row">
     <button id="precision-btn"><span class="b-icon">🔬</span><span>Précision</span><span class="b-cost" id="precision-cost"></span></button>
+    <button id="forge-btn"><span class="b-icon">⚒️</span><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
   </div>
 </div>
 
@@ -319,6 +320,29 @@ function buildPath(){
     pathScreenPoints.push(gridToScreen(gx, gy));
   }
 }
+// --- La Forge : système à part, EN PLUS du bandeau de bonus (tranché en
+// quiz) — le bandeau actuel ne change pas. Une zone délimitée près du
+// château (bas-droite) : il faut s'y RENDRE pour construire la Forge
+// (100 or, une fois) puis pour acheter ses compétences — contrairement
+// au bandeau, inaccessible à distance. 1re compétence : "Tours d'élite",
+// un multiplicateur global sur toutes les tours (PV et dégâts), en plus
+// de leur niveau individuel. Le multiplicateur s'applique aux DEUX
+// termes de la formule des tours à parts égales, donc la garantie
+// "renfort toujours plus rentable qu'une tour neuve" (v17.13) tient
+// toujours quel que soit le niveau de Forge.
+const FORGE_ZONE = { x: 0, y: 0, w: 64, h: 54 };
+const FORGE_BUILD_COST = 100;
+const FORGE_ELITE_COST_BASE = 40;
+let forgeBuilt = false;
+let forgeEliteLevel = 0;
+function inForgeZone(x, y){
+  const pad = 14;
+  return x >= FORGE_ZONE.x - pad && x <= FORGE_ZONE.x + FORGE_ZONE.w + pad &&
+         y >= FORGE_ZONE.y - pad && y <= FORGE_ZONE.y + FORGE_ZONE.h + pad;
+}
+function forgeEliteCost(){ return Math.round(FORGE_ELITE_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, forgeEliteLevel)); }
+function forgeEliteMultiplier(){ return Math.pow(UPGRADE_POWER_GROWTH, forgeEliteLevel); }
+
 let playerHealth = PLAYER_MAX_HEALTH;
 let playerFlashUntil = 0;
 let playerInvulnUntil = 0; // courte invulnérabilité après une résurrection
@@ -344,6 +368,9 @@ function resizeCanvas(){
 
   REGEN_ZONE.x = 0; REGEN_ZONE.w = STAGE_W; REGEN_ZONE.y = STAGE_H - REGEN_ZONE.h - 8;
   buildPath();
+  // la Forge : en bas à droite du château, juste au-dessus du mur
+  FORGE_ZONE.x = STAGE_W - FORGE_ZONE.w - 16;
+  FORGE_ZONE.y = REGEN_ZONE.y - FORGE_ZONE.h - 12;
 
   if (!playerPlaced){
     player.x = STAGE_W/2; player.y = STAGE_H - 70;
@@ -682,8 +709,11 @@ const TOWER_HP_INCREMENT_BASE = 40;
 const TOWER_DMG_INCREMENT_BASE = 6;
 function geometricSum(n){ return (Math.pow(UPGRADE_POWER_GROWTH, n) - 1) / (UPGRADE_POWER_GROWTH - 1); } // somme des paliers 1..n
 function towerUpgradeCost(t){ return Math.round(TOWER_UPGRADE_COST * Math.pow(UPGRADE_COST_GROWTH, (t.level||1) - 1)); }
-function towerMaxHpAtLevel(level){ return Math.round(TOWER_BASE_HP + TOWER_HP_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))); }
-function towerDamage(t){ const level = t.level || 1; return Math.round(PLAYER_DMG + TOWER_DMG_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))); }
+// forgeEliteMultiplier() s'applique aux DEUX termes (base ET incrément)
+// à parts égales, donc le ratio renfort/neuf (v17.13) ne bouge jamais,
+// quel que soit le niveau de Forge
+function towerMaxHpAtLevel(level){ return Math.round((TOWER_BASE_HP + TOWER_HP_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))) * forgeEliteMultiplier()); }
+function towerDamage(t){ const level = t.level || 1; return Math.round((PLAYER_DMG + TOWER_DMG_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))) * forgeEliteMultiplier()); }
 // 4. tir automatique : par défaut le joueur tire MANUELLEMENT (un tap/clic
 //    déclenche un tir, gratuit dès le début, cadence identique à
 //    l'automatique — voir tryManualShoot) ; ce bonus lui évite d'avoir à
@@ -749,7 +779,8 @@ function tryBuild(){
   }
   if (!chosen) return; // vraiment aucune case libre à proximité (très rare)
   gold -= TOWER_BUILD_COST;
-  towers.push({ x: chosen.x, y: chosen.y, hp: TOWER_BASE_HP, maxHp: TOWER_BASE_HP, level: 1, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
+  const startHp = towerMaxHpAtLevel(1); // prend en compte la Forge si déjà achetée
+  towers.push({ x: chosen.x, y: chosen.y, hp: startHp, maxHp: startHp, level: 1, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
   // le joueur se décale tout seul sur le côté le plus court pour laisser
   // la place à la tour tout juste posée (la collision tour/joueur, déjà
   // appliquée chaque frame, s'en charge immédiatement)
@@ -837,6 +868,23 @@ document.getElementById('precision-btn').addEventListener('click', () => {
   gold -= cost;
   precisionLevel++;
 });
+// la Forge : contrairement aux autres boutons, n'agit que si le joueur
+// est physiquement dans la zone — sinon rien ne se passe (le bouton est
+// désactivé et l'affiche dans refreshBonusbar)
+document.getElementById('forge-btn').addEventListener('click', () => {
+  if (!inForgeZone(player.x, player.y)) return;
+  if (!forgeBuilt){
+    if (gold < FORGE_BUILD_COST) return;
+    gold -= FORGE_BUILD_COST;
+    forgeBuilt = true;
+    sfxBuild();
+    return;
+  }
+  const cost = forgeEliteCost();
+  if (gold < cost) return;
+  gold -= cost;
+  forgeEliteLevel++;
+});
 
 // affiche l'état courant des boutons (coût, grisé si pas assez d'or) —
 // rappelé à chaque frame, comme le reste du HUD. Plus de "Max"/"Actif" :
@@ -878,6 +926,27 @@ function refreshBonusbar(){
     tLabel.textContent = 'Construire';
     tBtn.disabled = disabledAll || gold < TOWER_BUILD_COST;
     tCost.textContent = TOWER_BUILD_COST + ' or';
+  }
+
+  // Forge : système à part, seulement utilisable depuis sa zone (pas à
+  // distance comme les autres boutons)
+  const fBtn = document.getElementById('forge-btn');
+  const fLabel = document.getElementById('forge-label');
+  const fCost = document.getElementById('forge-cost');
+  const nearForge = inForgeZone(player.x, player.y);
+  if (!nearForge){
+    fLabel.textContent = 'Forge';
+    fCost.textContent = 'Va à la Forge';
+    fBtn.disabled = true;
+  } else if (!forgeBuilt){
+    fLabel.textContent = 'Construire';
+    fCost.textContent = FORGE_BUILD_COST + ' or';
+    fBtn.disabled = disabledAll || gold < FORGE_BUILD_COST;
+  } else {
+    const eCost = forgeEliteCost();
+    fLabel.textContent = 'Tours d’élite';
+    fCost.textContent = eCost + ' or';
+    fBtn.disabled = disabledAll || gold < eCost;
   }
 }
 
@@ -921,6 +990,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: 17.19, text: "La Forge : zone à rejoindre près du château, construction (100 or) puis \"Tours d'élite\" (multiplicateur global infini) — système à part, en plus du bandeau" },
   { v: 17.18, text: "Dégâts au château selon le type d'ennemi (1/1/2/3 créneaux) au lieu d'1 créneau pour tout le monde" },
   { v: 17.17, text: "Bouton Précision (3e dimension du combat, avec Puissance et Cadence) — bandeau de bonus à 2 étages" },
   { v: 17.16, text: "Or par type d'ennemi (1/2/4/10) ; correctif panneau version (transparence + scroll) ; FAQ plus honnête sur les pubs/achats ; tours plus rapides en montant de niveau ; halo doré sur la tour à portée d'upgrade ; correctif siège infini (un attacker abandonne après 8s)" },
@@ -1267,6 +1337,11 @@ function update(now){
   // tours : mêmes projectiles que le joueur, mais 20% plus rapides ;
   // pas de barre de vie séparée — leur hauteur EST leur vie (voir draw())
   for (const t of towers){
+    // recalculé en direct (pas mis en cache) : si le niveau de Forge
+    // change, ça relève le plafond de TOUTES les tours tout de suite,
+    // pas juste des nouvelles/futurs renforts. Ne soigne pas
+    // rétroactivement (t.hp ne bouge pas ici), juste le plafond.
+    t.maxHp = towerMaxHpAtLevel(t.level || 1);
     if (t.lastShotAt === undefined) t.lastShotAt = 0;
     if (now - t.lastShotAt >= towerShotInterval(t)){
       let target = null, best = TOWER_RANGE_PX;
@@ -1520,6 +1595,22 @@ function drawCastle(){
   }
 }
 
+// la Forge : petit enclos près du château, visible avant même d'être
+// construit (pour savoir où aller). Une fois construite, un peu plus
+// lumineuse (façon braise) pour se distinguer d'un simple emplacement vide.
+function drawForge(){
+  const { x, y, w, h } = FORGE_ZONE;
+  ctx.fillStyle = forgeBuilt ? '#8a5a35' : '#00000012';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = forgeBuilt ? '#e0793a' : '#6b5f45';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, y, w, h);
+  ctx.font = '24px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⚒️', x + w/2, y + h/2);
+}
+
 // petit chemin décoratif (voir buildPath) : juste une bande stroke le long
 // des points calculés, aucun effet de jeu
 function drawPath(){
@@ -1552,6 +1643,7 @@ function draw(now){
   drawBoat();
   drawPath();
   drawCastle();
+  drawForge();
 
   if (showGrid) drawDebugGrid();
 
@@ -1703,6 +1795,7 @@ function resetGame(startingGold){
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0; precisionLevel = 0;
+  forgeBuilt = false; forgeEliteLevel = 0;
   lastAutoShotAt = 0; lastManualShotAt = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0 })); recentSuccesses = [];
   player.x = STAGE_W/2; player.y = STAGE_H - 70;

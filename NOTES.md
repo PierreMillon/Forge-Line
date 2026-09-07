@@ -749,17 +749,28 @@ creuser ensemble.
     changement caravane→soldats. Pas encore implémenté, plus gros
     chantier restant de la liste.
 
-- **Mécanique de la Forge** (nom du jeu = Forge Line, le mot "forge" pas
-  encore exploité littéralement) : une zone délimitée en bas à droite du
-  château. Si on y reste et qu'on y dépense de l'or (ex. 100 or), ça crée
-  "une forge" ; en y retournant, on peut acheter de nouveaux boutons de
-  compétence (ex : tours plus fortes), chaque bouton ayant sa propre
-  "vie"/progression.
-  **Tranché en quiz** : système à part, EN PLUS du bandeau de bonus
-  actuel (pas une migration/refonte) — le bandeau actuel (Revenu
-  auto/Puissance/Cadence/Précision/Construire) reste inchangé, la Forge
-  débloque des compétences supplémentaires et différentes une fois
-  construite. Pas encore implémenté.
+- ~~**Mécanique de la Forge**~~ → fait en v17.19 (nom du jeu = Forge
+  Line, le mot "forge" enfin exploité littéralement). Zone délimitée en
+  bas à droite du château (`FORGE_ZONE`), visible sur la carte même
+  avant construction (case grisée avec ⚒️) pour savoir où aller. Il faut
+  être PHYSIQUEMENT dans la zone pour agir dessus (contrairement au
+  bandeau, inaccessible à distance) :
+  - Construction : 100 or, une fois (`forgeBuilt`).
+  - Une fois construite, la zone devient chaude (fond brun, bordure
+    orange façon braise) et propose "Tours d'élite" : un multiplicateur
+    global sur TOUTES les tours (PV et dégâts), en progression infinie
+    comme le reste (`forgeEliteLevel`, base 40 or).
+  - Système à part, EN PLUS du bandeau de bonus actuel (tranché en
+    quiz) — le bandeau (Revenu auto/Puissance/Cadence/Précision/
+    Construire) n'a pas bougé.
+  - Le multiplicateur s'applique aux DEUX termes de la formule des
+    tours (base ET incrément) à parts égales, donc la garantie
+    "renfort toujours plus rentable qu'une tour neuve" (v17.13) tient
+    toujours, à n'importe quel niveau de Forge — vérifié par calcul
+    (ratio identique avant/après achat de plusieurs paliers).
+  - `t.maxHp` recalculé en direct chaque frame (pas mis en cache) :
+    acheter un palier de Forge relève tout de suite le plafond de
+    TOUTES les tours déjà posées, pas seulement des futures.
 
 Pas encore trié ni implémenté au moment de cette note, sauf les points
 listés "petites, claires" et "dégâts au château" qui ont été attaqués
@@ -803,3 +814,20 @@ paliers (0%, 10%, 41%, 88%, ~99,997% de l'écart refermé), bouton
 désactivé sans assez d'or puis achat confirmé, bandeau à 2 lignes
 vérifié par capture d'écran, suite de régression complète toujours
 verte, aucune erreur JS.
+
+## v17.19 : la Forge (système de compétences à part, en plus du bandeau)
+
+Premier système "additionnel" au jeu (jusqu'ici tout passait par le
+bandeau de bonus) : une zone délimitée près du château qu'il faut
+rejoindre physiquement pour agir dessus. Construction (100 or, une
+fois) puis "Tours d'élite" (multiplicateur global sur toutes les
+tours, progression infinie). Détail complet dans la section
+"Grosse vague de demandes" ci-dessus.
+
+Vérifié avec Playwright : bouton désactivé hors zone ("Va à la
+Forge"), désactivé sans assez d'or dans la zone, construction
+confirmée (or déduit, état persistant), achat de "Tours d'élite"
+confirmé sur plusieurs paliers avec la garantie renfort/neuf toujours
+intacte (ratio identique avant/après), rendu visuel vérifié par
+capture d'écran (zone grisée avant construction, braise orange après),
+suite de régression complète toujours verte, aucune erreur JS.
