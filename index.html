@@ -187,6 +187,9 @@ const PLAYER_HW = 9, PLAYER_HH = 5, PLAYER_SH = 14;
 // technique que les tours, drawIsoBox) plutôt qu'un sprite PNG à plat —
 // demandé pour rester cohérent avec la perspective du reste du décor.
 const WATER_H = 46;
+// v17.25 : hors construction jusqu'à la moitié de l'écran (eau + bande de
+// sable) — fonction plutôt que constante, STAGE_H change au redimensionnement
+function noBuildY(){ return STAGE_H/2; }
 const BOAT_W = 74, BOAT_H = 74; // encombrement pour le calcul de la zone de débarquement des ennemis
 const BOAT_HW = 24, BOAT_HH = 14, BOAT_SH = 10; // dimensions de la coque isométrique
 
@@ -427,16 +430,26 @@ function posOnPath(idxFloat){
 const PATH_TOUCH_RADIUS = 26;       // distance à laquelle un ennemi "salit" le chemin
 const MERCHANT_STAND_MS = 5000;
 const MERCHANT_MIN = 1, MERCHANT_MAX = 8;
-const MERCHANT_SPEED_IDX = 0.03;    // en "indices de chemin" par frame
+// v17.25 : 3x plus lent qu'avant (0.03 -> 0.01) — les marchands, pas les
+// soldats qu'ils peuvent devenir : les soldats ont leur propre système de
+// déplacement (updateSoldiers, indépendant de pathIdx), donc marchent déjà
+// normalement une fois convertis, sans rien à changer de ce côté.
+const MERCHANT_SPEED_IDX = 0.01;    // en "indices de chemin" par frame, vitesse DE CROISIÈRE (voir amortissement ci-dessous)
+const MERCHANT_ACCEL_RATE = 0.06;   // la vitesse réelle se rapproche de la cible de 6%/frame — démarrage/arrêt progressifs, pas un à-coup
+const MERCHANT_DECEL_ZONE = 3;      // en indices de chemin restants : ralentit à l'approche du château/demi-tour
 const MERCHANT_HP = 20;
 const MERCHANT_CONTACT_DMG = 0.15;  // dégâts/frame d'un ennemi au contact
 const MERCHANT_HEAL_FRACTION = 0.5; // guérit la moitié du manquant, une fois dans sa vie
 const SOLDIER_COUNT_REWARD = 4;
+// v17.25 : possible dès la vague 1, mais ensuite jamais deux fois de
+// suite — au moins une vague complète de pause entre deux caravanes
+const CARAVAN_MIN_WAVE_GAP = 2;
+let lastCaravanWave = -Infinity;
 let pathDisturbedThisWave = false;  // un ennemi a-t-il traîné sur le chemin cette vague ?
 let pathClearWaveStreak = 0;        // nb de vagues consécutives sans ennemi sur le chemin
 let playerOnPathSince = null;
 let activeCaravan = null;           // { rewardGiven, soldiersGiven } — un seul évènement à la fois
-let merchants = [];                 // { pathIdx, x, y, hp, maxHp, retreating, wounded, everWounded, healUsed, dead }
+let merchants = [];                 // { pathIdx, x, y, speed, hp, maxHp, retreating, wounded, everWounded, healUsed, dead }
 
 // approximation volontairement grossière : la moyenne pondérée des
 // récompenses par type (base 1, rapide/fragile 2, rapide/costaud 4,
@@ -445,10 +458,14 @@ function waveValueEstimate(){ return Math.round(enemiesThisWave * 1.5); }
 
 function tryTriggerCaravan(now){
   if (activeCaravan || pathScreenPoints.length < 2) return;
+  // v17.25 : possible dès la vague 1 (le chemin n'a encore pu être "sali"
+  // par personne), mais jamais deux caravanes à moins de
+  // CARAVAN_MIN_WAVE_GAP vagues d'écart l'une de l'autre
+  if (wave - lastCaravanWave < CARAVAN_MIN_WAVE_GAP) return;
   const { dist } = nearestPathIndex(player.x, player.y);
   if (dist >= PATH_TOUCH_RADIUS){ playerOnPathSince = null; return; }
   if (playerOnPathSince === null) playerOnPathSince = now;
-  if (pathClearWaveStreak < 1) return; // le chemin doit être resté propre au moins 1 vague
+  if (pathDisturbedThisWave) return; // le chemin doit être resté propre CETTE vague
   if (now - playerOnPathSince < MERCHANT_STAND_MS) return;
   spawnCaravan();
   playerOnPathSince = null;
@@ -467,10 +484,11 @@ function spawnCaravan(){
   for (let i = 0; i < count; i++){
     merchants.push({
       pathIdx: pathScreenPoints.length - 1 - i*0.6, // étalés façon chenille
-      x: 0, y: 0, hp: MERCHANT_HP, maxHp: MERCHANT_HP,
+      x: 0, y: 0, speed: 0, hp: MERCHANT_HP, maxHp: MERCHANT_HP,
       retreating: false, wounded: false, everWounded: false, healUsed: false, dead: false,
     });
   }
+  lastCaravanWave = wave;
   activeCaravan = { rewardGiven: false, soldiersGiven: false };
 }
 function updateMerchants(now){
@@ -487,7 +505,14 @@ function updateMerchants(now){
     }
     if (m.hp <= 0){ m.dead = true; continue; }
 
-    m.pathIdx += (m.retreating ? 1 : -1) * MERCHANT_SPEED_IDX;
+    // amortissement (v17.25) : la vitesse réelle (m.speed) se rapproche
+    // progressivement d'une vitesse cible, elle-même réduite à l'approche
+    // du point d'arrêt (château ou demi-tour du retour) — démarrage et
+    // arrêt progressifs, pas un à-coup de vitesse constante
+    const remaining = m.retreating ? (pathScreenPoints.length - 1 - m.pathIdx) : m.pathIdx;
+    const targetSpeed = MERCHANT_SPEED_IDX * Math.min(1, Math.max(0.15, remaining / MERCHANT_DECEL_ZONE));
+    m.speed += (targetSpeed - m.speed) * MERCHANT_ACCEL_RATE;
+    m.pathIdx += (m.retreating ? 1 : -1) * m.speed;
     m.pathIdx = Math.max(0, Math.min(pathScreenPoints.length - 1, m.pathIdx));
 
     if (!m.retreating && m.pathIdx <= 0){
@@ -1195,9 +1220,9 @@ function effectivePlayerDmg(){ return Math.round(PLAYER_DMG * Math.pow(UPGRADE_P
 //    (rajoute un "étage" — plus haute, plus de PV et de dégâts). Une
 //    tour à pouvoir spécial (50 or) est une idée pour plus tard, pas
 //    encore faite.
-const TOWER_BUILD_COST = 10;
+const TOWER_BUILD_COST = 20; // v17.25 : doublé (était 10)
 const TOWER_BASE_HP = 30;
-const TOWER_UPGRADE_COST = 10; // même prix de départ qu'une tour neuve
+const TOWER_UPGRADE_COST = 20; // doublé avec TOWER_BUILD_COST — même prix de départ qu'une tour neuve, garantie "renfort ≥ neuf" (v17.13) inchangée : ratio préservé par un facteur uniforme
 // renforcer une tour doit TOUJOURS rester garanti plus rentable que
 // construire une tour neuve à côté (10 or -> 30 PV, 3 PV/or), à chaque
 // palier, pour toujours — pas juste au début. Une pure croissance
@@ -1309,6 +1334,9 @@ function tryBuild(){
     if (!occupied){ chosen = p; break; }
   }
   if (!chosen) return; // vraiment aucune case libre à proximité (très rare)
+  // v17.25 : hors construction dans l'eau et sur le sable (jusqu'à la
+  // moitié de l'écran) — même logique de silence que "pas de case libre"
+  if (chosen.y < noBuildY()) return;
   gold -= TOWER_BUILD_COST;
   const startHp = towerMaxHpAtLevel(1); // prend en compte la Forge si déjà achetée
   towers.push({ x: chosen.x, y: chosen.y, hp: startHp, maxHp: startHp, level: 1, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
@@ -1557,6 +1585,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.25", text: "Marchands 3x plus lents et amortis, caravanes possibles dès la vague 1 mais max une fois toutes les 2 vagues, tours 2x plus chères, zone de sable hors construction" },
   { v: "17.24", text: "Ennemis de base toujours 1 balle = 1 mort, easter egg du cheval de Troie, ennemis qui évitent les regroupements risqués, bateau avec passagers visibles + mémoire d'accostage, collision souple entre ennemis" },
   { v: "17.23", text: "Courbe de difficulté resserrée : construire une tour devient nécessaire dès la vague ~3 pour un joueur qui joue seul" },
   { v: "17.22", text: "Parfois 2-3 bateaux par vague (au lieu d'un seul), musique de fond avec bouton mute dans le menu" },
@@ -2297,6 +2326,12 @@ function drawPath(){
 function draw(now){
   ctx.clearRect(0, 0, STAGE_W, STAGE_H); // fond beige uni (posé par le CSS du canvas), aucune ligne de sol
 
+  // v17.25 : zone de sable, entre l'eau et la moitié de l'écran — hors
+  // construction (voir tryBuild), comme l'eau elle-même. Purement visuel
+  // ici, le blocage de construction est vérifié séparément.
+  ctx.fillStyle = '#e0cd7a';
+  ctx.fillRect(0, WATER_H, STAGE_W, noBuildY() - WATER_H);
+
   // la plage : une bande d'eau tout en haut, le bateau viking d'où
   // débarquent les ennemis — le reste de la carte est le château fort
   const grad = ctx.createLinearGradient(0, 0, 0, WATER_H);
@@ -2524,7 +2559,7 @@ function resetGame(startingGold){
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0; precisionLevel = 0;
   forgeBuilt = false; forgeEliteLevel = 0;
   merchants = []; soldiers = []; activeCaravan = null;
-  pathDisturbedThisWave = false; pathClearWaveStreak = 0; playerOnPathSince = null;
+  pathDisturbedThisWave = false; pathClearWaveStreak = 0; playerOnPathSince = null; lastCaravanWave = -Infinity;
   towerGraves = []; playerPrayingSince = null; playerPrayingAt = null;
   deathEffects = [];
   lastAutoShotAt = 0; lastManualShotAt = 0;

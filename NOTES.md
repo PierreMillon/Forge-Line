@@ -1103,3 +1103,56 @@ forge, marchands, atmosphère, panneau de version, progression infinie,
 distribution des types, musique/mute) toujours verte, aucune erreur JS.
 Densité d'ennemis en fin de partie revérifiée (vagues 50-500) : pas
 d'explosion malgré le nouveau décalage de la ruée.
+
+## v17.25 : marchands plus lents + amortis, fréquence des caravanes, tours 2x plus chères, zone hors construction
+
+**Marchands.** Vitesse divisée par 3 (`MERCHANT_SPEED_IDX` 0,03 → 0,01)
+— précision de l'utilisateur : les marchands seulement, pas les soldats
+qu'ils peuvent devenir (déjà le cas avant cette version : `updateSoldiers`
+a son propre système de déplacement, complètement indépendant du
+`pathIdx` des marchands — rien à changer de ce côté). Mouvement amorti
+(demandé) : une vitesse réelle (`m.speed`) qui se rapproche
+progressivement d'une vitesse cible plutôt qu'un saut direct — la cible
+elle-même se réduit à l'approche du point d'arrêt (château ou demi-tour
+du retour), donnant un ralentissement naturel en plus du démarrage
+progressif. Comme la logique recalcule "combien reste-t-il avant le
+prochain arrêt" à chaque frame selon le sens de marche courant, un
+changement de direction (blessé → repart, guéri → retente) redémarre
+naturellement en douceur sans code séparé.
+
+**Fréquence des caravanes.** Peut se déclencher dès la vague 1 (avant
+cette version : impossible, la condition exigeait 1 vague ENTIÈRE de
+chemin propre AVANT la première tentative — bloquait tout jusqu'à la
+vague 2 minimum, ce que l'utilisateur ne voulait pas). Remplacé par une
+condition plus simple : chemin pas encore sali CETTE vague
+(`pathDisturbedThisWave`). En échange, un garde-fou de fréquence
+explicite ajouté (demandé) : jamais deux caravanes à moins de
+`CARAVAN_MIN_WAVE_GAP` (2) vagues d'écart — au moins une vague complète
+de pause entre deux.
+
+**Tours deux fois plus chères.** `TOWER_BUILD_COST` et `TOWER_UPGRADE_COST`
+doublés ensemble (10 → 20 chacun) plutôt que juste la construction :
+un commentaire du code documentait déjà que l'égalité des deux prix de
+départ est voulue (garantie "renfort ≥ neuf" de v17.13) — les doubler
+par le même facteur préserve exactement ce ratio, vérifié par calcul.
+
+**Zone hors construction (eau + sable).** Nouvelle bande de sable
+jaune, purement visuelle, entre l'eau et la moitié de l'écran
+(`noBuildY()`, fonction plutôt que constante — recalculée à chaque
+redimensionnement). Construire une tour y est désormais bloqué, ainsi
+que dans l'eau elle-même — qui, jusqu'à cette version, n'avait EN FAIT
+aucune restriction de construction (le joueur peut physiquement s'y
+tenir, `MARGIN` le permet). `tryBuild()` refuse silencieusement
+(comme le cas déjà existant "aucune case libre à proximité") si la
+case choisie tombe dans cette zone.
+
+Vérifié avec Playwright : coûts de tour doublés confirmés, construction
+refusée dans l'eau ET dans le sable (or non dépensé), autorisée en
+dessous de la ligne, vitesse des marchands confirmée réduite avec
+montée en vitesse progressive (jamais un saut direct à la cible),
+caravane déclenchable dès la vague 1, blocage confirmé à 1 vague
+d'écart, autorisation confirmée à 2 vagues d'écart. Bug trouvé dans un
+script de test (pas dans le jeu) : un marchand construit à la main sans
+le nouveau champ `speed` faisait planter `posOnPath` (NaN) — corrigé
+dans le script. Suite de régression complète toujours verte, aucune
+erreur JS.
