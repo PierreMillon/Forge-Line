@@ -1602,6 +1602,39 @@ section, en ajouter une plutôt que de la laisser non documentée.
 
 Vérifié : `node --check`, suite de régression toujours verte.
 
+## v17.39 : Partie 2, point 2 — langue (auto-détection fr/en)
+
+Consigne, réponse tranchée par Pierre : "auto-détection de la langue
+de l'appareil (fr/en…), anglais dans tous les autres cas — pas
+d'anglais fixe."
+
+- `detectLang()` lit `navigator.language` : `fr` si ça commence par
+  "fr", sinon `en` (n'importe quelle autre langue -> anglais, comme
+  demandé). Mémorisé dans `localStorage` (`fl_lang`) dès que
+  l'utilisateur bascule manuellement via le nouveau lien "Langue :
+  Français / Language: English" dans le menu.
+- Dictionnaire `I18N = { fr: {...}, en: {...} }` (~45 clés) + fonction
+  `t(clé)`. Les éléments HTML statiques portent un attribut
+  `data-i18n="clé"` (menu, écran de fin de partie, erreur pub, section
+  Astuces en entier) ; `applyLanguage()` les met à jour via
+  `innerHTML` (autorise le `<strong>` dans les paragraphes Pubs). Les
+  libellés dynamiques (boutons du bandeau de bonus, titres d'écran de
+  fin de partie selon la cause, avertissement du cheval de Troie)
+  passent tous par `t()` au lieu d'être écrits en dur.
+- **Scope assumé** : le CHANGELOG (panneau version) reste en français —
+  c'est un journal de développement, pas une mécanique de jeu vue au
+  quotidien par un joueur anglophone. Décision de scope, pas un oubli.
+
+Vérifié par script (Playwright, deux contextes avec `locale: 'en-US'`
+et `locale: 'fr-FR'`) : le jeu s'ouvre bien en anglais par défaut sur
+un appareil anglophone et en français sur un appareil francophone ;
+bascule manuelle confirmée (mémorisée dans localStorage) ; libellés
+dynamiques du bandeau de bonus et titre d'écran de fin de partie
+confirmés traduits après bascule ; contenu complet de la section
+Astuces confirmé traduit. Suite de régression complète toujours verte
+(le test `test-forge` tourne d'ailleurs en anglais par défaut dans cet
+environnement, confirmant au passage le bon comportement par défaut).
+
 ## v17.35 : Partie 2, point 4 — lisibilité des mécaniques (jauges d'attente)
 
 Consigne : "quand on se place à un endroit qui déclenche quelque chose

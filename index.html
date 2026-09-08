@@ -131,20 +131,21 @@
   <div id="menu-panel">
     <a href="https://pierremillon.github.io/Bastion-Orbit/">Bastion Orbit</a>
     <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
-    <a id="grid-toggle" href="#">Afficher la grille (debug)</a>
-    <a id="phosphor-toggle" href="#">Mode Phosphore : Activé</a>
-    <a id="faq-toggle" href="#">Astuces</a>
+    <a id="grid-toggle" href="#" data-i18n="menu_grid_show">Afficher la grille (debug)</a>
+    <a id="phosphor-toggle" href="#" data-i18n="menu_phosphor_on">Mode Phosphore : Activé</a>
+    <a id="faq-toggle" href="#" data-i18n="menu_astuces">Astuces</a>
+    <a id="lang-toggle" href="#" data-i18n="menu_lang">Langue : Français</a>
     <div class="menu-slider-row">
-      <label for="music-vol-slider">🎵 Musique</label>
+      <label for="music-vol-slider" data-i18n="menu_music">🎵 Musique</label>
       <input type="range" id="music-vol-slider" min="0" max="100" value="35">
     </div>
     <div class="menu-slider-row">
-      <label for="sfx-vol-slider">🔊 Bruitages</label>
+      <label for="sfx-vol-slider" data-i18n="menu_sfx">🔊 Bruitages</label>
       <input type="range" id="sfx-vol-slider" min="0" max="100" value="70">
     </div>
-    <a id="menu-restart" href="#">Recommencer une nouvelle partie</a>
+    <a id="menu-restart" href="#" data-i18n="menu_restart">Recommencer une nouvelle partie</a>
   </div>
-  <div id="wave-label">Vague <span id="wave">1</span></div>
+  <div id="wave-label"><span data-i18n="wave_label">Vague</span> <span id="wave">1</span></div>
   <button id="version-btn" aria-label="Historique des versions"></button>
   <div id="version-panel"></div>
 </div>
@@ -159,61 +160,61 @@
   <div id="joy-knob"></div>
   <div id="over">
     <div id="over-card">
-      <h2 id="over-title">Tu as perdu</h2>
+      <h2 id="over-title" data-i18n="over_title_generic">Tu as perdu</h2>
       <p id="over-wave"></p>
       <div class="btns">
-        <button id="continue-btn">🎬 Regarder une pub (30s) pour continuer</button>
-        <button id="revive-btn">🎬 Regarder une pub (30s) pour revivre</button>
-        <button id="spectate-btn">Continuer à regarder</button>
-        <button id="restart-btn">Recommencer au tout début</button>
+        <button id="continue-btn" data-i18n="btn_continue_ad">🎬 Regarder une pub (30s) pour continuer</button>
+        <button id="revive-btn" data-i18n="btn_revive_ad">🎬 Regarder une pub (30s) pour revivre</button>
+        <button id="spectate-btn" data-i18n="btn_spectate">Continuer à regarder</button>
+        <button id="restart-btn" data-i18n="btn_restart">Recommencer au tout début</button>
       </div>
     </div>
   </div>
   <div id="ad-error">
     <div id="ad-error-card">
-      <p>⚠️ La vidéo n'a pas pu se charger — une erreur technique de notre côté. Pas d'inquiétude, tu reçois quand même ton bonus.</p>
-      <button id="ad-error-ok">Recevoir mon bonus</button>
+      <p data-i18n="ad_error_text">⚠️ La vidéo n'a pas pu se charger — une erreur technique de notre côté. Pas d'inquiétude, tu reçois quand même ton bonus.</p>
+      <button id="ad-error-ok" data-i18n="btn_ad_error_ok">Recevoir mon bonus</button>
     </div>
   </div>
   <div id="faq-panel">
-    <h3>Combat</h3>
-    <p>Un tir à mains nues fait 12 dégâts. Un ennemi de base a 12 PV : un tir suffit TOUJOURS à le tuer, à n'importe quelle vague — la difficulté vient du nombre d'ennemis, pas de leurs PV qui grimperaient. Chaque palier de Dégâts multiplie tes dégâts par 1,05 (12 → 13 → 13… → 20 dégâts au 10ᵉ palier).</p>
-    <p>Précision : à moins de 50px (25% de ta portée de 200px), tu touches toujours. Au-delà, la précision baisse par paliers jusqu'à 20% de chance à 200px et plus — jamais 0%, tu peux toujours tenter ta chance de loin. Le palier Précision referme 10% de l'écart restant à chaque achat.</p>
-    <p>Les tours, elles, ont une précision parfaite et une portée fixe de 160px, mais ne bougent pas.</p>
-    <h3>Tours</h3>
-    <p>Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.</p>
-    <h3>La Forge</h3>
-    <p>La construire coûte 100 or, seulement si tu es dans sa zone. Une fois bâtie : "Tours d'élite" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. "Réparateurs" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.</p>
-    <h3>Revenu automatique</h3>
-    <p>15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.</p>
-    <h3>Vagues et ennemis</h3>
-    <p>4 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Les types bleu et violet arrivent progressivement à partir des vagues 5 et 10, jusqu'à 15% des ennemis chacun.</p>
-    <p>Le nombre d'ennemis grimpe vite les 8 premières vagues (+11/vague), puis se stabilise à +1/vague — la vague 3 est souvent le moment où une première tour devient utile.</p>
-    <h3>Marchands (caravane)</h3>
-    <p>Reste 5 secondes sur le petit chemin près du château, SANS qu'aucun ennemi ne l'ait traversé cette vague-là : une caravane de 1 à 8 marchands apparaît et remonte vers le château. Si le premier marchand jamais touché arrive au bout : toute la caravane devient 4 soldats à ton service, qui réparent aussi tes tours gratuitement.</p>
-    <h3>Cheval de Troie</h3>
-    <p>Reste dans l'eau tout en haut de l'écran : un avertissement apparaît après 3 secondes, le cheval après 6. S'il atteint le château : défaite immédiate. Si tu le détruis à temps : 3 VRAIS ennemis costauds en sortent — un risque réel à assumer, pas un cadeau gratuit. Une fois géré, il ne peut pas revenir tout de suite (temps de recharge de plusieurs vagues).</p>
-    <h3>Effet domino</h3>
-    <p>À la mort d'un ennemi, ceux à moins de 40px perdent 1 PV de "onde de choc" — peut en tuer un autre fragile juste à côté, en chaîne. Les ennemis apprennent aussi à éviter de se regrouper là où ça vient d'arriver.</p>
-    <h3>Le château</h3>
-    <p>10 créneaux, un détruit par ennemi qui atteint le mur (le cheval de Troie en détruit 10 d'un coup, breach immédiate). 10 brèches = défaite. Te tenir près du mur régénère ta vie.</p>
-    <h3>Pubs &amp; progression</h3>
-    <p><strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.</p>
-    <p><strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.</p>
-    <p><strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.</p>
-    <button id="bonus-btn">🎁 Code bonus : recommencer avec 100 or</button>
+    <h3 data-i18n="h_combat">Combat</h3>
+    <p data-i18n="p_combat1">Un tir à mains nues fait 12 dégâts. Un ennemi de base a 12 PV : un tir suffit TOUJOURS à le tuer, à n'importe quelle vague — la difficulté vient du nombre d'ennemis, pas de leurs PV qui grimperaient. Chaque palier de Dégâts multiplie tes dégâts par 1,05 (12 → 13 → 13… → 20 dégâts au 10ᵉ palier).</p>
+    <p data-i18n="p_combat2">Précision : à moins de 50px (25% de ta portée de 200px), tu touches toujours. Au-delà, la précision baisse par paliers jusqu'à 20% de chance à 200px et plus — jamais 0%, tu peux toujours tenter ta chance de loin. Le palier Précision referme 10% de l'écart restant à chaque achat.</p>
+    <p data-i18n="p_combat3">Les tours, elles, ont une précision parfaite et une portée fixe de 160px, mais ne bougent pas.</p>
+    <h3 data-i18n="h_towers">Tours</h3>
+    <p data-i18n="p_towers">Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.</p>
+    <h3 data-i18n="h_forge">La Forge</h3>
+    <p data-i18n="p_forge">La construire coûte 100 or, seulement si tu es dans sa zone. Une fois bâtie : "Tours d'élite" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. "Réparateurs" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.</p>
+    <h3 data-i18n="h_autogold">Revenu automatique</h3>
+    <p data-i18n="p_autogold">15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.</p>
+    <h3 data-i18n="h_waves">Vagues et ennemis</h3>
+    <p data-i18n="p_waves1">4 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Les types bleu et violet arrivent progressivement à partir des vagues 5 et 10, jusqu'à 15% des ennemis chacun.</p>
+    <p data-i18n="p_waves2">Le nombre d'ennemis grimpe vite les 8 premières vagues (+11/vague), puis se stabilise à +1/vague — la vague 3 est souvent le moment où une première tour devient utile.</p>
+    <h3 data-i18n="h_merchants">Marchands (caravane)</h3>
+    <p data-i18n="p_merchants">Reste 5 secondes sur le petit chemin près du château, SANS qu'aucun ennemi ne l'ait traversé cette vague-là : une caravane de 1 à 8 marchands apparaît et remonte vers le château. Si le premier marchand jamais touché arrive au bout : toute la caravane devient 4 soldats à ton service, qui réparent aussi tes tours gratuitement.</p>
+    <h3 data-i18n="h_trojan">Cheval de Troie</h3>
+    <p data-i18n="p_trojan">Reste dans l'eau tout en haut de l'écran : un avertissement apparaît après 3 secondes, le cheval après 6. S'il atteint le château : défaite immédiate. Si tu le détruis à temps : 3 VRAIS ennemis costauds en sortent — un risque réel à assumer, pas un cadeau gratuit. Une fois géré, il ne peut pas revenir tout de suite (temps de recharge de plusieurs vagues).</p>
+    <h3 data-i18n="h_domino">Effet domino</h3>
+    <p data-i18n="p_domino">À la mort d'un ennemi, ceux à moins de 40px perdent 1 PV de "onde de choc" — peut en tuer un autre fragile juste à côté, en chaîne. Les ennemis apprennent aussi à éviter de se regrouper là où ça vient d'arriver.</p>
+    <h3 data-i18n="h_castle">Le château</h3>
+    <p data-i18n="p_castle">10 créneaux, un détruit par ennemi qui atteint le mur (le cheval de Troie en détruit 10 d'un coup, breach immédiate). 10 brèches = défaite. Te tenir près du mur régénère ta vie.</p>
+    <h3 data-i18n="h_ads">Pubs &amp; progression</h3>
+    <p data-i18n="p_ads1"><strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.</p>
+    <p data-i18n="p_ads2"><strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.</p>
+    <p data-i18n="p_ads3"><strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.</p>
+    <button id="bonus-btn" data-i18n="btn_bonus_code">🎁 Code bonus : recommencer avec 100 or</button>
   </div>
 </div>
 
 <div id="bonusbar">
   <div class="bonusbar-row">
-    <button id="autogold-btn"><span class="b-icon">💰</span><span>Revenu auto</span><span class="b-cost" id="autogold-cost"></span></button>
-    <button id="damage-btn"><span class="b-icon">💥</span><span>Dégâts</span><span class="b-cost" id="damage-cost"></span></button>
+    <button id="autogold-btn"><span class="b-icon">💰</span><span data-i18n="b_autogold">Revenu auto</span><span class="b-cost" id="autogold-cost"></span></button>
+    <button id="damage-btn"><span class="b-icon">💥</span><span data-i18n="b_damage">Dégâts</span><span class="b-cost" id="damage-cost"></span></button>
     <button id="tower-btn"><span class="b-icon">🏰</span><span id="tower-label"></span><span class="b-cost" id="tower-cost"></span></button>
-    <button id="autofire-btn"><span class="b-icon">🎯</span><span>Cadence</span><span class="b-cost" id="autofire-cost"></span></button>
+    <button id="autofire-btn"><span class="b-icon">🎯</span><span data-i18n="b_autofire">Cadence</span><span class="b-cost" id="autofire-cost"></span></button>
   </div>
   <div class="bonusbar-row">
-    <button id="precision-btn"><span class="b-icon">🔬</span><span>Précision</span><span class="b-cost" id="precision-cost"></span></button>
+    <button id="precision-btn"><span class="b-icon">🔬</span><span data-i18n="b_precision">Précision</span><span class="b-cost" id="precision-cost"></span></button>
     <button id="forge-btn"><span class="b-icon">⚒️</span><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
     <button id="soldier-repair-btn"><span class="b-icon">🔧</span><span id="soldier-repair-label"></span><span class="b-cost" id="soldier-repair-cost"></span></button>
   </div>
@@ -221,13 +222,138 @@
 
 <div id="bottombar">
   <div id="hud">
-    Or : <span id="gold">0</span>
+    <span data-i18n="gold_label">Or :</span> <span id="gold">0</span>
   </div>
 </div>
 
 <script>
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const stage = document.getElementById('stage');
+
+// --- Partie 2 (uniformisation, consigne identique sur les 3 jeux) :
+// "le jeu s'ouvre PAR DÉFAUT en anglais... le français se choisit dans
+// les options" + auto-détection de la langue de l'appareil (tranché
+// par Pierre : auto-détection, anglais dans tous les autres cas, pas
+// d'anglais fixe). Toutes les chaînes visibles passent par t(clé) ;
+// les éléments HTML statiques utilisent data-i18n="clé" (voir
+// applyLanguage plus bas). Le CHANGELOG reste en français (journal de
+// développement, pas une mécanique de jeu vue par un joueur anglophone
+// au quotidien) — décision de scope assumée, pas un oubli.
+const I18N = {
+  fr: {
+    menu_grid_show: "Afficher la grille (debug)", menu_grid_hide: "Cacher la grille (debug)",
+    menu_phosphor_on: "Mode Phosphore : Activé", menu_phosphor_off: "Mode Phosphore : Désactivé",
+    menu_astuces: "Astuces", menu_lang: "Langue : Français",
+    menu_music: "🎵 Musique", menu_sfx: "🔊 Bruitages",
+    menu_restart: "Recommencer une nouvelle partie",
+    wave_label: "Vague", gold_label: "Or :", gold_suffix: " or",
+    over_title_generic: "Tu as perdu", over_title_combat: "Tu es tombé au combat",
+    over_title_castle: "Le château est tombé", over_title_trojan: "Le cheval de Troie a atteint le château",
+    over_wave: w => `Tu as tenu jusqu'à la vague ${w}`,
+    btn_continue_ad: "🎬 Regarder une pub (30s) pour continuer",
+    btn_revive_ad: "🎬 Regarder une pub (30s) pour revivre",
+    btn_spectate: "Continuer à regarder", btn_restart: "Recommencer au tout début",
+    ad_error_text: "⚠️ La vidéo n'a pas pu se charger — une erreur technique de notre côté. Pas d'inquiétude, tu reçois quand même ton bonus.",
+    btn_ad_error_ok: "Recevoir mon bonus",
+    btn_reinforce: "Renforcer", btn_build: "Construire",
+    forge_label: "Forge", forge_go: "Va à la Forge", forge_elite_label: "Tours d’élite",
+    repair_label: "Réparateurs", repair_acquired: "Acquis ✓",
+    repair_go_forge: "Va à la Forge", repair_build_forge: "Construis la Forge",
+    trojan_warning: "N'énervez pas les dieux...",
+    b_autogold: "Revenu auto", b_damage: "Dégâts", b_autofire: "Cadence", b_precision: "Précision",
+    h_combat: "Combat",
+    p_combat1: "Un tir à mains nues fait 12 dégâts. Un ennemi de base a 12 PV : un tir suffit TOUJOURS à le tuer, à n'importe quelle vague — la difficulté vient du nombre d'ennemis, pas de leurs PV qui grimperaient. Chaque palier de Dégâts multiplie tes dégâts par 1,05 (12 → 13 → 13… → 20 dégâts au 10ᵉ palier).",
+    p_combat2: "Précision : à moins de 50px (25% de ta portée de 200px), tu touches toujours. Au-delà, la précision baisse par paliers jusqu'à 20% de chance à 200px et plus — jamais 0%, tu peux toujours tenter ta chance de loin. Le palier Précision referme 10% de l'écart restant à chaque achat.",
+    p_combat3: "Les tours, elles, ont une précision parfaite et une portée fixe de 160px, mais ne bougent pas.",
+    h_towers: "Tours",
+    p_towers: "Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.",
+    h_forge: "La Forge",
+    p_forge: "La construire coûte 100 or, seulement si tu es dans sa zone. Une fois bâtie : \"Tours d'élite\" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. \"Réparateurs\" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.",
+    h_autogold: "Revenu automatique",
+    p_autogold: "15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.",
+    h_waves: "Vagues et ennemis",
+    p_waves1: "4 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Les types bleu et violet arrivent progressivement à partir des vagues 5 et 10, jusqu'à 15% des ennemis chacun.",
+    p_waves2: "Le nombre d'ennemis grimpe vite les 8 premières vagues (+11/vague), puis se stabilise à +1/vague — la vague 3 est souvent le moment où une première tour devient utile.",
+    h_merchants: "Marchands (caravane)",
+    p_merchants: "Reste 5 secondes sur le petit chemin près du château, SANS qu'aucun ennemi ne l'ait traversé cette vague-là : une caravane de 1 à 8 marchands apparaît et remonte vers le château. Si le premier marchand jamais touché arrive au bout : toute la caravane devient 4 soldats à ton service, qui réparent aussi tes tours gratuitement.",
+    h_trojan: "Cheval de Troie",
+    p_trojan: "Reste dans l'eau tout en haut de l'écran : un avertissement apparaît après 3 secondes, le cheval après 6. S'il atteint le château : défaite immédiate. Si tu le détruis à temps : 3 VRAIS ennemis costauds en sortent — un risque réel à assumer, pas un cadeau gratuit. Une fois géré, il ne peut pas revenir tout de suite (temps de recharge de plusieurs vagues).",
+    h_domino: "Effet domino",
+    p_domino: "À la mort d'un ennemi, ceux à moins de 40px perdent 1 PV de \"onde de choc\" — peut en tuer un autre fragile juste à côté, en chaîne. Les ennemis apprennent aussi à éviter de se regrouper là où ça vient d'arriver.",
+    h_castle: "Le château",
+    p_castle: "10 créneaux, un détruit par ennemi qui atteint le mur (le cheval de Troie en détruit 10 d'un coup, breach immédiate). 10 brèches = défaite. Te tenir près du mur régénère ta vie.",
+    h_ads: "Pubs &amp; progression",
+    p_ads1: "<strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.",
+    p_ads2: "<strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.",
+    p_ads3: "<strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.",
+    btn_bonus_code: "🎁 Code bonus : recommencer avec 100 or",
+  },
+  en: {
+    menu_grid_show: "Show grid (debug)", menu_grid_hide: "Hide grid (debug)",
+    menu_phosphor_on: "Phosphor Mode: On", menu_phosphor_off: "Phosphor Mode: Off",
+    menu_astuces: "Tips", menu_lang: "Language: English",
+    menu_music: "🎵 Music", menu_sfx: "🔊 Sound effects",
+    menu_restart: "Start a new game",
+    wave_label: "Wave", gold_label: "Gold:", gold_suffix: " gold",
+    over_title_generic: "You lost", over_title_combat: "You fell in battle",
+    over_title_castle: "The castle has fallen", over_title_trojan: "The Trojan Horse reached the castle",
+    over_wave: w => `You made it to wave ${w}`,
+    btn_continue_ad: "🎬 Watch an ad (30s) to continue",
+    btn_revive_ad: "🎬 Watch an ad (30s) to revive",
+    btn_spectate: "Keep watching", btn_restart: "Restart from the beginning",
+    ad_error_text: "⚠️ The video couldn't load — a technical error on our end. No worries, you still get your bonus.",
+    btn_ad_error_ok: "Claim my bonus",
+    btn_reinforce: "Reinforce", btn_build: "Build",
+    forge_label: "Forge", forge_go: "Go to the Forge", forge_elite_label: "Elite Towers",
+    repair_label: "Repair crew", repair_acquired: "Acquired ✓",
+    repair_go_forge: "Go to the Forge", repair_build_forge: "Build the Forge first",
+    trojan_warning: "Don't anger the gods...",
+    b_autogold: "Auto income", b_damage: "Damage", b_autofire: "Rate", b_precision: "Precision",
+    h_combat: "Combat",
+    p_combat1: "An unarmed shot deals 12 damage. A base enemy has 12 HP: one shot ALWAYS kills it, at any wave — difficulty comes from the number of enemies, not from their HP going up. Each Damage tier multiplies your damage by 1.05 (12 → 13 → 13… → 20 damage at tier 10).",
+    p_combat2: "Accuracy: within 50px (25% of your 200px range), you always hit. Beyond that, accuracy drops in steps down to a 20% chance at 200px and beyond — never 0%, you can always try your luck from afar. The Precision tier closes 10% of the remaining gap each time you buy it.",
+    p_combat3: "Towers, on the other hand, have perfect accuracy and a fixed 160px range, but they don't move.",
+    h_towers: "Towers",
+    p_towers: "Building a tower costs 20 gold. Reinforcing it also costs 20 gold at the first tier (the same price as a new tower, on purpose: a reinforcement always stays at least as cost-effective as rebuilding), then 2.7% more each tier after that, with no cap.",
+    h_forge: "The Forge",
+    p_forge: "Building it costs 100 gold, only while you're in its zone. Once built: \"Elite Towers\" (40 gold for the first tier, +2.7%/tier) boosts all your towers at once. \"Repair crew\" (60 gold, one-time purchase) has your soldiers repair your towers for free, continuously.",
+    h_autogold: "Auto income",
+    p_autogold: "15 gold for the first tier (+2.7%/tier), pays out gold every 2 seconds. The payout per tick grows slowly (×1.05 per tier, rounded) — modest at first, but unlimited if you invest heavily.",
+    h_waves: "Waves and enemies",
+    p_waves1: "4 types: red (base, always one hit), light blue (fast, fragile — 2x speed, half the HP), purple (fast AND tough — 2x speed, normal HP), orange (boss, rare, 4x the HP but 2x slower — only appears from wave 200 onward). Blue and purple types phase in gradually starting at waves 5 and 10, up to 15% of enemies each.",
+    p_waves2: "The enemy count ramps up fast for the first 8 waves (+11/wave), then settles to +1/wave — wave 3 is often when a first tower becomes worth it.",
+    h_merchants: "Merchants (caravan)",
+    p_merchants: "Stand on the little path near the castle for 5 seconds, with NO enemy having crossed it that wave: a caravan of 1 to 8 merchants appears and heads up to the castle. If the first never-hit merchant reaches the end, the whole caravan becomes 4 soldiers in your service, who also repair your towers for free.",
+    h_trojan: "Trojan Horse",
+    p_trojan: "Linger in the water at the top of the screen: a warning appears after 3 seconds, the horse after 6. If it reaches the castle: instant defeat. If you destroy it in time: 3 REAL tough enemies come out of it — a genuine risk to take on, not a free gift. Once dealt with, it can't come back right away (a cooldown of several waves).",
+    h_domino: "Domino effect",
+    p_domino: "When an enemy dies, any others within 40px take 1 HP of \"shockwave\" damage — it can chain-kill another fragile one right next to it. Enemies also learn to avoid regrouping where this just happened.",
+    h_castle: "The castle",
+    p_castle: "10 battlements, one destroyed per enemy that reaches the wall (the Trojan Horse destroys 10 at once — an instant breach). 10 breaches = defeat. Standing near the wall regenerates your health.",
+    h_ads: "Ads &amp; progress",
+    p_ads1: "<strong>Why an ad?</strong> Forge Line isn't pay-to-win: with the right strategy, you should never actually need to pay or watch an ad. The rewarded ad just exists to support the game if you want to. There may be other ways to support it later (skins, etc.), but none of that gives an advantage you can't get by playing well.",
+    p_ads2: "<strong>What if I'm really stuck?</strong> If an ad won't load or you've lost all your progress, a small gold bonus is there to get you going again (see below) — no need to have watched anything to use it.",
+    p_ads3: "<strong>Is my progress saved?</strong> Yes, automatically on this device (in this browser) once unlocked. If you clear your cache or switch browsers, it can be lost — no worries, there's a bonus code below to get back on your feet.",
+    btn_bonus_code: "🎁 Bonus code: restart with 100 gold",
+  },
+};
+function detectLang(){
+  const nav = (navigator.language || (navigator.languages && navigator.languages[0]) || 'en').toLowerCase();
+  return nav.startsWith('fr') ? 'fr' : 'en'; // anglais dans tous les autres cas (tranché par Pierre)
+}
+let currentLang = detectLang();
+try { const saved = localStorage.getItem('fl_lang'); if (saved === 'fr' || saved === 'en') currentLang = saved; } catch (e) { /* ignore */ }
+function t(key){ const d = I18N[currentLang] || I18N.en; return (key in d) ? d[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key); }
+function applyLanguage(){
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n')); });
+  const langToggle = document.getElementById('lang-toggle');
+  if (langToggle) langToggle.textContent = t('menu_lang');
+  const gridToggleEl = document.getElementById('grid-toggle');
+  if (gridToggleEl) gridToggleEl.textContent = (typeof showGrid !== 'undefined' && showGrid) ? t('menu_grid_hide') : t('menu_grid_show');
+  const phosphorToggleEl = document.getElementById('phosphor-toggle');
+  if (phosphorToggleEl) phosphorToggleEl.textContent = (typeof phosphorMode !== 'undefined' && phosphorMode) ? t('menu_phosphor_on') : t('menu_phosphor_off');
+  if (typeof refreshBonusbar === 'function') refreshBonusbar();
+}
 
 // tout le jeu vit en pixels écran (CSS px) — joueur, tours, ennemis et
 // projectiles se déplacent librement sur toute la carte. L'isométrique
@@ -1070,7 +1196,7 @@ function updateTrojanWatch(now){
   const elapsed = now - playerInWaterSince;
   if (!trojanWarningShown && elapsed >= TROJAN_WARNING_MS){
     trojanWarningShown = true;
-    floatingTexts.push({ x: player.x, y: player.y-20, text: "N'énervez pas les dieux...", createdAt: now, color: '#ffd76b' });
+    floatingTexts.push({ x: player.x, y: player.y-20, text: t('trojan_warning'), createdAt: now, color: '#ffd76b' });
   }
   if (elapsed >= TROJAN_TRIGGER_MS) spawnTrojanHorse(now);
 }
@@ -1801,22 +1927,22 @@ function refreshBonusbar(){
   const agCost = autoGoldCost();
   const agBtn = document.getElementById('autogold-btn');
   agBtn.disabled = disabledAll || gold < agCost;
-  document.getElementById('autogold-cost').textContent = agCost + ' or';
+  document.getElementById('autogold-cost').textContent = agCost + t('gold_suffix');
 
   const afCost = autoFireCost();
   const afBtn = document.getElementById('autofire-btn');
   afBtn.disabled = disabledAll || gold < afCost;
-  document.getElementById('autofire-cost').textContent = afCost + ' or';
+  document.getElementById('autofire-cost').textContent = afCost + t('gold_suffix');
 
   const pCost = precisionCost();
   const pBtn = document.getElementById('precision-btn');
   pBtn.disabled = disabledAll || gold < pCost;
-  document.getElementById('precision-cost').textContent = pCost + ' or';
+  document.getElementById('precision-cost').textContent = pCost + t('gold_suffix');
 
   const dCost = dmgUpgradeCost();
   const dBtn = document.getElementById('damage-btn');
   dBtn.disabled = disabledAll || gold < dCost;
-  document.getElementById('damage-cost').textContent = dCost + ' or';
+  document.getElementById('damage-cost').textContent = dCost + t('gold_suffix');
 
   const near = pickNearestTower(player.x, player.y);
   const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
@@ -1824,14 +1950,14 @@ function refreshBonusbar(){
   const tLabel = document.getElementById('tower-label');
   const tCost = document.getElementById('tower-cost');
   if (canUpgrade){
-    tLabel.textContent = 'Renforcer';
+    tLabel.textContent = t('btn_reinforce');
     const uCost = towerUpgradeCost(near);
     tBtn.disabled = disabledAll || gold < uCost;
-    tCost.textContent = uCost + ' or';
+    tCost.textContent = uCost + t('gold_suffix');
   } else {
-    tLabel.textContent = 'Construire';
+    tLabel.textContent = t('btn_build');
     tBtn.disabled = disabledAll || gold < TOWER_BUILD_COST;
-    tCost.textContent = TOWER_BUILD_COST + ' or';
+    tCost.textContent = TOWER_BUILD_COST + t('gold_suffix');
   }
 
   // Forge : système à part, seulement utilisable depuis sa zone (pas à
@@ -1841,17 +1967,17 @@ function refreshBonusbar(){
   const fCost = document.getElementById('forge-cost');
   const nearForge = inForgeZone(player.x, player.y);
   if (!nearForge){
-    fLabel.textContent = 'Forge';
-    fCost.textContent = 'Va à la Forge';
+    fLabel.textContent = t('forge_label');
+    fCost.textContent = t('forge_go');
     fBtn.disabled = true;
   } else if (!forgeBuilt){
-    fLabel.textContent = 'Construire';
-    fCost.textContent = FORGE_BUILD_COST + ' or';
+    fLabel.textContent = t('btn_build');
+    fCost.textContent = FORGE_BUILD_COST + t('gold_suffix');
     fBtn.disabled = disabledAll || gold < FORGE_BUILD_COST;
   } else {
     const eCost = forgeEliteCost();
-    fLabel.textContent = 'Tours d’élite';
-    fCost.textContent = eCost + ' or';
+    fLabel.textContent = t('forge_elite_label');
+    fCost.textContent = eCost + t('gold_suffix');
     fBtn.disabled = disabledAll || gold < eCost;
   }
 
@@ -1861,20 +1987,20 @@ function refreshBonusbar(){
   const srLabel = document.getElementById('soldier-repair-label');
   const srCost = document.getElementById('soldier-repair-cost');
   if (soldiersCanRepair){
-    srLabel.textContent = 'Réparateurs';
-    srCost.textContent = 'Acquis ✓';
+    srLabel.textContent = t('repair_label');
+    srCost.textContent = t('repair_acquired');
     srBtn.disabled = true;
   } else if (!nearForge){
-    srLabel.textContent = 'Réparateurs';
-    srCost.textContent = 'Va à la Forge';
+    srLabel.textContent = t('repair_label');
+    srCost.textContent = t('repair_go_forge');
     srBtn.disabled = true;
   } else if (!forgeBuilt){
-    srLabel.textContent = 'Réparateurs';
-    srCost.textContent = 'Construis la Forge';
+    srLabel.textContent = t('repair_label');
+    srCost.textContent = t('repair_build_forge');
     srBtn.disabled = true;
   } else {
-    srLabel.textContent = 'Réparateurs';
-    srCost.textContent = SOLDIER_REPAIR_UNLOCK_COST + ' or';
+    srLabel.textContent = t('repair_label');
+    srCost.textContent = SOLDIER_REPAIR_UNLOCK_COST + t('gold_suffix');
     srBtn.disabled = disabledAll || gold < SOLDIER_REPAIR_UNLOCK_COST;
   }
 }
@@ -1896,17 +2022,26 @@ document.addEventListener('click', e => {
 document.getElementById('grid-toggle').addEventListener('click', e => {
   e.preventDefault();
   showGrid = !showGrid;
-  e.target.textContent = showGrid ? 'Cacher la grille (debug)' : 'Afficher la grille (debug)';
+  e.target.textContent = showGrid ? t('menu_grid_hide') : t('menu_grid_show');
 });
 document.getElementById('phosphor-toggle').addEventListener('click', e => {
   e.preventDefault();
   phosphorMode = !phosphorMode;
   try { localStorage.setItem('fl_phosphor', phosphorMode ? '1' : '0'); } catch (err) { /* ignore */ }
   document.body.classList.toggle('phosphor', phosphorMode);
-  e.target.textContent = 'Mode Phosphore : ' + (phosphorMode ? 'Activé' : 'Désactivé');
+  e.target.textContent = phosphorMode ? t('menu_phosphor_on') : t('menu_phosphor_off');
 });
 document.body.classList.toggle('phosphor', phosphorMode);
-document.getElementById('phosphor-toggle').textContent = 'Mode Phosphore : ' + (phosphorMode ? 'Activé' : 'Désactivé');
+document.getElementById('phosphor-toggle').textContent = phosphorMode ? t('menu_phosphor_on') : t('menu_phosphor_off');
+// v17.39 (Partie 2, point 2 — langue) : auto-détection par défaut,
+// changeable dans le menu, mémorisée séparément du choix automatique
+document.getElementById('lang-toggle').addEventListener('click', e => {
+  e.preventDefault();
+  currentLang = currentLang === 'fr' ? 'en' : 'fr';
+  try { localStorage.setItem('fl_lang', currentLang); } catch (err) { /* ignore */ }
+  applyLanguage();
+});
+applyLanguage();
 document.getElementById('menu-restart').addEventListener('click', e => {
   e.preventDefault();
   menuPanel.style.display = 'none';
@@ -1928,6 +2063,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.39", text: "Langue : anglais par défaut, français si l'appareil est réglé en français (auto-détection) — changeable dans le menu, toute l'interface et la section Astuces sont traduites" },
   { v: "17.38", text: "Section \"Astuces\" (menu) : explique clairement toutes les mécaniques du jeu avec des exemples chiffrés (combat, tours, Forge, vagues, marchands, cheval de Troie, effet domino, château) — remplace \"Aide / FAQ\"" },
   { v: "17.37", text: "Précision pixel-exacte (analyse automatique des dessins de référence) : forme de la porte et du cube de renfort de la tour, hauteurs des créneaux et de la porte du mur — mesurées directement sur les croquis, plus estimées à l'œil" },
   { v: "17.36", text: "Correctifs de fidélité aux dessins de référence (relecture attentive) : porte de tour sur la bonne arête, coque du bateau vraiment allongée et biseautée, mur en ruban plissé continu avec une vraie porte-ouverture, chariot de caravane en caisse ouverte fidèle au croquis, crinière du cheval de Troie repositionnée" },
@@ -3249,28 +3385,28 @@ function lerpColor(hexA, hexB, t){
 //  - 'final' (les brèches atteignent 10 pendant qu'on regardait en
 //    spectateur) : plus rien à proposer que recommencer
 function showOverModal(reason){
-  document.getElementById('over-wave').textContent = `Tu as tenu jusqu'à la vague ${wave}`;
+  document.getElementById('over-wave').textContent = t('over_wave')(wave);
   const title = document.getElementById('over-title');
   const continueBtn = document.getElementById('continue-btn');
   const reviveBtn = document.getElementById('revive-btn');
   const spectateBtn = document.getElementById('spectate-btn');
   if (reason === 'health'){
-    title.textContent = 'Tu es tombé au combat';
+    title.textContent = t('over_title_combat');
     continueBtn.style.display = 'none';
     reviveBtn.style.display = 'block';
     spectateBtn.style.display = 'block';
   } else if (reason === 'final'){
-    title.textContent = 'Le château est tombé';
+    title.textContent = t('over_title_castle');
     continueBtn.style.display = 'none';
     reviveBtn.style.display = 'none';
     spectateBtn.style.display = 'none';
   } else if (reason === 'trojan'){
-    title.textContent = 'Le cheval de Troie a atteint le château';
+    title.textContent = t('over_title_trojan');
     continueBtn.style.display = 'none';
     reviveBtn.style.display = 'none';
     spectateBtn.style.display = 'none';
   } else {
-    title.textContent = 'Tu as perdu';
+    title.textContent = t('over_title_generic');
     continueBtn.style.display = 'block';
     reviveBtn.style.display = 'none';
     spectateBtn.style.display = 'none';
