@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-  :root{ --topbar-h:52px; --bottombar-h:64px; --bonusbar-row-h:58px; --bonusbar-h:calc(var(--bonusbar-row-h) * 2 + 4px); }
+  :root{ --topbar-h:52px; --bonusbar-row-h:58px; --bonusbar-h:calc(var(--bonusbar-row-h) * 2 + 4px); }
   html,body{margin:0;height:100%;background:#e8dfc8;color:#3a3529;font-family:system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
 
   #topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);display:flex;align-items:center;background:#00000012;z-index:20}
@@ -23,26 +23,31 @@
   body.phosphor .menu-slider-row{color:#3dff7a}
   body.phosphor .menu-slider-row input[type=range]{accent-color:#3dff7a}
 
-  #wave-label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:14px;font-weight:600;white-space:nowrap;pointer-events:none}
+  /* v17.46 : l'or et le bouton "passer la vague" rejoignent le compteur
+     de vagues au centre du bandeau du haut (au lieu d'une barre à part
+     en bas, retirée — plus d'espace pour le jeu) */
+  #wave-group{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;white-space:nowrap}
+  #gold-display{pointer-events:none}
+  #wave-label{pointer-events:none}
+  #skip-wave-btn{width:26px;height:26px;border-radius:7px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
   #version-btn{margin-left:auto;margin-right:12px;padding:6px 10px;border-radius:8px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:13px;font-family:inherit;cursor:pointer}
   #version-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);right:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:230px;max-width:280px;max-height:calc(100vh - var(--topbar-h) - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;padding:10px 14px;font-size:13px;line-height:1.7}
   #version-panel .v{font-weight:600;margin-right:4px}
   #version-panel .row:not(:last-child){border-bottom:1px solid #00000012;padding-bottom:4px;margin-bottom:4px}
 
-  #bottombar{position:fixed;bottom:0;left:0;right:0;height:var(--bottombar-h);display:flex;align-items:center;justify-content:center;background:#00000012;z-index:6}
-  #hud{font-size:14px;line-height:1.4;text-align:center}
+  /* v17.46 : #bottombar (juste l'or, en double avec le nouveau
+     #gold-display du bandeau du haut) supprimée — plus d'espace de jeu */
 
-  /* bandeau de bonus achetables, juste au-dessus du bandeau d'infos —
-     deux étages : le 1er étage garde ses 4 boutons d'origine, le 2e
-     étage accueille les nouveaux (Précision, et les suivants) */
-  #bonusbar{position:fixed;bottom:var(--bottombar-h);left:0;right:0;height:var(--bonusbar-h);display:flex;flex-direction:column;gap:4px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
+  /* bandeau de bonus achetables, tout en bas de l'écran maintenant que
+     #bottombar n'existe plus */
+  #bonusbar{position:fixed;bottom:0;left:0;right:0;height:var(--bonusbar-h);display:flex;flex-direction:column;gap:4px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
   .bonusbar-row{display:flex;align-items:stretch;justify-content:center;gap:8px;flex:1}
   #bonusbar button{flex:1;max-width:100px;padding:4px 3px;border-radius:9px;border:1px solid #00000030;background:#faf6ea;color:#3a3529;font-size:10.5px;line-height:1.3;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
   #bonusbar button:disabled{opacity:.42}
   #bonusbar button .b-icon{font-size:16px}
   #bonusbar button .b-cost{opacity:.75;font-size:10px}
 
-  #stage{position:fixed;top:var(--topbar-h);bottom:calc(var(--bottombar-h) + var(--bonusbar-h));left:0;right:0;overflow:hidden;background:#e8dfc8}
+  #stage{position:fixed;top:var(--topbar-h);bottom:var(--bonusbar-h);left:0;right:0;overflow:hidden;background:#e8dfc8}
   canvas{display:block;touch-action:none;background:#e8dfc8}
 
   /* écran de défaite : une petite carte centrée, pas un voile plein écran —
@@ -77,7 +82,7 @@
   #bonus-btn{width:100%;padding:9px 10px;border-radius:8px;border:1px solid #00000030;background:#fff3d0;color:#3a3529;font-size:12.5px;cursor:pointer}
   #bonus-btn:active{background:#f7e2a0}
 
-  #joyzone{display:none;position:fixed;left:0;right:0;top:var(--topbar-h);bottom:calc(var(--bottombar-h) + var(--bonusbar-h));z-index:3;touch-action:none}
+  #joyzone{display:none;position:fixed;left:0;right:0;top:var(--topbar-h);bottom:var(--bonusbar-h);z-index:3;touch-action:none}
   #joy-base,#joy-knob{display:none;position:fixed;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:4}
   #joy-base{width:88px;height:88px;background:#00000018;border:1px solid #00000030}
   #joy-knob{width:40px;height:40px;background:#00000040}
@@ -109,7 +114,7 @@
   }
   body.phosphor #menu-panel a, body.phosphor #menu-panel .disabled{ color:#3dff7a; }
   body.phosphor #menu-panel a:hover{ background:#0a1c0e; }
-  body.phosphor #menu-btn, body.phosphor #version-btn{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; }
+  body.phosphor #menu-btn, body.phosphor #version-btn, body.phosphor #skip-wave-btn{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; }
   body.phosphor #bonusbar button{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; text-shadow:none; }
   body.phosphor #bonusbar button .b-cost{ color:#8fe0a8; }
   body.phosphor #continue-btn, body.phosphor #revive-btn{ background:#0f3a1c; color:#baffcf; }
@@ -144,7 +149,11 @@
     </div>
     <a id="menu-restart" href="#" data-i18n="menu_restart">Recommencer une nouvelle partie</a>
   </div>
-  <div id="wave-label"><span data-i18n="wave_label">Vague</span> <span id="wave">1</span></div>
+  <div id="wave-group">
+    <span id="gold-display">💰 <span id="gold">0</span></span>
+    <button id="skip-wave-btn" aria-label="Passer la vague" title="Passer la vague">▶</button>
+    <div id="wave-label"><span data-i18n="wave_label">Vague</span> <span id="wave">1</span></div>
+  </div>
   <button id="version-btn" aria-label="Historique des versions"></button>
   <div id="version-panel"></div>
 </div>
@@ -216,12 +225,6 @@
     <button id="precision-btn"><span class="b-icon">🔬</span><span data-i18n="b_precision">Précision</span><span class="b-cost" id="precision-cost"></span></button>
     <button id="forge-btn"><span class="b-icon">⚒️</span><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
     <button id="soldier-repair-btn"><span class="b-icon">🔧</span><span id="soldier-repair-label"></span><span class="b-cost" id="soldier-repair-cost"></span></button>
-  </div>
-</div>
-
-<div id="bottombar">
-  <div id="hud">
-    <span data-i18n="gold_label">Or :</span> <span id="gold">0</span>
   </div>
 </div>
 
@@ -395,7 +398,11 @@ const PLAYER_HW = 9, PLAYER_HH = 5, PLAYER_SH = 14;
 const WATER_H = 46;
 // v17.25 : hors construction jusqu'à la moitié de l'écran (eau + bande de
 // sable) — fonction plutôt que constante, STAGE_H change au redimensionnement
-function noBuildY(){ return STAGE_H/2; }
+// v17.46 (demandé par Pierre) : remontée à mi-chemin entre l'ancienne
+// ligne (STAGE_H/2) et le début de l'eau (WATER_H) — "monter la ligne
+// de la moitié de l'espace" qui les séparait, agrandit la zone
+// constructible d'autant.
+function noBuildY(){ return (STAGE_H/2 + WATER_H) / 2; }
 const BOAT_W = 74, BOAT_H = 74; // encombrement pour le calcul de la zone de débarquement des ennemis
 const BOAT_HW = 24, BOAT_HH = 14, BOAT_SH = 10; // dimensions de la coque isométrique
 
@@ -490,6 +497,29 @@ const BOAT_HULL_HW = 40, BOAT_HULL_HH = 11, BOAT_BEVEL = 0.4;
 // origine au sommet de la proue). Remplace l'ancien hexagone
 // paramétrique (N/E/S/W + biseau) qui n'était qu'une approximation.
 function drawBoatHullPhosphor(){
+  // v17.46 (bug signalé en jeu : "la ligne de l'eau se voit à travers le
+  // bateau") — silhouette pleine en noir, POSÉE AVANT les traits, pour
+  // que le bateau bloque vraiment ce qu'il y a derrière (méthode
+  // "corde tendue" validée sur les 6 formes hors-jeu, voir tools/ —
+  // contour calculé une fois par shapely à partir des mêmes 61
+  // segments ci-dessous, converti en chemin fixe)
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.moveTo(12.14,-29.61);
+  ctx.lineTo(-1.89,-35.53); ctx.lineTo(-26.72,-19.84); ctx.lineTo(-26.68,-11.03);
+  ctx.lineTo(-21.76,-2.31); ctx.lineTo(-25.78,4.66); ctx.lineTo(-32.16,9.12);
+  ctx.lineTo(-31.82,19.82); ctx.lineTo(-27.66,21.39); ctx.lineTo(-20.02,17.02);
+  ctx.lineTo(-15.67,3.16); ctx.lineTo(-7.02,8.15); ctx.lineTo(-20.84,22.56);
+  ctx.lineTo(-21.04,31.60); ctx.lineTo(-18.18,34.55); ctx.lineTo(-8.33,29.93);
+  ctx.lineTo(-7.42,22.11); ctx.lineTo(-0.05,12.18); ctx.lineTo(10.39,18.05);
+  ctx.lineTo(23.38,18.16); ctx.lineTo(47.94,4.33); ctx.lineTo(49.46,-7.01);
+  ctx.lineTo(42.29,-12.20); ctx.lineTo(45.72,-14.18); ctx.lineTo(52.46,-11.64);
+  ctx.lineTo(61.00,-17.77); ctx.lineTo(59.87,-21.72); ctx.lineTo(52.08,-26.05);
+  ctx.lineTo(34.29,-16.82); ctx.lineTo(22.72,-23.50); ctx.lineTo(27.86,-24.49);
+  ctx.lineTo(34.81,-21.43); ctx.lineTo(42.73,-25.78); ctx.lineTo(43.25,-31.03);
+  ctx.lineTo(35.33,-35.86);
+  ctx.closePath();
+  ctx.fill();
   ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
   const L = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
   L(0.0,-32.0,45.72,-5.6);
@@ -563,7 +593,15 @@ function drawOneBoat(b){
   ctx.rotate(b.rot); // légère inclinaison, échoué "à l'arrache"
   // coque : un pavé isométrique large et bas, couleur bois (même
   // fonction que les tours, juste des proportions différentes)
-  if (phosphorMode) drawBoatHullPhosphor();
+  if (phosphorMode){
+    // v17.46 (demandé par Pierre : "diminuer la taille de 30%") —
+    // réduction purement visuelle, la coque garde ses coordonnées
+    // exactes en interne, juste redessinée plus petite
+    ctx.save();
+    ctx.scale(0.7, 0.7);
+    drawBoatHullPhosphor();
+    ctx.restore();
+  }
   else drawIsoBox(0, 0, BOAT_HW, BOAT_HH, BOAT_SH, '#a9764a', '#7a5233', '#5c3f26', 1);
   // mât + voile : repère simple pour que ça se lise comme un bateau,
   // pas un vrai gréement — ancré sur le sommet réel de la coque de ce
@@ -591,31 +629,27 @@ function drawOneBoat(b){
 // v17.24 : les ennemis à venir sont visibles massés sur le pont pendant
 // que le bateau glisse (et tant qu'ils n'ont pas débarqué une fois posé)
 // — de petits points de la couleur de leur type, pas des sprites entiers
-// (illisible à cette taille), un peu resserrés façon "foule". Plafonné à
-// l'affichage pour rester lisible même avec beaucoup de passagers ; le
-// surplus est juste indiqué par un "+N".
-const BOAT_PASSENGER_DISPLAY_MAX = 10;
+// (illisible à cette taille), un peu resserrés façon "foule".
+// v17.46 (rappel explicite de Pierre : "ce n'est pas un graphique avec
+// un chiffre, ils doivent exister physiquement") — plus de plafond
+// d'affichage ni de "+N" pour le surplus : CHAQUE passager en attente
+// est un point réel sur le pont, aussi nombreux soient-ils, tassés en
+// grille serrée (le bateau étant rétréci de 30% au v17.46, la grille se
+// resserre d'autant pour rester à l'échelle du pont).
 function drawBoatPassengers(b){
   if (!b.passengers || !b.passengers.length) return;
   const cx = b.x, cy = b.y + BOAT_H*0.32;
-  const shown = b.passengers.slice(0, BOAT_PASSENGER_DISPLAY_MAX);
+  const shown = b.passengers;
   const cols = Math.ceil(Math.sqrt(shown.length));
   shown.forEach((t, i) => {
     const row = Math.floor(i / cols), col = i % cols;
-    // v17.32 (D) : resserré (7/6 -> 5.5/4.5) — "très condensés, serrés
-    // les uns contre les autres" sur le pont, demandé par Pierre
-    const px = cx + (col - (cols-1)/2) * 5.5;
-    const py = cy + (row - (Math.ceil(shown.length/cols)-1)/2) * 4.5;
-    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI*2);
+    // "très condensés, serrés les uns contre les autres" sur le pont
+    const px = cx + (col - (cols-1)/2) * 3.9;
+    const py = cy + (row - (Math.ceil(shown.length/cols)-1)/2) * 3.2;
+    ctx.beginPath(); ctx.arc(px, py, 1.8, 0, Math.PI*2);
     if (phosphorMode){ ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1; ctx.stroke(); }
     else { ctx.fillStyle = t.colorB; ctx.fill(); }
   });
-  if (b.passengers.length > BOAT_PASSENGER_DISPLAY_MAX){
-    ctx.fillStyle = phosphorMode ? PHOSPHOR_GREEN : '#fff';
-    ctx.font = '9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('+' + (b.passengers.length - BOAT_PASSENGER_DISPLAY_MAX), cx, cy - 14);
-  }
 }
 
 // grille de construction : invisible en jeu normal (affichable en debug),
@@ -1941,6 +1975,26 @@ document.getElementById('damage-btn').addEventListener('click', () => {
 });
 document.getElementById('tower-btn').addEventListener('click', tryTowerAction);
 window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'b') tryTowerAction(); });
+// v17.46 : bouton "passer la vague" demandé par Pierre ("comme dans
+// l'autre jeu") — force la fin de la vague en cours (vide les ennemis
+// encore en vie et ce qui restait à faire débarquer) et avance
+// directement à la suivante, avec un bonus d'or équivalent à ce
+// qu'aurait rapporté la vague terminée normalement (waveValueEstimate,
+// déjà utilisé pour la récompense normale des marchands).
+document.getElementById('skip-wave-btn').addEventListener('click', () => {
+  if (gameOver || playerDead) return;
+  const bonus = waveValueEstimate();
+  gold += bonus;
+  floatingTexts.push({ x: player.x, y: player.y-30, text: '+'+bonus, createdAt: performance.now(), color: '#d9a441' });
+  enemies.length = 0;
+  wave++;
+  spawned = 0;
+  enemiesThisWave = enemiesForWave(wave);
+  bossSpawnedThisWave = false;
+  spawnInterval = pickNextSpawnDelay();
+  startWaveBoats(performance.now());
+  saveProgress();
+});
 document.getElementById('autofire-btn').addEventListener('click', () => {
   const cost = autoFireCost();
   if (gold < cost) return;
@@ -2121,6 +2175,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.46", text: "Or déplacé en haut à côté de la vague (barre du bas retirée, plus d'espace de jeu) + bouton \"passer la vague\" (bonus d'or immédiat). Bateau réduit de 30%, avec un fond noir plein qui bloque enfin ce qu'il y a derrière (la ligne de l'eau se voyait à travers). Ennemis en attente sur le pont : plus de plafond d'affichage ni de \"+N\", chacun existe physiquement. Zone constructible agrandie (ligne remontée à mi-chemin de l'eau). Correctif : \"Recommencer\" ne réécrivait pas la sauvegarde locale, l'ancien or revenait après un rechargement de page." },
   { v: "17.45", text: "Même traitement rigoureux (recopiage pixel-exact) appliqué au bateau (coque + les 4 ornements) et au cheval de la caravane, en plus de ce qui l'était déjà (tour, forge, mur) — coordonnées directement recopiées des croquis, plus d'approximation à l'œil." },
   { v: "17.44", text: "Marchands : retour aux simples billes vertes (la silhouette de \"petit bonhomme\" ne plaisait pas). Bateau : le mât/fanion n'existait pas sur le croquis de référence (vérifié pixel-exact via une nouvelle méthode de recopiage automatique, voir tools/) — retiré, remplacé par les 4 vrais ornements en losange (2 à la proue, 2 à la poupe) au lieu de 2." },
   { v: "17.43", text: "Vu sur une vraie capture d'écran envoyée par Pierre : les proportions de la tour étaient correctes mais bien trop petites pour se lire sur un téléphone — porte et cube de renfort quasi invisibles à l'œil nu. Tour agrandie ×1,5 (visuel uniquement, aucun changement de portée/collision/gameplay)." },
@@ -3499,6 +3554,13 @@ function resetGame(startingGold){
   player.x = STAGE_W/2; player.y = REGEN_ZONE.y - 16;
   startWaveBoats(performance.now());
   document.getElementById('over').style.display = 'none';
+  // v17.46 (bug signalé : "recommencer ne remet pas l'or à zéro") — en
+  // mémoire si, mais l'ancienne sauvegarde locale restait intacte tant
+  // qu'on ne la réécrivait pas : un rechargement de page après avoir
+  // recommencé ramenait l'ancien or (loadProgress() au chargement lit
+  // la dernière sauvegarde). On écrase la sauvegarde immédiatement avec
+  // l'état tout juste remis à zéro.
+  saveProgress();
 }
 // pas de vraie pub branchée : plutôt que d'accorder le bonus en silence,
 // on montre honnêtement une erreur technique (compteur de clics à ajouter

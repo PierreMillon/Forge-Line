@@ -2215,3 +2215,62 @@ proportions relatives sont garanties exactes).
 Vérifié par rendu Playwright direct (comparaison visuelle avec le
 rendu SVG déjà confirmé "parfait" par Pierre) : les deux correspondent
 maintenant à la référence. `node --check`, aucune erreur JS.
+
+## v17.46 — Lot de correctifs signalés en direct sur le jeu
+
+Pierre a testé le jeu en direct après le v17.45 et signalé plusieurs
+points d'un coup :
+
+1. **Interface** : l'or ("Or : 0") rejoint le compteur de vagues en
+   haut (nouveau `#wave-group` : 💰 or, bouton "passer la vague",
+   "Vague N"), `#bottombar` (qui ne contenait plus que l'or) supprimée
+   — le canvas récupère cet espace (CSS `--bottombar-h` retirée des
+   calculs de `#stage`/`#joyzone`/`#bonusbar`).
+2. **Bouton "passer la vague"** (nouveau, "comme dans l'autre jeu") :
+   vide les ennemis restants, avance directement à la vague suivante,
+   verse un bonus d'or (`waveValueEstimate()`, la même formule que la
+   récompense normale des marchands).
+3. **Bateau réduit de 30%** (`ctx.scale(0.7,0.7)` autour de
+   `drawBoatHullPhosphor()` — purement visuel, les coordonnées internes
+   restent les mêmes).
+4. **Silhouette pleine intégrée en jeu pour le bateau** (premier objet
+   à recevoir le traitement "fond noir qui bloque ce qu'il y a
+   derrière", validé hors-jeu au tour précédent) — Pierre a remonté un
+   vrai bug concret causé par son absence : la ligne de démarcation
+   eau/plage se voyait À TRAVERS la coque. Contour calculé une fois
+   par `shapely` (buffer 4px + union) à partir des mêmes 61 segments
+   déjà en place, converti en chemin `ctx.fill()` fixe posé AVANT les
+   traits verts. Les autres objets (tour, forge, mur, caravane, cheval
+   de Troie) n'ont PAS encore ce traitement — à faire si Pierre le
+   signale aussi dessus (même méthode, juste refaire le calcul pour
+   chacun).
+5. **Ennemis sur le pont, plus de plafond** : Pierre a rappelé
+   explicitement (règle déjà énoncée en Partie 1D) que chaque ennemi en
+   attente doit exister physiquement, pas de résumé "+N" au-delà de 10.
+   `BOAT_PASSENGER_DISPLAY_MAX` retirée, tous les passagers sont
+   dessinés, grille resserrée en conséquence.
+6. **Zone constructible agrandie** : la ligne séparant zone
+   constructible / zone interdite était à `STAGE_H/2` ; remontée à
+   mi-chemin entre cette ligne et le début de l'eau (`WATER_H`), sur
+   demande explicite ("monter la ligne de la moitié de l'espace" qui
+   les séparait).
+7. **Bug de sauvegarde au redémarrage** : `resetGame()` remettait bien
+   `gold`/`wave` à zéro EN MÉMOIRE, mais n'écrivait jamais la
+   sauvegarde locale (`saveProgress()` n'était appelée qu'entre deux
+   vagues) — un rechargement de page après avoir "recommencé"
+   ramenait l'ancien or via `loadProgress()` au chargement. Corrigé en
+   appelant `saveProgress()` à la fin de `resetGame()`.
+
+**Non traité dans ce commit, en attente** : cheval de Troie/tour/forge/
+mur/caravane sans silhouette pleine encore (seul le bateau l'a) ;
+funnel des ennemis vers la porte centrale du mur avant la brèche (la
+porte est purement visuelle pour l'instant, aucune logique de
+déplacement ne force les ennemis à converger vers son x) ; symétrie
+miroir des bateaux (arrivée par la gauche ou la droite, débarquement
+par l'avant du bateau) ; investigation en cours sur une régression
+signalée par Pierre concernant le cheval de la caravane (voir échanges
+— pas encore de cause identifiée avec certitude au moment de ce commit).
+
+Vérifié : `node --check`, rendu Playwright (capture complète de
+l'interface + zoom sur le bateau confirmant que la ligne de l'eau
+s'arrête bien à la silhouette), aucune erreur JS.
