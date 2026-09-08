@@ -2414,3 +2414,65 @@ ce côté est bien inversé entre le bateau normal et le bateau retourné
 (ex. ~115-135 à droite du centre pour le non-retourné, ~284-305 à
 gauche du centre pour le retourné). Capture d'écran confirmant que la
 coque retournée est visuellement un vrai miroir, sans déformation.
+
+## v17.50 — Silhouette pleine sur tout ce qui restait (tour/forge/mur/cheval de Troie) + bug de l'or après une vraie défaite
+
+**Tour** : `drawIsoBox()` avait déjà un paramètre `opaque` (remplit
+chaque face en noir avant le contour), jusqu'ici réservé au joueur.
+Passé à `true` pour le corps de la tour et son cube de renfort — pas
+de nouveau calcul de silhouette nécessaire, le mécanisme existait déjà.
+
+**Forge** : même chose pour les 4 `drawIsoBox()` (corps, cheminée,
+poteau, rebord). Le toit en pavillon n'utilise pas `drawIsoBox`
+(losange + pointe dessinés à la main) : remplis manuellement en noir
+(le losange de base + les 4 pans triangulaires jusqu'au sommet) avant
+les traits, même principe.
+
+**Mur du château** : pas de `drawIsoBox` ici (ruban de créneaux en
+lignes individuelles). Ajouté un premier passage qui rejoue exactement
+la même géométrie que la boucle de traits existante (pics/vallées/
+porte) pour empiler les points du haut du ruban dans un tableau, puis
+remplit tout le mur (ruban + corps jusqu'à la base) en une seule fois
+avant les traits verts. La porte n'est pas creusée dans ce
+remplissage : elle n'a jamais été un vrai trou physique dans le mur
+(juste une silhouette de toit différente, plus haute) — cohérent avec
+le reste du rendu qui la traite déjà ainsi.
+
+**Cheval de Troie** : PAS ré-extrait depuis le croquis (le tracé actuel
+est celui que Pierre a confirmé "parfait" — le retoucher aurait été le
+même risque de régression que celui réglé plus haut sur le cheval de
+la caravane). Silhouette calculée directement à partir des SEGMENTS
+DÉJÀ DANS LE CODE (`earTip`→`nose`, la ligne de dos en zigzag, etc.),
+dans les mêmes unités (dx,dy) non mises à l'échelle que `P()`, avant
+buffer+union par shapely. Résultat : 2 polygones (le corps+3 pattes
+reliées, et la 4e patte isolée près de la queue qui ne touche aucun
+autre trait) — les deux remplis, comme pour le cheval de la caravane
+qui avait aussi un morceau séparé.
+
+Vérifié pour les 4 : `node --check`, rendu Playwright avec grille de
+points derrière (prouve que le noir bloque bien ce qu'il y a dessous,
+même méthode que le test d'occlusion hors-jeu) + capture complète de
+l'interface avec tour/forge/mur simultanément, aucune erreur JS.
+
+**Bug de l'or après une vraie défaite** (signalé par Pierre : "l'argent
+qui reste sur le compte est en fait directement transféré à la partie
+suivante") — la dernière sauvegarde automatique (entre deux vagues)
+gardait l'or accumulé même après une défaite DÉFINITIVE (château tombé
+ou cheval de Troie non détruit, aucune option de continuer) : recharger
+la page avant de cliquer "Recommencer" ramenait la partie avec tout
+l'or, comme si de rien n'était. Corrigé : au moment précis où cette
+défaite définitive est détectée, la sauvegarde est immédiatement
+écrasée avec un état à zéro (or/vague), sans attendre le clic sur
+"Recommencer" — l'affichage de fin de partie garde les vraies valeurs
+en mémoire (le joueur voit toujours son score réel), seule la
+sauvegarde PERSISTÉE est remise à zéro. Une défaite "santé" simple
+(`playerDead` avec option de résurrection encore possible) n'est PAS
+concernée : ce n'est pas une fin de partie définitive.
+
+Vérifié par simulation Playwright : `gold=5000, wave=42, breaches=10,
+playerHealth=0` → un seul appel à `update()` (le passage à
+`playerDead=true` et la vérification des brèches se font dans le même
+appel, avant le garde-fou de retour anticipé qui ne s'applique qu'au
+DÉBUT de l'appel suivant) → sauvegarde locale confirmée à
+`{gold:0, wave:1}` alors que `gold`/`wave` en mémoire restent à
+5000/42 pour l'écran de fin.

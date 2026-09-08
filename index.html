@@ -2187,6 +2187,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.50", text: "Silhouette pleine (fond noir bloquant ce qu'il y a derrière) appliquée à la tour, la forge, le mur du château et le cheval de Troie, comme le bateau et le cheval de la caravane. Correctif : une vraie défaite finale (château tombé / cheval de Troie non détruit) remet maintenant la sauvegarde locale à zéro tout de suite, l'or accumulé ne se retrouve plus \"transféré\" à la partie suivante en rechargeant la page avant d'avoir cliqué Recommencer." },
   { v: "17.49", text: "Bateaux : un sur deux arrive retourné (symétrie miroir), pour varier l'impression de sens d'arrivée. Les marchands débarquent désormais du côté \"avant\" de leur bateau (qui suit ce retournement), plus jamais répartis symétriquement des deux côtés." },
   { v: "17.48", text: "Les ennemis convergent maintenant vers la porte centrale du mur avant de la franchir (avant : n'importe où sur la largeur). La perte de vie du château se déclenche toujours à leur disparition en bas d'écran, pas au passage du mur lui-même." },
   { v: "17.47", text: "Cheval de la caravane : régression réglée à la racine — les coordonnées étaient déjà exactes, mais le fond noir plein (silhouette) validé comme \"parfait\" n'avait jamais été porté dans le jeu, seuls les traits verts existaient. Ajouté. Curseurs de musique/bruitage qui ne répondaient pas au toucher : zone de glissé agrandie (touch-action dédiée)." },
@@ -2878,7 +2879,25 @@ function update(now){
   }
   if (breaches >= 10 && !gameOver){
     gameOver = true;
-    showOverModal(trojanCauseOfDefeat ? 'trojan' : (playerDead ? 'final' : 'breach'));
+    const overReason = trojanCauseOfDefeat ? 'trojan' : (playerDead ? 'final' : 'breach');
+    showOverModal(overReason);
+    // v17.50 (signalé par Pierre : "l'argent qui reste sur le compte est
+    // en fait directement transféré à la partie suivante") — sur une
+    // VRAIE défaite définitive (aucune option de continuer, seul
+    // "Recommencer" reste possible), la dernière sauvegarde automatique
+    // (faite entre deux vagues, voir saveProgress()) gardait encore
+    // l'ancien or : recharger la page avant d'avoir cliqué "Recommencer"
+    // ramenait la partie comme si de rien n'était, avec tout l'or
+    // accumulé. On écrase la sauvegarde tout de suite avec un état à
+    // zéro (exactement ce que resetGame(0) ferait), sans attendre le
+    // clic — l'affichage de fin de partie (or/vague) garde ses valeurs
+    // réelles en mémoire, seule la sauvegarde persistée est remise à zéro.
+    if (overReason === 'final' || overReason === 'trojan'){
+      const savedGold = gold, savedWave = wave;
+      gold = 0; wave = 1;
+      saveProgress();
+      gold = savedGold; wave = savedWave;
+    }
   }
 
   document.getElementById('gold').textContent = gold;
@@ -3012,6 +3031,22 @@ function drawTrojanHorseShape(cx, cy, size){
     chest = P(-5, 15),
     leg1bot = P(-1, 24), legAbot = P(14, 27), legBbot = P(30, 30), legCtop = P(35, 15), legCbot = P(40, 24);
   const path = (...pts) => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke(); };
+  // v17.50 (silhouette pleine, comme le bateau/la tour/le mur/le cheval
+  // de caravane) : contour calculé une fois par shapely (buffer 2.5 +
+  // union) à partir des mêmes segments dessinés juste en dessous, dans
+  // les unités (dx,dy) non mises à l'échelle — se redimensionne donc
+  // automatiquement avec `size` comme le reste, via P(). Deux polygones
+  // séparés (le corps+3 pattes reliées, et la 4e patte isolée près de la
+  // queue) car ce segment ne touche aucun autre trait.
+  const fillSil = (pts) => {
+    ctx.beginPath();
+    ctx.moveTo(P(pts[0][0],pts[0][1]).x, P(pts[0][0],pts[0][1]).y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(P(pts[i][0],pts[i][1]).x, P(pts[i][0],pts[i][1]).y);
+    ctx.closePath(); ctx.fill();
+  };
+  ctx.fillStyle = '#000';
+  fillSil([[0.00,0.00],[-2.47,-0.41],[-3.30,4.60],[-6.50,7.00],[-5.00,9.00],[-7.50,9.00],[-7.50,15.00],[-3.50,15.00],[-3.50,24.00],[1.50,24.00],[1.50,11.83],[4.88,12.00],[5.00,9.50],[5.57,11.93],[16.43,9.40],[11.60,26.31],[16.40,27.69],[21.89,8.50],[27.50,8.50],[27.50,30.00],[32.50,30.00],[32.50,10.23],[38.80,13.69],[41.20,9.31],[31.20,3.81],[30.00,6.00],[30.00,3.50],[20.00,3.50],[20.00,6.00],[19.43,3.57],[14.66,4.68],[15.49,0.55],[0.49,-2.45]]);
+  fillSil([[37.81,25.21],[42.19,22.79],[37.19,13.79],[32.81,16.21]]);
   path(earTip, nose); // museau/mâchoire, pointe vers l'avant
   path(earTip, headBack, headBend, mane1, mane2, mane3, tailTip); // dos en zigzag, de l'oreille à la queue
   path(headBend, chest); // avant de l'encolure
@@ -3201,6 +3236,48 @@ function drawCastle(){
   // fois la hauteur d'un pic normal (pas 2,4x)
   const valleyH = merlonH * 0.82;
   const gateAfterSeg = Math.floor(CASTLE_SEGMENTS/2) - 1; // porte à la jonction centrale
+
+  // v17.50 (silhouette pleine, comme le bateau/la tour/le cheval de
+  // caravane) : un premier passage rejoue exactement la même géométrie
+  // que la boucle de traits ci-dessous (mêmes pics/vallées/porte), mais
+  // se contente d'empiler les points du ruban du haut dans `topPts` au
+  // lieu de tracer — servent ensuite à remplir tout le mur (ruban +
+  // corps jusqu'à la base) en noir plein en UNE seule fois, avant les
+  // traits verts.
+  {
+    const topPts = [];
+    let cx2 = x, cy2 = y - valleyH;
+    topPts.push({ x: cx2, y: cy2 });
+    for (let i = 0; i < CASTLE_SEGMENTS; i++){
+      const segEndX = x + (i+1)*slot, peakX = x + (i+0.5)*slot;
+      if (i < destroyed){
+        topPts.push({ x: segEndX, y: cy2 });
+        cx2 = segEndX;
+        continue;
+      }
+      const peakY = y - merlonH;
+      topPts.push({ x: peakX, y: peakY });
+      if (i === gateAfterSeg && i+1 < CASTLE_SEGMENTS && i+1 >= destroyed){
+        const nextPeakX = x + (i+1.5)*slot, nextPeakY = y - merlonH;
+        const apex = { x: segEndX, y: y - merlonH*1.585 };
+        topPts.push({ x: apex.x, y: apex.y }, { x: nextPeakX, y: nextPeakY });
+        cx2 = nextPeakX; cy2 = nextPeakY;
+        i++;
+        continue;
+      }
+      const valleyY = y - valleyH;
+      topPts.push({ x: segEndX, y: valleyY });
+      cx2 = segEndX; cy2 = valleyY;
+    }
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.moveTo(topPts[0].x, topPts[0].y);
+    for (const p of topPts.slice(1)) ctx.lineTo(p.x, p.y);
+    ctx.lineTo(x+w, y+h); ctx.lineTo(x, y+h);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   let cursorX = x, cursorTopY = y - valleyH;
   ctx.beginPath(); ctx.moveTo(cursorX, y); ctx.lineTo(cursorX, cursorTopY); ctx.stroke(); // bord gauche du mur
   for (let i = 0; i < CASTLE_SEGMENTS; i++){
@@ -3253,28 +3330,36 @@ function drawForge(){
     // corps : pavé isométrique avec un bandeau horizontal (dessin de
     // référence : une ligne qui traverse le corps à mi-hauteur)
     const bw = w*0.22, bh = bw*0.55, bsh = h*0.34;
-    drawIsoBox(mx, baseY, bw, bh, bsh, null, null, null, 2);
+    // v17.50 : silhouette pleine (voir tour), même mécanisme `opaque`
+    drawIsoBox(mx, baseY, bw, bh, bsh, null, null, null, 2, true);
     // toit en pavillon : un large losange (l'avant-toit) dont les 4
     // coins convergent vers un point au sommet
     const roofBaseY = baseY - bsh - 2*bh;
     const rw = bw*1.5, rh = bh*1.5;
     const RN={x:mx,y:roofBaseY}, RE={x:mx+rw,y:roofBaseY+rh}, RS={x:mx,y:roofBaseY+2*rh}, RW={x:mx-rw,y:roofBaseY+rh};
-    ctx.beginPath(); ctx.moveTo(RN.x,RN.y); ctx.lineTo(RE.x,RE.y); ctx.lineTo(RS.x,RS.y); ctx.lineTo(RW.x,RW.y); ctx.closePath(); ctx.stroke();
     const apex = { x: mx, y: roofBaseY - bh*1.8 };
+    // silhouette pleine du toit : le losange de base + les 4 pans
+    // triangulaires jusqu'au sommet, tous remplis en noir avant les traits
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.moveTo(RN.x,RN.y); ctx.lineTo(RE.x,RE.y); ctx.lineTo(RS.x,RS.y); ctx.lineTo(RW.x,RW.y); ctx.closePath(); ctx.fill();
+    for (const [c1,c2] of [[RN,RE],[RE,RS],[RS,RW],[RW,RN]]){
+      ctx.beginPath(); ctx.moveTo(apex.x,apex.y); ctx.lineTo(c1.x,c1.y); ctx.lineTo(c2.x,c2.y); ctx.closePath(); ctx.fill();
+    }
+    ctx.beginPath(); ctx.moveTo(RN.x,RN.y); ctx.lineTo(RE.x,RE.y); ctx.lineTo(RS.x,RS.y); ctx.lineTo(RW.x,RW.y); ctx.closePath(); ctx.stroke();
     ctx.beginPath();
     for (const corner of [RN,RE,RS,RW]){ ctx.moveTo(apex.x,apex.y); ctx.lineTo(corner.x,corner.y); }
     ctx.stroke();
     // petite cheminée au sommet du toit
     const cw = bw*0.35, ch = cw*0.55, csh = bh*1.3;
-    drawIsoBox(apex.x, apex.y, cw, ch, csh, null, null, null);
+    drawIsoBox(apex.x, apex.y, cw, ch, csh, null, null, null, undefined, true);
     // poteau latéral, plus court, à gauche du corps principal — sa
     // propre silhouette en V à la base (Wb-Sb-Eb, naturelle à un pavé
     // isométrique) suffit à lire la petite "encoche" du dessin de référence
     const pw = bw*0.55, ph = pw*0.55, psh = bsh*0.45;
-    drawIsoBox(x + w*0.12, baseY, pw, ph, psh, null, null, null);
+    drawIsoBox(x + w*0.12, baseY, pw, ph, psh, null, null, null, undefined, true);
     // rebord/étal qui dépasse à droite, un peu plus bas sur le corps
     const lw = bw*0.9, lh = lw*0.55, lsh = bh*0.4;
-    drawIsoBox(mx + bw*1.7, baseY - bsh*0.3, lw, lh, lsh, null, null, null);
+    drawIsoBox(mx + bw*1.7, baseY - bsh*0.3, lw, lh, lsh, null, null, null, undefined, true);
   } else {
     ctx.font = '24px sans-serif';
     ctx.textAlign = 'center';
@@ -3378,7 +3463,11 @@ function draw(now){
         ctx.restore();
       }
       if (flashing) ctx.globalAlpha = 0.45;
-      drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments);
+      // v17.50 (silhouette pleine, comme le bateau/le cheval de caravane)
+      // : `opaque` (déjà prévu dans drawIsoBox, jusqu'ici réservé au
+      // joueur) remplit chaque face en noir avant le contour, au lieu de
+      // laisser voir à travers.
+      drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments, true);
       if (phosphorMode){
         // v17.37 : proportions extraites EXACTEMENT du dessin de référence
         // par analyse pixel (détection automatique des sommets marqués sur
@@ -3409,7 +3498,7 @@ function draw(now){
         const capScale = Math.min(1.6, 1 + (level-1)*0.15);
         const capHw = 0.333*TOWER_HW*capScale, capHh = 0.19*TOWER_HW*capScale, capSh = 0.379*TOWER_HW*capScale;
         const capCyBase = bodyTopY + 0.757*TOWER_HW*capScale;
-        drawIsoBox(t.x, capCyBase, capHw, capHh, capSh, null, null, null);
+        drawIsoBox(t.x, capCyBase, capHw, capHh, capSh, null, null, null, undefined, true);
       }
       if (flashing) ctx.globalAlpha = 1;
     }});
