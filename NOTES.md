@@ -1207,3 +1207,35 @@ le chemin, groupe de 3 ennemis en attente relâché ensemble à la même
 frame confirmé, ennemi seul en attente qui continue de décompter
 normalement (pas de relâchement prématuré). Suite de régression
 complète toujours verte, aucune erreur JS.
+
+## v17.27 : 2e compétence de la Forge — les soldats peuvent réparer les tours
+
+Demandé : ajouter en Forge une option achetable pour permettre aux
+soldats de réparer les tours. Nouveau bouton dans le bandeau
+("Réparateurs", 🔧), même contrainte que "Tours d'élite" (utilisable
+seulement physiquement dans la zone de la Forge, et seulement une fois
+la Forge construite) — mais achat UNIQUE (60 or), pas une progression
+infinie comme "Tours d'élite" : soit acquis, soit pas.
+
+Une fois achetée, `soldiersCanRepair` débloque un 5e comportement pour
+les soldats (en plus de fight/guard/hide/heal) : `'repair'`, choisi par
+le même tirage pondéré que les autres, mais SEULEMENT proposé si au
+moins une tour est endommagée (sinon jamais tiré, pas de comportement
+"repair" qui ne fait rien). Le soldat va vers la tour la plus abîmée
+(pas la plus proche — recalculé chaque frame, peut changer de cible si
+une autre devient plus urgente entre-temps) et la répare gratuitement
+tant qu'il reste à portée de contact — gratuit contrairement à la
+réparation du joueur (qui coûte de l'or), cohérent avec le fait que les
+soldats sont des unités autonomes, pas une action du joueur.
+
+Vérifié avec Playwright : bouton correctement bloqué hors zone / avant
+construction de la Forge, achat qui déduit l'or et bascule
+`soldiersCanRepair`, libellé "Acquis ✓" après achat (bouton
+définitivement désactivé, pas de rachat possible), `pickSoldierBehavior`
+qui ne renvoie jamais 'repair' sans l'achat (500 tirages), qui peut le
+renvoyer une fois acheté ET une tour endommagée présente, comportement
+`updateSoldiers` qui se dirige vers la tour la PLUS abîmée (pas la plus
+proche, testé avec deux tours à PV différents) et la répare sans
+toucher à l'autre. Capture d'écran du bandeau (3 boutons sur la 2e
+ligne, mise en page correcte). Suite de régression complète toujours
+verte, aucune erreur JS.

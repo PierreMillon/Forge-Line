@@ -136,6 +136,7 @@
   <div class="bonusbar-row">
     <button id="precision-btn"><span class="b-icon">🔬</span><span>Précision</span><span class="b-cost" id="precision-cost"></span></button>
     <button id="forge-btn"><span class="b-icon">⚒️</span><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
+    <button id="soldier-repair-btn"><span class="b-icon">🔧</span><span id="soldier-repair-label"></span><span class="b-cost" id="soldier-repair-cost"></span></button>
   </div>
 </div>
 
@@ -567,6 +568,7 @@ const SOLDIER_BASE_DMG_FRACTION = 0.5; // moitié de la force du joueur au grade
 const SOLDIER_BASE_HP = PLAYER_MAX_HEALTH * 3;
 const SOLDIER_SHOT_INTERVAL_MS = 900;
 const SOLDIER_BEHAVIOR_REROLL_MS = 3000;
+const SOLDIER_REPAIR_RATE = 0.3; // PV/frame, gratuit (contrairement à la réparation du joueur, qui coûte de l'or)
 let soldiers = []; // { x, y, hp, maxHp, grade, behavior, behaviorUntil, healUsedAtBoat, lastShotAt, dead }
 function soldierDmg(s){ return Math.round(effectivePlayerDmg() * SOLDIER_BASE_DMG_FRACTION * Math.pow(UPGRADE_POWER_GROWTH, s.grade)); }
 function soldierMaxHp(s){ return Math.round(SOLDIER_BASE_HP * Math.pow(UPGRADE_POWER_GROWTH, s.grade)); }
@@ -582,16 +584,23 @@ function spawnSoldiers(now){
     soldiers.push(s);
   }
 }
-// tirage pondéré parmi 4 comportements ; les poids évoluent avec le
-// grade (prudence croissante) plutôt qu'un score de moral calculé
+// tirage pondéré parmi les comportements ; les poids évoluent avec le
+// grade (prudence croissante) plutôt qu'un score de moral calculé.
+// v17.27 : 'repair' rejoint la liste, mais SEULEMENT si la compétence a
+// été achetée à la Forge (soldiersCanRepair) — sinon jamais tiré, comme
+// avant. Priorité si une tour est endommagée : poids élevé, un peu plus
+// encore si le soldat est déjà bien portant (pas besoin de 'heal' pour
+// lui-même).
 function pickSoldierBehavior(s){
   const caution = Math.min(0.7, s.grade * 0.03);
+  const towerDamaged = soldiersCanRepair && towers.some(t => t.hp < t.maxHp);
   const weights = [
     ['fight', Math.max(0.1, 0.5 - caution)],
     ['guard', 0.25],
     ['hide', 0.1 + caution * 0.5],
     ['heal', (s.hp < s.maxHp * 0.5 && !s.healUsedAtBoat) ? 0.35 : 0.05],
   ];
+  if (towerDamaged) weights.push(['repair', s.hp > s.maxHp * 0.5 ? 0.4 : 0.2]);
   const total = weights.reduce((sum, [, w]) => sum + w, 0);
   let r = Math.random() * total;
   for (const [name, w] of weights){ r -= w; if (r <= 0) return name; }
@@ -634,6 +643,30 @@ function updateSoldiers(now){
         s.healUsedAtBoat = true;
         s.behavior = 'guard'; s.behaviorUntil = now;
       }
+    } else if (s.behavior === 'repair'){
+      // v17.27 : va vers la tour la plus endommagée (pas juste la plus
+      // proche) et la répare gratuitement tant qu'il reste à côté —
+      // recalculé chaque frame, donc peut changer de cible si une autre
+      // tour devient plus urgente entre-temps (un autre soldat qui finit
+      // la sienne, par exemple)
+      let target = null, worstRatio = Infinity;
+      for (const t of towers){
+        if (t.hp >= t.maxHp) continue;
+        const ratio = t.hp / t.maxHp;
+        if (ratio < worstRatio){ worstRatio = ratio; target = t; }
+      }
+      if (!target){
+        // plus rien à réparer : reste près du joueur jusqu'au prochain tirage
+        const d = Math.hypot(player.x-s.x, player.y-s.y);
+        if (d > 40){ s.x += (player.x-s.x)/d*0.6; s.y += (player.y-s.y)/d*0.6; }
+      } else {
+        const d = Math.hypot(target.x-s.x, target.y-s.y);
+        if (d > CONTACT_RANGE_PX){ s.x += (target.x-s.x)/d*0.6; s.y += (target.y-s.y)/d*0.6; }
+        else {
+          target.hp = Math.min(target.maxHp, target.hp + SOLDIER_REPAIR_RATE);
+          target.repairCount = (target.repairCount||0) + 1; // même compteur que la réparation du joueur (IA harceleurs)
+        }
+      }
     }
     // pas invincibles : subissent le contact ennemi comme le joueur
     for (const e of enemies){
@@ -658,6 +691,12 @@ const FORGE_BUILD_COST = 100;
 const FORGE_ELITE_COST_BASE = 40;
 let forgeBuilt = false;
 let forgeEliteLevel = 0;
+// v17.27 : 2e compétence de la Forge, achat unique (pas de progression
+// infinie comme "Tours d'élite" — juste un déblocage) : les soldats
+// peuvent réparer les tours (nouveau comportement 'repair', voir
+// pickSoldierBehavior/updateSoldiers), en plus de fight/guard/hide/heal.
+const SOLDIER_REPAIR_UNLOCK_COST = 60;
+let soldiersCanRepair = false;
 function inForgeZone(x, y){
   const pad = 14;
   return x >= FORGE_ZONE.x - pad && x <= FORGE_ZONE.x + FORGE_ZONE.w + pad &&
@@ -1501,6 +1540,17 @@ document.getElementById('forge-btn').addEventListener('click', () => {
   gold -= cost;
   forgeEliteLevel++;
 });
+// 2e compétence de la Forge (v17.27) : achat unique, pas de progression
+// infinie — même contrainte que le reste de la Forge (dans la zone
+// seulement)
+document.getElementById('soldier-repair-btn').addEventListener('click', () => {
+  if (!inForgeZone(player.x, player.y)) return;
+  if (!forgeBuilt || soldiersCanRepair) return;
+  if (gold < SOLDIER_REPAIR_UNLOCK_COST) return;
+  gold -= SOLDIER_REPAIR_UNLOCK_COST;
+  soldiersCanRepair = true;
+  sfxBuild();
+});
 
 // affiche l'état courant des boutons (coût, grisé si pas assez d'or) —
 // rappelé à chaque frame, comme le reste du HUD. Plus de "Max"/"Actif" :
@@ -1564,6 +1614,29 @@ function refreshBonusbar(){
     fCost.textContent = eCost + ' or';
     fBtn.disabled = disabledAll || gold < eCost;
   }
+
+  // 2e compétence de la Forge (v17.27) : achat unique, pas de coût qui
+  // grimpe — une fois acquise, bouton désactivé avec une coche
+  const srBtn = document.getElementById('soldier-repair-btn');
+  const srLabel = document.getElementById('soldier-repair-label');
+  const srCost = document.getElementById('soldier-repair-cost');
+  if (soldiersCanRepair){
+    srLabel.textContent = 'Réparateurs';
+    srCost.textContent = 'Acquis ✓';
+    srBtn.disabled = true;
+  } else if (!nearForge){
+    srLabel.textContent = 'Réparateurs';
+    srCost.textContent = 'Va à la Forge';
+    srBtn.disabled = true;
+  } else if (!forgeBuilt){
+    srLabel.textContent = 'Réparateurs';
+    srCost.textContent = 'Construis la Forge';
+    srBtn.disabled = true;
+  } else {
+    srLabel.textContent = 'Réparateurs';
+    srCost.textContent = SOLDIER_REPAIR_UNLOCK_COST + ' or';
+    srBtn.disabled = disabledAll || gold < SOLDIER_REPAIR_UNLOCK_COST;
+  }
 }
 
 // menu en haut à gauche : pour l'instant juste la liste des jeux (Bastion
@@ -1606,6 +1679,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.27", text: "Nouvelle compétence de la Forge : les soldats peuvent réparer les tours (achat unique, 60 or)" },
   { v: "17.26", text: "Correctif : caravane qui se déclenchait sans marcher sur le chemin ; ennemis 20% plus rapides ; certains ennemis attendent en groupe avant d'attaquer ensemble" },
   { v: "17.25", text: "Marchands 3x plus lents et amortis, caravanes possibles dès la vague 1 mais max une fois toutes les 2 vagues, tours 2x plus chères, zone de sable hors construction" },
   { v: "17.24", text: "Ennemis de base toujours 1 balle = 1 mort, easter egg du cheval de Troie, ennemis qui évitent les regroupements risqués, bateau avec passagers visibles + mémoire d'accostage, collision souple entre ennemis" },
@@ -2605,7 +2679,7 @@ function resetGame(startingGold){
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0; precisionLevel = 0;
-  forgeBuilt = false; forgeEliteLevel = 0;
+  forgeBuilt = false; forgeEliteLevel = 0; soldiersCanRepair = false;
   merchants = []; soldiers = []; activeCaravan = null;
   pathDisturbedThisWave = false; pathClearWaveStreak = 0; playerOnPathSince = null; lastCaravanWave = -Infinity;
   towerGraves = []; playerPrayingSince = null; playerPrayingAt = null;
