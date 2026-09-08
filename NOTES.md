@@ -2516,3 +2516,87 @@ tâche de fond avec un vrai budget de temps dédié plutôt qu'en
 autonomie contrainte) pour confirmer si l'anomalie existe encore une
 fois qu'on observe de vraies morts, avant de toucher à un seul chiffre
 d'équilibrage.
+
+## v17.51 — Revue exhaustive demandée par Pierre : forge fausse depuis longtemps, groupe de marchands enfin organique
+
+Pierre : "vérifie de manière exhaustive... la forge, le mur du château
+c'est n'importe quoi... le chemin par lequel arrivent les marchands
+est devenu très simple... je t'ai déjà dit 5 fois de traiter les
+collisions entre ennemis, élastiques, et le bateau qui arrive comme un
+petit affichage de dés fixe."
+
+**Forge : vraiment cassée, confirmé.** Comparée à `forge.jpg` avec la
+méthode Hough (`extract_hough.py`, 62 segments, complétude 100%) : la
+version en jeu (toit en pavillon générique + petit cube de cheminée,
+v17.32) avait dérivé loin du croquis réel — cheminée bien plus haute
+et étroite que dessinée, toit bien plus évasé, proportions corps/toit
+largement inversées (le toit dominait visuellement un corps écrasé).
+Une note antérieure (v17.36) affirmait à tort "structure déjà
+fidèle" sans être repassée par la méthode rigoureuse. **Remplacée par
+les 62 segments exacts** + silhouette calculée par shapely à partir
+des mêmes segments, ancrée au même point (mx, baseY) que l'ancienne
+version paramétrique. Comparaison visuelle avant/après confirmant que
+seule cette v17.51 ressemble vraiment au croquis (l'ancienne, testée
+en isolant le même code sur le commit précédent, avait EXACTEMENT les
+mêmes proportions "toit énorme / corps minuscule" qu'en jeu — donc pas
+une régression du remplissage noir, un vrai écart de tracé jamais
+corrigé).
+
+**Mur du château : revérifié avec la même méthode (72 segments,
+complétude 100%)** — topologie confirmée fidèle (ruban continu,
+porte = 2 pics voisins qui convergent vers un sommet commun sans
+vallée ni chute verticale entre eux, exactement comme sur le
+croquis). Tour aussi revérifiée (39 segments, complétude 100%,
+comparaison visuelle quasi parfaite). Je n'ai pas trouvé de bug de
+géométrie sur ces deux-là — hypothèse la plus probable pour le
+ressenti "n'importe quoi" : dit dans la même phrase que la forge (qui,
+elle, était vraiment cassée), ou une question de lisibilité à la
+petite taille réelle sur téléphone plutôt qu'une forme fausse. Pas de
+changement fait sur mur/tour faute d'avoir trouvé un écart réel — à
+confirmer par Pierre en jouant si le ressenti persiste une fois la
+forge corrigée.
+
+**"Le chemin par lequel arrivent les marchands devenu très simple"** :
+`buildPath()` (le chemin décoratif en pointillés) n'a pas été touché
+cette session (vérifié par diff contre le commit d'avant-session,
+aucune différence) — et il a toujours été un simple zigzag "à ~50% de
+précision" par conception (voir son propre commentaire). Je pense que
+Pierre parlait en réalité de la manière dont les marchands arrivent
+(le groupe sur le bateau), pas de ce tracé décoratif — recoupé avec
+son message suivant sur le "petit affichage de dés fixe", qui décrit
+exactement l'ancien rendu en grille des passagers du bateau.
+
+**Collisions entre ennemis élastiques : déjà en place, vérifié par
+simulation** (`resolveEnemyCollisions()`, tolérance `ENEMY_OVERLAP_
+ALLOWED=0.12`, converge exactement vers la distance minimale attendue
+après quelques frames — testé avec 6 ennemis partant du même point).
+Ce système existe et fonctionne pour les ennemis au sol.
+
+**Le vrai trou, trouvé : les passagers sur le pont du bateau.**
+`drawBoatPassengers()` plaçait chaque passager sur une grille
+rangée/colonne parfaitement régulière — mécanique, façon dominos ou
+dés, exactement ce que Pierre décrit et reproche. Remplacé par
+`packBoatCluster()` : positions de départ en spirale dorée + 6 passes
+de relaxation par répulsion (même principe "élastique" que la
+collision au sol, tolérance de distance minimale du même ordre de
+grandeur), calculé UNE FOIS par bateau (pas par frame, ils ne bougent
+pas tant qu'ils attendent) et mis en cache sur `b.passengerLayout`.
+Trié du centre vers les bords : comme les passagers restants sont
+toujours les N premiers indices du tableau (le tableau `passengers`
+perd son PREMIER élément à chaque débarquement via `.shift()`), les
+points les plus excentrés (en fin de tableau layout) sont ceux qui
+"disparaissent" en premier visuellement — le cœur du groupe reste
+dense le plus longtemps, pas de trou qui s'ouvre n'importe où.
+
+Vérifié pour tout : `node --check`, rendu Playwright zoomé de la forge
+comparé au croquis, capture complète en jeu (tour+forge+mur), et
+capture du bateau avec 20 puis 7 passagers confirmant un vrai amas
+organique (cercles qui se touchent, pas une grille) qui reste compact
+en se vidant plutôt que de laisser des trous.
+
+**Pas encore fait** : rendre le groupe de marchands qui a débarqué
+(sur la plage, une fois hors du bateau) tout aussi élastique/organique
+plutôt que dispersé — la collision au sol existe déjà et s'applique à
+tout le monde une fois en mouvement, donc c'est probablement déjà bon,
+mais pas revérifié spécifiquement pour ce cas après le correctif du
+pont ci-dessus.
