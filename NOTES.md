@@ -2601,17 +2601,30 @@ stabilisent à ~13-14px d'écart, exactement la distance élastique
 minimale attendue (`2×rayon×(1-0.12) ≈ 14.08px`). Le système au sol
 s'applique bien à tout le monde dès l'arrivée, rien à ajouter là.
 
-**Caisse de la caravane, revérifiée avec Hough (19 segments dans sa
-zone) pendant la revue exhaustive** : la topologie déjà codée (rebord
-ouvert + 3 chutes verticales W/S/E + 2 roues séparées) correspond bien
-au croquis. Un détail intrigant repéré mais PAS changé : le croquis
-semble montrer un petit poteau/montant vertical au-dessus d'un coin du
-rebord (~120px de haut, un plein cran de grille), que le code actuel
-ne dessine pas — pourrait être un montant d'attelage. Pierre n'a rien
-signalé de spécifique sur la caisse cette fois (contrairement à la
-forge) et le rendu actuel est déjà fidèle sur l'essentiel — pas touché
-sans confirmation, pour éviter de "corriger" quelque chose qui n'était
-pas cassé. À vérifier avec Pierre si ça le chiffonne en le regardant.
+**Caisse de la caravane, revérifiée avec Hough (54 segments sur
+l'image complète, reclassés à la main par voisinage de grille — le
+recadrage automatique de la zone caisse seule a échoué, grille non
+détectée sur le crop) pendant la revue exhaustive** : la topologie
+déjà codée pour le rebord + les roues (rebord ouvert + 3 chutes
+verticales W/S/E + 2 roues séparées) correspond bien au croquis.
+
+**Découverte non traitée** : le croquis montre en plus un élément
+que le code ne dessine PAS DU TOUT — un point en pointe (sommet à
+(796,87) en pixels de l'image) relié par deux arêtes à deux points
+"épaule" symétriques (un cran de grille de chaque côté), eux-mêmes
+reliés au rebord de la caisse. Ça ressemble à une petite bâche/auvent
+en pointe au-dessus de la caisse (façon chariot bâché), pas un simple
+montant. Reconstruction géométrique faite à la main à partir des
+coordonnées (pas d'extraction automatique propre isolée pour cette
+zone, donc moins sûre que le traitement forge/tour/mur/bateau) —
+**pas ajoutée au code** : structure jamais confirmée par un rendu
+comparatif fiable, et Pierre n'a rien signalé de spécifique sur la
+caisse cette session (contrairement à la forge, clairement cassée).
+Ajouter cet élément sans une vérification aussi rigoureuse que les
+autres formes serait le même genre d'erreur qui a causé la régression
+du cheval de caravane plus tôt — préférence donnée à ne pas toucher
+plutôt que deviner. À signaler à Pierre pour qu'il confirme s'il veut
+qu'on aille plus loin là-dessus.
 
 **Bateau, revérifié avec Hough** (61 segments, complétude 100%,
 exactement le même compte que ce qui est déjà codé) : comparaison
