@@ -1072,12 +1072,25 @@ const WAVE_HP_STEP = 6;
 const BASE_ENEMY_COUNT = 2;
 const WAVE_ENEMY_COUNT_STEP = 1; // rythme de croisière, identique à avant
 const EARLY_RUSH_WAVES = 8;      // vagues 1 à 8 : période resserrée
-const EARLY_RUSH_STEP = 11;      // pendant la ruée, +11 ennemis/vague au lieu de +1 — combiné à la cadence de spawn 2x (voir pickNextSpawnDelay)
+// v17.40 (Partie 3, point c) : le simulateur (voir simulate.mjs) a
+// montré que l'ancienne ruée (+11 ennemis/vague) était bien trop
+// brutale — même la politique "good" (plusieurs tours, achats
+// optimisés) mourait en moyenne vague 3-5, quasi aucune différence
+// avec "naive". Pierre a ensuite dicté directement les 4 premières
+// vagues comme un vrai tutoriel : "vague 1 un ennemi, vague 2 deux et
+// demie, vague 3 trois et demi, vague 4 cinq et demi, après tu fais ce
+// que tu veux" — arrondi au nombre entier le plus proche (2,5->3,
+// 3,5->4, 5,5->6, arrondi conventionnel au-dessus). Le rythme "ruée"
+// existant (EARLY_RUSH_STEP) reprend ensuite à partir de la vague 5,
+// raccordé sans à-coup à la valeur de la vague 4.
+const TUTORIAL_WAVE_COUNTS = [1, 3, 4, 6]; // vagues 1 à 4, dictées explicitement par Pierre
+const EARLY_RUSH_STEP = 3;       // pendant la ruée (vagues 5 à 8), +3 ennemis/vague au lieu de +1 — combiné à la cadence de spawn 2x (voir pickNextSpawnDelay)
 function enemiesForWave(w){
-  if (w <= EARLY_RUSH_WAVES) return BASE_ENEMY_COUNT + EARLY_RUSH_STEP * (w - 1);
+  if (w <= TUTORIAL_WAVE_COUNTS.length) return TUTORIAL_WAVE_COUNTS[w-1];
+  if (w <= EARLY_RUSH_WAVES) return TUTORIAL_WAVE_COUNTS[TUTORIAL_WAVE_COUNTS.length-1] + EARLY_RUSH_STEP * (w - TUTORIAL_WAVE_COUNTS.length);
   // après la ruée, on repart du rythme normal SANS à-coup : on continue
   // depuis le total atteint à la fin de la ruée
-  const atRushEnd = BASE_ENEMY_COUNT + EARLY_RUSH_STEP * (EARLY_RUSH_WAVES - 1);
+  const atRushEnd = TUTORIAL_WAVE_COUNTS[TUTORIAL_WAVE_COUNTS.length-1] + EARLY_RUSH_STEP * (EARLY_RUSH_WAVES - TUTORIAL_WAVE_COUNTS.length);
   return atRushEnd + WAVE_ENEMY_COUNT_STEP * (w - EARLY_RUSH_WAVES);
 }
 // or gagné en tuant un ennemi (rien s'il atteint la ligne) — varie par
@@ -2063,7 +2076,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
-  { v: "17.39", text: "Langue : anglais par défaut, français si l'appareil est réglé en français (auto-détection) — changeable dans le menu, toute l'interface et la section Astuces sont traduites" },
+  { v: "17.40", text: "Difficulté : les 4 premières vagues sont un vrai tutoriel (1, 3, 4, 6 ennemis, dicté explicitement), la ruée qui suivait était bien trop brutale (le simulateur montrait une mort vague 3-5 même en jouant bien) — resserrée. Simulateur étendu à 3 profils de joueur (naïf/correct/bon)" },
   { v: "17.38", text: "Section \"Astuces\" (menu) : explique clairement toutes les mécaniques du jeu avec des exemples chiffrés (combat, tours, Forge, vagues, marchands, cheval de Troie, effet domino, château) — remplace \"Aide / FAQ\"" },
   { v: "17.37", text: "Précision pixel-exacte (analyse automatique des dessins de référence) : forme de la porte et du cube de renfort de la tour, hauteurs des créneaux et de la porte du mur — mesurées directement sur les croquis, plus estimées à l'œil" },
   { v: "17.36", text: "Correctifs de fidélité aux dessins de référence (relecture attentive) : porte de tour sur la bonne arête, coque du bateau vraiment allongée et biseautée, mur en ruban plissé continu avec une vraie porte-ouverture, chariot de caravane en caisse ouverte fidèle au croquis, crinière du cheval de Troie repositionnée" },

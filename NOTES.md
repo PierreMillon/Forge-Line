@@ -1770,3 +1770,120 @@ sommets tous localisés).
 
 Vérifié : `node --check`, captures Playwright de la tour et du mur
 après application, suite de régression complète toujours verte.
+
+## Partie 3 : difficulté — a) modèle retenu (recherche web)
+
+Consigne : "courte recherche web sur les analyses publiées de courbes
+de difficulté... note le modèle retenu (dents de scie tension/
+relâchement, pics puis répit, montée globale)."
+
+Recherché : la thèse de Jenova Chen sur le *flow* (Csikszentmihalyi),
+un article sur le motif "sawtooth" en pacing de difficulté, la
+philosophie d'ascension de Slay the Spire, et la conception de Plants
+vs Zombies (George Fan, GDC). Synthèse, modèle retenu pour Forge Line :
+
+1. **Canal de flow (Chen/Csikszentmihalyi)** : l'expérience reste bonne
+   tant que le défi suit la compétence du joueur qui grimpe — trop de
+   défi pour la compétence = anxiété (frustration, "je me sens visé"),
+   trop peu = ennui. Le principe directeur : ne jamais laisser le
+   défi s'écarter durablement de la compétence qui progresse (upgrades
+   achetés, habitude du joueur) — dans un sens ou dans l'autre.
+2. **Dents de scie (sawtooth), pas une pente lisse** : dans une
+   tendance globale montante, alterner petits pics de tension et
+   moments de relâchement plutôt qu'une difficulté strictement
+   croissante — ça évite l'anxiété continue ET l'ennui d'un plateau
+   trop long. Concrètement pour Forge Line : une vague clairement plus
+   dure de temps en temps (le boss à partir de la vague 200 en est déjà
+   un exemple), suivie de vagues plus respirables juste après, pas une
+   remontée en ligne droite vague après vague.
+3. **Répit avant la pression (Plants vs Zombies)** : laisser le temps
+   de s'installer avant que ça devienne sérieux — Forge Line applique
+   déjà ce principe (vague 1 très légère, première tour "obligatoire"
+   vers la vague 3, pas dès la vague 1).
+4. **Leçon d'Ascension (Slay the Spire)** : le défaut à éviter par-dessus
+   tout en réglant les constantes — un seul palier qui saute plus que
+   la somme de tous les paliers précédents (la communauté cite le saut
+   ascension 8→9, plus gros que 0→8 cumulé, comme LE contre-exemple).
+   Règle appliquée ici : quand une constante change avec la vague, la
+   variation d'un palier au suivant doit rester proportionnelle au
+   reste de la courbe — jamais un pic isolé disproportionné.
+5. **Repère Kingdom Rush / Bloons TD** : Kingdom Rush met la pression
+   vite sur des cartes compactes (poursuivi ici via EARLY_RUSH_WAVES) ;
+   Bloons TD montre l'écueil inverse — un rythme maîtrisé au début qui
+   expose une mise à l'échelle trop faible en fin de partie. À vérifier
+   au simulateur sur les vagues tardives (100 premières vagues, comme
+   prévu par la consigne), pas seulement les premières.
+
+**Traduction concrète pour Forge Line** (à vérifier/ajuster au
+simulateur, étape b/c) : garder la montée globale déjà en place
+(nombre d'ennemis, types plus forts progressifs), ajouter des paliers
+de répit après les pics existants (vagues juste après un boss, par
+exemple), et vérifier qu'aucune transition de constante ne crée un
+saut disproportionné façon "ascension 9".
+
+Sources : [Jenova Chen — Flow in Games (thèse)](https://www.jenovachen.com/flowingames/Flow_in_games_final.pdf), [GameDeveloper.com — Difficulty Curves](https://www.gamedeveloper.com/design/difficulty-curves), [Frostilyte — More games should handle difficulty like Slay the Spire](https://frostilyte.ca/2020/04/16/more-games-should-handle-difficulty-like-slay-the-spire/), [GameDeveloper.com — GDC 2012, 10 tutorial tips from George Fan (Plants vs Zombies)](https://www.gamedeveloper.com/design/gdc-2012-10-tutorial-tips-from-i-plants-vs-zombies-i-creator-george-fan), [TowerWard — Kingdom Rush vs Bloons TD 6](https://towerward.com/blog/kingdom-rush-vs-bloons-td-6).
+
+## Partie 3 : difficulté — b) simulateur à 3 profils + c) premier réglage (résultats avant/après)
+
+**b) Simulateur étendu** (`simulate.mjs`) : les anciennes politiques
+'solo'/'towers' remplacées par les 3 profils demandés explicitement —
+'naive' (tire par à-coups, ne construit jamais de tour, dépense au
+hasard), 'correct' (construit une tour puis alterne renfort/dégâts —
+reprend l'ancienne logique 'towers'), 'good' (étale jusqu'à 3 tours en
+se déplaçant entre 3 points, investit systématiquement dans l'option
+la moins chère parmi renfort/dégâts/revenu auto/précision). Mesure
+aussi si la partie a atteint un repère de vague donné (100 par défaut,
+"vagues infinies : mesure sur les 100 premières" comme demandé).
+
+**c) Premier passage de réglage — résultat AVANT/APRÈS (20 parties par
+profil, tir manuel à 250ms/tir, repère humain réaliste pas le plancher
+anti-spam)** :
+
+AVANT (constantes d'origine, +11 ennemis/vague pendant la ruée des 8
+premières vagues) :
+- naive : vague moyenne 3,2 (min 3, max 4)
+- correct : vague moyenne 3,65 (min 3, max 4)
+- good : vague moyenne 3,55 (min 3, max 5)
+- **Constat** : tout le monde meurt vague 3-5, quasi AUCUNE différence
+  entre bien jouer et ne rien faire — exactement le "je me sens visé"
+  décrit par Pierre. Confirmé par les données, pas juste une impression.
+
+APRÈS deux ajustements successifs, vérifiés au simulateur à chaque
+fois :
+1. Resserré EARLY_RUSH_STEP (11 -> 3) : vague moyenne remonte à 6,15 /
+   6,75 / 6,65 (naive/correct/good) — mieux, mais différenciation par
+   stratégie toujours trop faible.
+2. Pierre a ensuite dicté directement les 4 premières vagues comme un
+   vrai tutoriel : "vague 1 un ennemi, vague 2 deux et demie, vague 3
+   trois et demi, vague 4 cinq et demi, après tu fais ce que tu veux."
+   Codé en dur (`TUTORIAL_WAVE_COUNTS = [1,3,4,6]`, arrondi
+   conventionnel des ".5"), le rythme "ruée" existant reprend à partir
+   de la vague 5, raccordé sans à-coup. Résultat : vague moyenne 7,7 /
+   8,25 / 8,4 (naive/correct/good).
+
+**Ce qui reste à faire (pas encore résolu, dit clairement)** : même
+après ces deux passages, TOUTES les parties finissent encore par
+"breach" (10 brèches), jamais par mort du joueur, et la différence
+entre les 3 profils reste modeste (7,7 à 8,4 vagues) — les bots
+'correct'/'good' ne bougent quasiment pas sur la carte (ils restent
+fixes ou se déplacent entre 3 points proches), donc une partie des
+ennemis traverse sans doute hors de portée de la tour/du joueur,
+peu importe la stratégie d'achat. Ça pointe vers un levier différent
+de la seule cadence d'apparition : couverture de la carte par une
+tour (portée, positionnement), ou le nombre de brèches tolérées (10),
+plutôt que continuer à ajuster uniquement `enemiesForWave`. Pas encore
+mesuré ni réglé — nécessite un prochain passage dédié plutôt que
+deviner une troisième valeur sans données pour l'appuyer.
+
+**Question ouverte pour Pierre** (les cibles demandent une clarification
+avant de pouvoir viser précisément dessus) : les cibles en % de
+victoire ("~55-65% normal, ~85% facile...") supposent des paliers de
+difficulté sélectionnables — Forge Line n'en a pas, c'est un mode
+continu sans fin. Est-ce que "normal" doit devenir un vrai réglage de
+difficulté à ajouter (facile/normal/difficile/très difficile,
+sélectionnable), ou est-ce que les % doivent plutôt se lire comme "%
+de parties qui atteignent la vague X" pour un X à définir (ex: vague 20
+= repère "normal") sur le mode actuel tel quel ?
+
+Vérifié : `node --check`, suite de régression complète toujours verte
+après chaque changement de constante.
