@@ -69,8 +69,11 @@
   #ad-error-ok{padding:10px 14px;border-radius:8px;border:none;background:#5b8dd9;color:#fff;font-size:13.5px;cursor:pointer}
   #ad-error-ok:active{background:#4a78bd}
 
-  #faq-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);left:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;width:250px;z-index:10;padding:12px 14px;font-size:12.5px;line-height:1.6}
+  #faq-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);left:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;width:250px;max-height:calc(100vh - var(--topbar-h) - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;padding:12px 14px;font-size:12.5px;line-height:1.6}
   #faq-panel p{margin:0 0 10px}
+  #faq-panel h3{margin:14px 0 6px;font-size:12.5px;border-top:1px solid #00000015;padding-top:10px}
+  #faq-panel h3:first-of-type{margin-top:0;border-top:none;padding-top:0}
+  body.phosphor #faq-panel h3{border-top-color:#1c6b39}
   #bonus-btn{width:100%;padding:9px 10px;border-radius:8px;border:1px solid #00000030;background:#fff3d0;color:#3a3529;font-size:12.5px;cursor:pointer}
   #bonus-btn:active{background:#f7e2a0}
 
@@ -173,6 +176,28 @@
     </div>
   </div>
   <div id="faq-panel">
+    <h3>Combat</h3>
+    <p>Un tir à mains nues fait 12 dégâts. Un ennemi de base a 12 PV : un tir suffit TOUJOURS à le tuer, à n'importe quelle vague — la difficulté vient du nombre d'ennemis, pas de leurs PV qui grimperaient. Chaque palier de Dégâts multiplie tes dégâts par 1,05 (12 → 13 → 13… → 20 dégâts au 10ᵉ palier).</p>
+    <p>Précision : à moins de 50px (25% de ta portée de 200px), tu touches toujours. Au-delà, la précision baisse par paliers jusqu'à 20% de chance à 200px et plus — jamais 0%, tu peux toujours tenter ta chance de loin. Le palier Précision referme 10% de l'écart restant à chaque achat.</p>
+    <p>Les tours, elles, ont une précision parfaite et une portée fixe de 160px, mais ne bougent pas.</p>
+    <h3>Tours</h3>
+    <p>Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.</p>
+    <h3>La Forge</h3>
+    <p>La construire coûte 100 or, seulement si tu es dans sa zone. Une fois bâtie : "Tours d'élite" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. "Réparateurs" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.</p>
+    <h3>Revenu automatique</h3>
+    <p>15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.</p>
+    <h3>Vagues et ennemis</h3>
+    <p>4 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Les types bleu et violet arrivent progressivement à partir des vagues 5 et 10, jusqu'à 15% des ennemis chacun.</p>
+    <p>Le nombre d'ennemis grimpe vite les 8 premières vagues (+11/vague), puis se stabilise à +1/vague — la vague 3 est souvent le moment où une première tour devient utile.</p>
+    <h3>Marchands (caravane)</h3>
+    <p>Reste 5 secondes sur le petit chemin près du château, SANS qu'aucun ennemi ne l'ait traversé cette vague-là : une caravane de 1 à 8 marchands apparaît et remonte vers le château. Si le premier marchand jamais touché arrive au bout : toute la caravane devient 4 soldats à ton service, qui réparent aussi tes tours gratuitement.</p>
+    <h3>Cheval de Troie</h3>
+    <p>Reste dans l'eau tout en haut de l'écran : un avertissement apparaît après 3 secondes, le cheval après 6. S'il atteint le château : défaite immédiate. Si tu le détruis à temps : 3 VRAIS ennemis costauds en sortent — un risque réel à assumer, pas un cadeau gratuit. Une fois géré, il ne peut pas revenir tout de suite (temps de recharge de plusieurs vagues).</p>
+    <h3>Effet domino</h3>
+    <p>À la mort d'un ennemi, ceux à moins de 40px perdent 1 PV de "onde de choc" — peut en tuer un autre fragile juste à côté, en chaîne. Les ennemis apprennent aussi à éviter de se regrouper là où ça vient d'arriver.</p>
+    <h3>Le château</h3>
+    <p>10 créneaux, un détruit par ennemi qui atteint le mur (le cheval de Troie en détruit 10 d'un coup, breach immédiate). 10 brèches = défaite. Te tenir près du mur régénère ta vie.</p>
+    <h3>Pubs &amp; progression</h3>
     <p><strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.</p>
     <p><strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.</p>
     <p><strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.</p>
@@ -324,6 +349,41 @@ function updateBoat(now){
 function drawBoat(){
   for (const b of boats) drawOneBoat(b);
 }
+// v17.36 (correctif demandé : suivre le dessin de référence à la
+// lettre) — la coque n'est pas un simple losange à 4 coins : le croquis
+// montre une silhouette allongée, avec la proue ET la poupe coupées par
+// un court biseau (pas une pointe nette), et un rebord qui longe le
+// bord arrière. Rayons dérivés de BOAT_HW/BOAT_HH mais bien plus
+// allongés (le dessin est nettement plus long que large).
+const BOAT_HULL_HW = 40, BOAT_HULL_HH = 11, BOAT_BEVEL = 0.4;
+function drawBoatHullPhosphor(){
+  const hw = BOAT_HULL_HW, hh = BOAT_HULL_HH, sh = BOAT_SH;
+  const cyTop = -sh - 2*hh;
+  const N={x:0,y:cyTop}, E={x:hw,y:cyTop+hh}, S={x:0,y:cyTop+2*hh}, W={x:-hw,y:cyTop+hh};
+  const lerp = (a,b,t) => ({x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t});
+  const bow1 = lerp(N,W,BOAT_BEVEL), bow2 = lerp(N,E,BOAT_BEVEL);
+  const stern1 = lerp(S,W,BOAT_BEVEL), stern2 = lerp(S,E,BOAT_BEVEL);
+  const down = p => ({x:p.x, y:p.y+sh});
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  // face du dessus : hexagone (proue et poupe biseautées, pas pointues)
+  ctx.beginPath();
+  ctx.moveTo(bow1.x,bow1.y); ctx.lineTo(bow2.x,bow2.y); ctx.lineTo(E.x,E.y);
+  ctx.lineTo(stern2.x,stern2.y); ctx.lineTo(stern1.x,stern1.y); ctx.lineTo(W.x,W.y);
+  ctx.closePath(); ctx.stroke();
+  // parois (extrusion) : la gauche (W) et la droite (E), les deux bords
+  // les plus visibles dans cette vue
+  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(stern1.x,stern1.y); ctx.lineTo(down(stern1).x,down(stern1).y); ctx.lineTo(down(W).x,down(W).y); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(E.x,E.y); ctx.lineTo(stern2.x,stern2.y); ctx.lineTo(down(stern2).x,down(stern2).y); ctx.lineTo(down(E).x,down(E).y); ctx.closePath(); ctx.stroke();
+  // planches diagonales sur le pont (dessin de référence), entre le bord
+  // gauche (bow1->stern1) et le bord droit (bow2->stern2)
+  ctx.lineWidth = 0.8;
+  for (let i = 1; i < 6; i++){
+    const t = i/6;
+    const p1 = lerp(bow1, stern1, t), p2 = lerp(bow2, stern2, t);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+  }
+}
+
 function drawOneBoat(b){
   if (b.y < -BOAT_H) return; // pas encore "sorti" (départ décalé)
   const cx = b.x, cy = b.y + BOAT_H/2;
@@ -332,32 +392,22 @@ function drawOneBoat(b){
   ctx.rotate(b.rot); // légère inclinaison, échoué "à l'arrache"
   // coque : un pavé isométrique large et bas, couleur bois (même
   // fonction que les tours, juste des proportions différentes)
-  drawIsoBox(0, 0, BOAT_HW, BOAT_HH, BOAT_SH, '#a9764a', '#7a5233', '#5c3f26', 1);
-  if (phosphorMode){
-    // v17.29 (dessin de référence : planches diagonales sur le pont) —
-    // quelques lignes parallèles sur la face du dessus, entre les bords
-    // N-W et E-S du losange (même géométrie que drawIsoBox)
-    const cyTop = 0 - BOAT_SH - 2*BOAT_HH;
-    const N={x:0,y:cyTop}, E={x:BOAT_HW,y:cyTop+BOAT_HH}, S={x:0,y:cyTop+2*BOAT_HH}, W={x:-BOAT_HW,y:cyTop+BOAT_HH};
-    ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 0.8;
-    for (let i = 1; i < 5; i++){
-      const t = i/5;
-      const p1 = { x: N.x+(W.x-N.x)*t, y: N.y+(W.y-N.y)*t };
-      const p2 = { x: E.x+(S.x-E.x)*t, y: E.y+(S.y-E.y)*t };
-      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
-    }
-  }
+  if (phosphorMode) drawBoatHullPhosphor();
+  else drawIsoBox(0, 0, BOAT_HW, BOAT_HH, BOAT_SH, '#a9764a', '#7a5233', '#5c3f26', 1);
   // mât + voile : repère simple pour que ça se lise comme un bateau,
-  // pas un vrai gréement
+  // pas un vrai gréement — ancré sur le sommet réel de la coque de ce
+  // mode (l'hexagone allongé en phosphore n'a pas les mêmes proportions
+  // que le pavé simple du mode couleur)
+  const hullTopY = phosphorMode ? (-BOAT_SH - 2*BOAT_HULL_HH) : (-BOAT_SH - 2*BOAT_HH);
   ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#5c3f26';
   ctx.lineWidth = phosphorMode ? 1 : 2;
-  ctx.beginPath(); ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH); ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, hullTopY); ctx.lineTo(0, hullTopY - 20); ctx.stroke();
   if (phosphorMode){
     // v17.32 (dessin de référence retrouvé) : pas une voile triangulaire
     // pleine — un mât surmonté d'une petite fanion en losange, comme le
     // trait-puis-losange du croquis
-    const px = 13, py = -BOAT_SH - 2*BOAT_HH - 18, ps = 5;
-    ctx.beginPath(); ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH - 18); ctx.lineTo(px-ps, py); ctx.stroke();
+    const px = 13, py = hullTopY - 18, ps = 5;
+    ctx.beginPath(); ctx.moveTo(0, hullTopY - 18); ctx.lineTo(px-ps, py); ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(px-ps, py); ctx.lineTo(px, py-ps); ctx.lineTo(px+ps, py); ctx.lineTo(px, py+ps); ctx.closePath();
     ctx.stroke();
@@ -368,14 +418,13 @@ function drawOneBoat(b){
       ctx.beginPath(); ctx.moveTo(fromX, fromY); ctx.lineTo(tx, ty); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(tx, ty-size); ctx.lineTo(tx+size, ty); ctx.lineTo(tx, ty+size); ctx.lineTo(tx-size, ty); ctx.closePath(); ctx.stroke();
     };
-    const cyTop = 0 - BOAT_SH - 2*BOAT_HH;
-    ornament(0, cyTop, -20, -16, 5);            // proue
-    ornament(0, cyTop + 2*BOAT_HH + BOAT_SH, 20, 16, 5); // poupe
+    ornament(0, hullTopY, -20, -16, 5);            // proue
+    ornament(0, hullTopY + 2*BOAT_HULL_HH + BOAT_SH, 20, 16, 5); // poupe
   } else {
     ctx.beginPath();
-    ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH - 18);
-    ctx.lineTo(13, -BOAT_SH - 2*BOAT_HH - 6);
-    ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 4);
+    ctx.moveTo(0, hullTopY - 18);
+    ctx.lineTo(13, hullTopY - 6);
+    ctx.lineTo(0, hullTopY - 4);
     ctx.closePath();
     ctx.fillStyle = '#e8dfc8'; ctx.fill();
   }
@@ -1879,6 +1928,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.36", text: "Correctifs de fidélité aux dessins de référence (relecture attentive) : porte de tour sur la bonne arête, coque du bateau vraiment allongée et biseautée, mur en ruban plissé continu avec une vraie porte-ouverture, chariot de caravane en caisse ouverte fidèle au croquis, crinière du cheval de Troie repositionnée" },
   { v: "17.35", text: "Lisibilité : une jauge circulaire se remplit au-dessus du joueur pendant une attente qui déclenche quelque chose (chemin des marchands, eau du cheval de Troie) — rien ne se passe en silence" },
   { v: "17.34", text: "Audio : deux curseurs de volume (musique, bruitages) de 0 à 100%, remplacent l'ancien bouton tout-ou-rien ; tout le son se coupe quand on quitte l'onglet/l'application" },
   { v: "17.33", text: "Agencement : la forge est maintenant dans l'enceinte, derrière le mur (avant elle était au-dessus) ; débarquement : les ennemis quittent le bateau en courant (course rapide groupée) avant de choisir leur stratégie, pont plus condensé" },
@@ -2671,11 +2721,12 @@ function drawTrojanHorseShape(cx, cy, size){
   ctx.lineTo(jaw.x, jaw.y);
   ctx.lineTo(N.x, N.y);
   ctx.stroke();
-  // crinière : quelques petits traits près de l'encolure
+  // crinière : plutôt sur l'arrière (dos/croupe, près du coin E) que
+  // sur l'encolure — relu de plus près sur le dessin de référence, le
+  // petit bouquet de traits est du côté arrière, pas contre la tête
   for (let i = 0; i < 3; i++){
-    const t = i/2;
-    const bx = N.x + (neckTop.x-N.x)*t, by = N.y + (neckTop.y-N.y)*t;
-    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx-3*s, by-2*s); ctx.stroke();
+    const bx = E.x - i*2.5*s, by = E.y - 2*s - i*1.5*s;
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+4*s, by-3*s); ctx.stroke();
   }
   // 4 pattes à deux segments (un coude), aux 4 coins du torse
   const leg = (hip, dx1, dy1, dx2, dy2) => {
@@ -2695,24 +2746,38 @@ function drawTrojanHorseShape(cx, cy, size){
 // caisse ouverte sur roues, tirée par un cheval attelé devant
 function drawCaravanCart(x, y){
   ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-  drawIsoBox(x, y, 8, 5, 5, null, null, null);
+  // v17.36 (correctif demandé : suivre le dessin à la lettre) : une
+  // caisse OUVERTE (juste le rebord du dessus + les chutes verticales,
+  // pas de face pleine ni dessus ni côtés — le croquis montre un
+  // contour, pas un pavé plein), plus large que profonde
+  const hw = 11, hh = 4, sh = 6;
+  const cyTop = y - sh - 2*hh;
+  const N={x,y:cyTop}, E={x:x+hw,y:cyTop+hh}, S={x,y:cyTop+2*hh}, W={x:x-hw,y:cyTop+hh};
+  const Sb={x:S.x,y:S.y+sh}, Wb={x:W.x,y:W.y+sh}, Eb={x:E.x,y:E.y+sh};
+  ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(Wb.x,Wb.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(Sb.x,Sb.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(E.x,E.y); ctx.lineTo(Eb.x,Eb.y); ctx.stroke();
+  // 2 roues : petits losanges plats, séparés sous la caisse (pas
+  // rattachés par un trait, comme sur le dessin)
   const wheel = (wx, wy) => {
-    ctx.beginPath(); ctx.moveTo(wx,wy-2); ctx.lineTo(wx+3,wy); ctx.lineTo(wx,wy+2); ctx.lineTo(wx-3,wy); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx,wy-2.5); ctx.lineTo(wx+3.5,wy); ctx.lineTo(wx,wy+2.5); ctx.lineTo(wx-3.5,wy); ctx.closePath(); ctx.stroke();
   };
-  wheel(x-6, y+2); wheel(x+6, y+2);
-  // cheval attelé devant le chariot, relié par un trait d'attelage
-  const hx = x+14, hy = y-2;
-  ctx.beginPath(); ctx.moveTo(x+5, y-4); ctx.lineTo(hx-5, hy); ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(hx-5, hy);
-  ctx.lineTo(hx-3, hy-9);
-  ctx.lineTo(hx+1, hy-6);
-  ctx.lineTo(hx+5, hy-9);
-  ctx.lineTo(hx+7, hy-3);
-  ctx.lineTo(hx+3, hy);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(hx-2,hy); ctx.lineTo(hx-3,hy+6); ctx.moveTo(hx+2,hy); ctx.lineTo(hx+4,hy+6); ctx.stroke();
+  wheel(x-7, y+5); wheel(x-1, y+7);
+  // cheval attelé devant, relié par un trait d'attelage depuis le coin
+  // avant-droit de la caisse : tête relevée avec museau pointu, encolure
+  // qui redescend vers le garrot, 2 pattes arrière depuis le garrot + 1
+  // patte avant depuis le point d'attelage (topologie du dessin)
+  const A = { x: E.x+3, y: E.y };
+  ctx.beginPath(); ctx.moveTo(S.x, S.y-1); ctx.lineTo(A.x, A.y); ctx.stroke();
+  const peak = { x: A.x+11, y: A.y-8 };
+  const nose = { x: peak.x+15, y: peak.y+8 };
+  const withers = { x: peak.x-1, y: peak.y+15 };
+  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(peak.x, peak.y); ctx.lineTo(nose.x, nose.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(peak.x, peak.y); ctx.lineTo(withers.x, withers.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(withers.x, withers.y); ctx.lineTo(withers.x-2, withers.y+18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(withers.x, withers.y); ctx.lineTo(withers.x+9, withers.y+12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(A.x-1, A.y+13); ctx.stroke();
 }
 
 // l'illusion de 3D tient uniquement à l'ordre de dessin : ce qui est plus
@@ -2763,29 +2828,51 @@ function drawCastle(){
   // juste le mur plat à sa place (pas de trou dans la pierre en dessous)
   const slot = w / CASTLE_SEGMENTS;
   const merlonW = slot * 0.55, merlonH = 8;
-  // v17.32 (redessiné à partir du dessin de référence retrouvé) : le mur
-  // n'est pas un simple zigzag plat — chaque créneau est un "pli" avec
-  // une ligne verticale au sommet qui redescend jusqu'à la base (donne la
-  // lecture "ruban plissé en 3D" du croquis), et un créneau surélevé au
-  // niveau où le chemin des marchands rejoint le mur (porte, comme le
-  // pic isolé au centre du dessin)
-  const gateIdx = Math.min(CASTLE_SEGMENTS-1, Math.round(CASTLE_SEGMENTS * 0.52));
+  if (!phosphorMode){
+    for (let i = 0; i < CASTLE_SEGMENTS; i++){
+      if (i < destroyed) continue;
+      const mx = x + i * slot + (slot - merlonW) / 2;
+      ctx.fillStyle = '#6b5f45'; ctx.fillRect(mx, y - merlonH, merlonW, merlonH);
+    }
+    return;
+  }
+  // v17.36 (correctif demandé : suivre le dessin à la lettre) — relu de
+  // près, le mur n'est PAS une suite de dents isolées avec des espaces
+  // entre elles : c'est un RUBAN CONTINU (chaque pic touche la vallée du
+  // suivant), et chaque sommet — pic ET vallée — a sa propre chute
+  // verticale jusqu'à la base (avant : seulement au pic). Et la "porte"
+  // au centre du croquis n'est pas juste un pic plus haut : c'est une
+  // vraie ouverture (deux pics voisins qui convergent vers un sommet
+  // commun, sans mur ni chute verticale entre eux).
+  const valleyH = merlonH * 0.4;
+  const gateAfterSeg = Math.floor(CASTLE_SEGMENTS/2) - 1; // porte à la jonction centrale
+  let cursorX = x, cursorTopY = y - valleyH;
+  ctx.beginPath(); ctx.moveTo(cursorX, y); ctx.lineTo(cursorX, cursorTopY); ctx.stroke(); // bord gauche du mur
   for (let i = 0; i < CASTLE_SEGMENTS; i++){
-    if (i < destroyed) continue;
-    const mx = x + i * slot + (slot - merlonW) / 2;
-    const mh = (phosphorMode && i === gateIdx) ? merlonH * 2.4 : merlonH;
-    if (phosphorMode){
-      const peakX = mx + merlonW/2, peakY = y - mh;
-      ctx.beginPath();
-      ctx.moveTo(mx, y);
-      ctx.lineTo(mx, y - mh*0.4);
-      ctx.lineTo(peakX, peakY);
-      ctx.lineTo(mx + merlonW, y - mh*0.4);
-      ctx.lineTo(mx + merlonW, y);
-      ctx.stroke();
-      // pli central : la ligne verticale qui redescend jusqu'à la base
-      ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(peakX, y); ctx.stroke();
-    } else { ctx.fillStyle = '#6b5f45'; ctx.fillRect(mx, y - merlonH, merlonW, merlonH); }
+    const segEndX = x + (i+1)*slot, peakX = x + (i+0.5)*slot;
+    if (i < destroyed){
+      // détruit : le ruban reste plat (à hauteur de vallée) sur toute la
+      // largeur du segment, pas de pic
+      ctx.beginPath(); ctx.moveTo(cursorX, cursorTopY); ctx.lineTo(segEndX, cursorTopY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(segEndX, cursorTopY); ctx.lineTo(segEndX, y); ctx.stroke();
+      cursorX = segEndX;
+      continue;
+    }
+    const peakY = y - merlonH;
+    ctx.beginPath(); ctx.moveTo(cursorX, cursorTopY); ctx.lineTo(peakX, peakY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(peakX, y); ctx.stroke();
+    if (i === gateAfterSeg && i+1 < CASTLE_SEGMENTS && i+1 >= destroyed){
+      const nextPeakX = x + (i+1.5)*slot, nextPeakY = y - merlonH;
+      const apex = { x: segEndX, y: y - merlonH*2.6 };
+      ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(apex.x, apex.y); ctx.lineTo(nextPeakX, nextPeakY); ctx.stroke();
+      cursorX = nextPeakX; cursorTopY = nextPeakY;
+      i++; // le pic suivant est déjà tracé par la porte, on saute sa jonction normale (i++ du for l'avance encore d'un cran)
+      continue;
+    }
+    const valleyY = y - valleyH;
+    ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(segEndX, valleyY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(segEndX, valleyY); ctx.lineTo(segEndX, y); ctx.stroke();
+    cursorX = segEndX; cursorTopY = valleyY;
   }
 }
 
@@ -2825,12 +2912,14 @@ function drawForge(){
     // petite cheminée au sommet du toit
     const cw = bw*0.35, ch = cw*0.55, csh = bh*1.3;
     drawIsoBox(apex.x, apex.y, cw, ch, csh, null, null, null);
-    // poteau latéral, plus court, à gauche du corps principal
+    // poteau latéral, plus court, à gauche du corps principal — sa
+    // propre silhouette en V à la base (Wb-Sb-Eb, naturelle à un pavé
+    // isométrique) suffit à lire la petite "encoche" du dessin de référence
     const pw = bw*0.55, ph = pw*0.55, psh = bsh*0.45;
     drawIsoBox(x + w*0.12, baseY, pw, ph, psh, null, null, null);
-    // rebord/étal qui dépasse à droite, à mi-hauteur du corps
+    // rebord/étal qui dépasse à droite, un peu plus bas sur le corps
     const lw = bw*0.9, lh = lw*0.55, lsh = bh*0.4;
-    drawIsoBox(mx + bw*1.7, baseY - bsh*0.55, lw, lh, lsh, null, null, null);
+    drawIsoBox(mx + bw*1.7, baseY - bsh*0.3, lw, lh, lsh, null, null, null);
   } else {
     ctx.font = '24px sans-serif';
     ctx.textAlign = 'center';
@@ -2936,16 +3025,19 @@ function draw(now){
       if (flashing) ctx.globalAlpha = 0.45;
       drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments);
       if (phosphorMode){
-        // v17.32 (redessiné à partir du dessin de référence retrouvé) :
-        // une porte en triangle ouvert, adossée à l'arête avant-droite du
-        // corps (pas un arc) — plus un petit cube au sommet qui grossit
-        // avec le niveau, indicateur de renfort déjà confirmé
+        // v17.36 (correctif demandé : suivre le dessin à la lettre) : la
+        // porte est adossée à l'arête AVANT-CENTRE du corps (le coin S du
+        // pavé, le plus proche du joueur), pas à l'arête droite — revu
+        // après relecture attentive du croquis, qui montre le battant
+        // hors du corps mais SANS dépasser le coin droit. Plus un petit
+        // cube au sommet qui grossit avec le niveau (indicateur de
+        // renfort déjà confirmé).
         const bodyTopY = t.y - sh - 2*TOWER_HH;
         ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-        const edgeX = t.x + TOWER_HW;
-        const edgeTopY = bodyTopY + TOWER_HH + sh*0.15;
-        const edgeBotY = bodyTopY + TOWER_HH + sh*0.78;
-        const flapX = edgeX + TOWER_HW*0.85, flapY = bodyTopY + TOWER_HH + sh*0.45;
+        const edgeX = t.x;
+        const edgeTopY = bodyTopY + 2*TOWER_HH + sh*0.15;
+        const edgeBotY = bodyTopY + 2*TOWER_HH + sh*0.78;
+        const flapX = edgeX + TOWER_HW*0.7, flapY = bodyTopY + 2*TOWER_HH + sh*0.45;
         ctx.beginPath();
         ctx.moveTo(edgeX, edgeTopY);
         ctx.lineTo(edgeX, edgeBotY);

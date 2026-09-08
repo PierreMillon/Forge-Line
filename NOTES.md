@@ -1599,3 +1599,63 @@ Vérifié : `node --check`, appel direct de `drawWaitGauge` en Playwright
 (RAF figé pour capturer une frame stable) confirmant le rendu — pastille
 circulaire remplie à ~70%, contour vert/fond noir en mode Phosphore.
 Suite de régression complète toujours verte.
+
+## v17.36 : correctifs de fidélité aux dessins de référence
+
+Pierre, en repassant sur le jeu en direct : "les dessins sont pas bons,
+tu dois suivre scrupuleusement et exactement les traits que j'ai
+donnée." Demandé si un export SVG des 7 croquis serait possible (pour
+des coordonnées exactes plutôt qu'une lecture visuelle du raster) —
+répondu explicitement de retravailler sur les images déjà fournies.
+Chaque dessin relu en détail, en comptant sur la grille de points
+visible, pour identifier les écarts structurels avec ce qui avait été
+codé en v17.32 :
+
+- **Tour** : la porte était accrochée à l'arête DROITE (E) du corps,
+  avec le battant qui dépassait au-delà — en relisant le croquis, elle
+  est accrochée à l'arête AVANT-CENTRE (S, la plus proche du joueur),
+  avec le battant qui reste À L'INTÉRIEUR de la largeur du corps. Corrigé.
+- **Bateau** : la coque était un simple pavé à 4 coins (comme les
+  tours) — le croquis montre une silhouette bien plus allongée, avec la
+  proue ET la poupe coupées par un court biseau (pas des pointes
+  nettes) plutôt qu'un losange à 4 sommets. Remplacé `drawIsoBox` par
+  une nouvelle fonction dédiée `drawBoatHullPhosphor` (hexagone allongé
+  biseauté), mât/ornements réancrés dessus.
+- **Mur du château** : deux erreurs trouvées. (1) Les créneaux étaient
+  des dents ISOLÉES avec des espaces vides entre elles — le croquis
+  montre un RUBAN CONTINU, chaque pic touchant la vallée du suivant,
+  sans aucun espace. (2) Une seule chute verticale par créneau (au pic)
+  — le croquis en a une à CHAQUE sommet, pic ET vallée. (3) La "porte"
+  n'était qu'un créneau plus haut au milieu du ruban continu — le
+  croquis montre une vraie OUVERTURE (deux pics voisins qui convergent
+  vers un sommet commun, sans mur ni chute verticale entre eux, un
+  vrai passage). Toute la fonction de dessin des créneaux réécrite.
+- **Caravane (chariot)** : dessiné comme un petit pavé plein — le
+  croquis montre une caisse OUVERTE (juste le rebord + les chutes
+  verticales, ni dessus ni côtés remplis), plus large que profonde, et
+  un cheval à la topologie précise (encolure/tête/museau depuis un
+  point d'attelage, garrot séparé avec 2 pattes arrière, 1 patte avant
+  depuis le point d'attelage). Fonction `drawCaravanCart` réécrite pour
+  suivre cette topologie exacte.
+- **Cheval de Troie** : la crinière était positionnée près de
+  l'encolure — en relisant le croquis, le petit bouquet de traits est
+  du côté ARRIÈRE (dos/croupe), pas contre la tête. Repositionnée.
+- **Ennemis (complexité)** : revérifié les 4 paliers face aux 5 cubes du
+  croquis (2 des 5 sont le même palier "simple", juste dessiné à 2
+  échelles) — le mapping 4 paliers déjà en place (v17.32) s'est confirmé
+  correct, pas de changement nécessaire ici.
+- **Forge** : revérifiée aussi, structure déjà fidèle (cheminée, toit en
+  pavillon, corps à bandeau, poteau, rebord) — juste le rebord légèrement
+  rabaissé pour mieux coller à sa hauteur sur le croquis.
+
+**Limite assumée, dite explicitement à Pierre** : sans export vectoriel
+(refusé — travail demandé directement sur les JPG/PNG), la lecture
+reste une estimation visuelle sur la grille de points, pas une
+extraction exacte au pixel près. Le travail ci-dessus corrige les
+écarts structurels identifiés avec confiance (topologie, proportions
+générales, position des éléments) — pas une garantie de coïncidence
+pixel-parfaite avec le tracé d'origine.
+
+Vérifié : `node --check`, captures Playwright de chaque forme corrigée
+comparées aux dessins d'origine, suite de régression complète toujours
+verte.
