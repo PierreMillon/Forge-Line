@@ -447,6 +447,12 @@ function spawnBoat(now){
       x: targetX, y: -BOAT_H,
       targetX, targetY,
       rot: (Math.random()-0.5) * 0.35, // +/- ~10°, échoué "à l'arrache"
+      // v17.48 (demandé par Pierre : "symétrie selon un axe vertical...
+      // comme s'il arrivait à droite ou par la gauche") — un bateau sur
+      // deux (au hasard) est dessiné retourné ; les marchands débarquent
+      // toujours du côté "avant" de LEUR bateau, qui suit ce retournement
+      // (voir drawOneBoat et spawnEnemy).
+      mirrored: Math.random() < 0.5,
       startedAt: now + i*250, // légèrement décalés, pas tous d'un coup pile au même instant
       duration: 900,
       landed: false,
@@ -596,6 +602,7 @@ function drawOneBoat(b){
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(b.rot); // légère inclinaison, échoué "à l'arrache"
+  if (b.mirrored) ctx.scale(-1, 1); // v17.48 : retourné, un bateau sur deux
   // coque : un pavé isométrique large et bas, couleur bois (même
   // fonction que les tours, juste des proportions différentes)
   if (phosphorMode){
@@ -2180,6 +2187,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.49", text: "Bateaux : un sur deux arrive retourné (symétrie miroir), pour varier l'impression de sens d'arrivée. Les marchands débarquent désormais du côté \"avant\" de leur bateau (qui suit ce retournement), plus jamais répartis symétriquement des deux côtés." },
   { v: "17.48", text: "Les ennemis convergent maintenant vers la porte centrale du mur avant de la franchir (avant : n'importe où sur la largeur). La perte de vie du château se déclenche toujours à leur disparition en bas d'écran, pas au passage du mur lui-même." },
   { v: "17.47", text: "Cheval de la caravane : régression réglée à la racine — les coordonnées étaient déjà exactes, mais le fond noir plein (silhouette) validé comme \"parfait\" n'avait jamais été porté dans le jeu, seuls les traits verts existaient. Ajouté. Curseurs de musique/bruitage qui ne répondaient pas au toucher : zone de glissé agrandie (touch-action dédiée)." },
   { v: "17.46", text: "Or déplacé en haut à côté de la vague (barre du bas retirée, plus d'espace de jeu) + bouton \"passer la vague\" (bonus d'or immédiat). Bateau réduit de 30%, avec un fond noir plein qui bloque enfin ce qu'il y a derrière (la ligne de l'eau se voyait à travers). Ennemis en attente sur le pont : plus de plafond d'affichage ni de \"+N\", chacun existe physiquement. Zone constructible agrandie (ligne remontée à mi-chemin de l'eau). Correctif : \"Recommencer\" ne réécrivait pas la sauvegarde locale, l'ancien or revenait après un rechargement de page." },
@@ -2387,7 +2395,12 @@ function spawnEnemy(now){
     ? Math.round((BASE_ENEMY_HP + WAVE_HP_STEP * (wave-1)) * type.hpMult)
     : Math.round(BASE_ENEMY_HP * type.hpMult);
   const boatX = sourceBoat ? sourceBoat.x : STAGE_W/2;
-  const baseX = boatX + (Math.random()-0.5) * BOAT_W * 0.85;
+  // v17.48 (demandé par Pierre : "ils descendent du bateau par l'avant
+  // du bateau") — avant : réparti symétriquement des deux côtés. Le côté
+  // "avant" suit le retournement du bateau source (voir b.mirrored dans
+  // drawOneBoat) au lieu d'être toujours le même.
+  const frontSign = (sourceBoat && sourceBoat.mirrored) ? -1 : 1;
+  const baseX = boatX + frontSign * (0.15 + Math.random()*0.7) * BOAT_W * 0.42;
   const startY = WATER_H - 4; // au pied du bateau, sur la plage
   const driftPhase = Math.random()*Math.PI*2;
   const driftAmp = 16 + Math.random()*24;

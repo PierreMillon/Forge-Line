@@ -2370,3 +2370,47 @@ l'avancement au blocage ("il vaut mieux avancer... plus tard on
 corrige"). La suite de ce fichier documente les décisions prises sans
 validation préalable en direct — chacune reste réversible et signalée
 comme telle.**
+
+## v17.49 — Symétrie miroir des bateaux + débarquement par l'avant
+
+Pierre : "on va faire une symétrie selon un axe vertical pour les
+bateaux... ça donne un peu plus de vie comme s'il arrivait à droite ou
+par la gauche... les amis ils descendent du bateau par l'avant du
+bateau."
+
+**Symétrie** : chaque bateau tire au hasard (50/50) un booléen
+`mirrored` à sa création. `drawOneBoat()` ajoute `ctx.scale(-1,1)`
+juste après la translation/rotation existantes quand `mirrored` est
+vrai — retourne toute la coque (silhouette + traits) sans dupliquer le
+dessin. La grille des passagers sur le pont n'a pas besoin d'être
+retournée (grille symétrique par construction, un flip ne change rien
+visuellement).
+
+**Débarquement par l'avant** : jusqu'ici `spawnEnemy()` plaçait le
+point d'arrivée sur la plage réparti SYMÉTRIQUEMENT des deux côtés du
+centre du bateau (`(Math.random()-0.5) * BOAT_W * 0.85`). Remplacé par
+un décalage toujours du même signe ("avant"), dont le signe suit
+`sourceBoat.mirrored` — donc le côté "avant" change bien de côté d'un
+bateau retourné à l'autre, comme demandé.
+
+**Limite assumée** : identifier avec certitude quel côté du croquis
+Hough est réellement "la proue" (avant) vs "la poupe" (arrière) sur
+une coque en perspective isométrique n'était pas fiable à partir des
+seules coordonnées de segments (l'axe de longueur du bateau est en
+diagonale à l'écran, pas aligné sur un simple signe de x). Le côté
+"avant" utilisé ici est donc une convention interne cohérente (toujours
+le même signe pour un bateau donné, qui flip avec `mirrored`) plutôt
+qu'une identification garantie de la proue réelle du dessin — l'effet
+demandé (regroupement d'un même côté, qui change avec le
+retournement) est bien là, mais si Pierre veut spécifiquement que ce
+soit la proue au sens strict du dessin, ça reste à confirmer avec lui
+et ajuster le signe si besoin (un seul endroit à changer :
+`frontSign` dans `spawnEnemy()`).
+
+Vérifié : `node --check`, simulation Playwright (deux bateaux, un
+retourné un non, 20 débarquements simulés côté chacun) — les points
+d'arrivée se regroupent bien nettement d'un seul côté par bateau, et
+ce côté est bien inversé entre le bateau normal et le bateau retourné
+(ex. ~115-135 à droite du centre pour le non-retourné, ~284-305 à
+gauche du centre pour le retourné). Capture d'écran confirmant que la
+coque retournée est visuellement un vrai miroir, sans déformation.
