@@ -379,7 +379,12 @@ function hitChanceForDistance(d){
 }
 const TOWER_RANGE_PX = 160; // les tours, elles, gardent une portée fixe et une précision parfaite
 const SHOT_SPEED_PX = 8;     // px/frame
-const TOWER_MAX_SH = 28, TOWER_HW = 10, TOWER_HH = 5;
+// v17.43 (correctif demandé après capture d'écran réelle) : les
+// proportions étaient correctes mais bien trop PETITES pour se lire sur
+// un vrai téléphone — porte et cube de renfort quasi invisibles à
+// l'œil nu. Agrandi ×1.5 (visuel uniquement : TOWER_SOLID_RADIUS, la
+// portée et les autres réglages de jeu ne changent pas).
+const TOWER_MAX_SH = 42, TOWER_HW = 15, TOWER_HH = 7.5;
 const PLAYER_HW = 9, PLAYER_HH = 5, PLAYER_SH = 14;
 
 // thème débarquement viking : une bande d'eau tout en haut (la plage),
@@ -2085,6 +2090,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.43", text: "Vu sur une vraie capture d'écran envoyée par Pierre : les proportions de la tour étaient correctes mais bien trop petites pour se lire sur un téléphone — porte et cube de renfort quasi invisibles à l'œil nu. Tour agrandie ×1,5 (visuel uniquement, aucun changement de portée/collision/gameplay)." },
   { v: "17.42", text: "Correctifs de forme suite au signalement \"ça ne correspond pas du tout\" : cube de renfort de la tour agrandi (il était 25% trop petit dès le niveau 1, quasi invisible) ; les 4 paliers de complexité des ennemis reflètent maintenant les 4 vrais motifs du croquis (trait simple / croix complète / treillis, plus de croix sur 3 faces inventée) ; cheval attelé à la caravane réétalé pour que dos/tête/4 pattes soient enfin distincts ; cheval de Troie entièrement repointé — l'ancien torse en pavé ne ressemblait pas du tout au croquis (silhouette allongée en zigzag, pas un cube)" },
   { v: "17.41", text: "Mode Phosphore devient le seul style visuel du jeu (bouton de bascule et mode couleur supprimés) — l'ancien mode couleur n'avait jamais reçu les formes redessinées d'après tes croquis de référence, donc affichait indéfiniment les anciennes formes basiques. Vagues 5-8 (fin du tutoriel) : les nouveaux types d'ennemis n'apparaissent plus en même temps que la ruée du nombre (référence Bloons TD 5 — une seule difficulté à la fois)" },
   { v: "17.40", text: "Difficulté : les 4 premières vagues sont un vrai tutoriel (1, 3, 4, 6 ennemis, dicté explicitement), la ruée qui suivait était bien trop brutale (le simulateur montrait une mort vague 3-5 même en jouant bien) — resserrée. Simulateur étendu à 3 profils de joueur (naïf/correct/bon)" },

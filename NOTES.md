@@ -2090,3 +2090,44 @@ signale aussi.
 Vérifié : `node --check`, rendu Playwright (RAF gelé, chaque forme
 dessinée isolément + galerie complète), aucune erreur JS, comparaison
 visuelle directe avec chacune des 7 images de référence.
+
+## v17.43 — Le vrai problème : trop petit, pas "faux"
+
+Pierre a envoyé une vraie capture d'écran (vague 8, en jeu) avec "Ben
+regarde et dis-moi". Analyse méthodique de la capture, région par
+région, en comparant chaque élément à sa position/fonction attendue :
+
+- Forge (gros bloc en bas, juste au-dessus des boutons) : toit en
+  pavillon + cheminée + poteau + étal, correctement positionnée sous le
+  mur comme prévu (Partie E). Correspond raisonnablement au croquis.
+- Tour construite par le joueur (au-dessus de la route, comme prévu) :
+  bonnes proportions (porte + cube de renfort) mais MINUSCULE — à peine
+  quelques pixels, illisible sans zoomer numériquement dessus.
+- Marchand (petit personnage, cercle+jambes, barre de vie au-dessus) :
+  comportement correct, pas un bug — juste pris pour "une table" à
+  cause de la taille et du chevauchement avec la caravane et la tour
+  au même endroit à cet instant précis de la partie.
+- Cheval de Troie et caravane : les correctifs du v17.42 sont bien
+  visibles en jeu, silhouettes nettement plus lisibles qu'avant.
+
+Conclusion : la vague de correctifs v17.42 avait réglé les VRAIES
+erreurs de tracé, mais le symptôme "ça ne correspond pas" venait aussi
+d'un problème différent — l'échelle. `TOWER_HW`/`TOWER_HH`/
+`TOWER_MAX_SH` donnaient une tour si petite que la porte (quelques px)
+et le cube de renfort étaient réellement invisibles à l'œil nu sur un
+téléphone, même avec des proportions par ailleurs correctes.
+
+Corrigé : tour agrandie ×1,5 (`TOWER_HW` 10→15, `TOWER_HH` 5→7.5,
+`TOWER_MAX_SH` 28→42). Purement visuel : `TOWER_SOLID_RADIUS` (collision
+joueur/ennemis), `TOWER_RANGE_PX` (portée de tir) et tous les autres
+réglages de jeu restent inchangés — vérifié qu'aucun autre endroit du
+code ne référence `TOWER_HW`/`TOWER_HH`/`TOWER_MAX_SH` en dehors du
+rendu (grep ciblé avant modification).
+
+Forge non retouchée (déjà lisible à sa taille actuelle sur la capture
+de Pierre comme dans mes propres tests isolés) — pas de changement
+inutile.
+
+Vérifié : `node --check`, rendu Playwright avant/après (capture native
+420×800 sans zoom numérique) — porte et cube de renfort de la tour
+clairement visibles à l'échelle réelle du jeu, aucune erreur JS.
