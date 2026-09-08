@@ -1492,6 +1492,55 @@ test-forge, test-merchants, test-v1727) — zéro erreur JS. Captures
 d'écran de chaque forme (scène combinée, zoom tour/forge/mur/bateau)
 comparées visuellement aux dessins d'origine avant de valider.
 
-**Reste à faire côté Partie 1** : E (agencement — forge dans
-l'enceinte) et D (débarquement condensé + course rapide), toujours pas
-commencés au moment de ce commit.
+## v17.33 : E — agencement (forge dans l'enceinte) + D — débarquement condensé
+
+**E.** La forge était positionnée AU-DESSUS du mur (entre le mur et le
+champ de construction) — Pierre : "la forge doit être DANS l'enceinte
+du château, aujourd'hui elle est au-dessus du mur". Repositionnée :
+`FORGE_ZONE` occupe maintenant la bande la plus basse de l'écran
+(collée au bord), et `REGEN_ZONE` (le mur) est recalculé juste devant
+elle (`FORGE_ZONE.y - REGEN_ZONE.h - 12`). Ordre bas -> haut obtenu :
+forge -> mur -> [zone de jeu] -> champ de construction -> plage -> eau,
+conforme à la demande.
+
+Bug trouvé en vérifiant : `resetGame()` repositionnait le joueur avec
+une valeur fixe (`STAGE_H - 70`) calée sur l'ANCIENNE position du mur —
+avec le nouvel agencement, ça faisait réapparaître le joueur DANS la
+forge à chaque nouvelle partie au lieu de devant le mur. Corrigé pour se
+caler sur `REGEN_ZONE.y - 16` comme le fait déjà `resizeCanvas()` (même
+formule utilisée aux deux endroits, donc le joueur atterrit à la même
+place cohérente).
+
+**D.** Débarquement : "les ennemis arrivent sur le bateau très
+condensés... puis descendent RAPIDEMENT... et là seulement s'organisent
+et choisissent leur stratégie". Deux changements :
+- Densité des passagers affichés sur le pont resserrée (5,5/4,5px
+  d'écart au lieu de 7/6).
+- Nouvelle phase `landingUntil` (550ms, `LANDING_DASH_MS`) à l'arrivée
+  d'un ennemi : pendant cette fenêtre, il fonce tout droit vers la plage
+  à vitesse ×2,4 (`LANDING_SPEED_MULT`), sans tenir compte de son rôle
+  ni de l'attente de groupe — la décision de stratégie (attaquant,
+  harceleur, attente de groupe...) ne démarre qu'une fois la course
+  terminée, exactement l'ordre demandé. Le cheval de Troie et les
+  soldats qui sortent de son ventre gardent `landingUntil: 0` (pas de
+  course, ils ne débarquent pas d'un bateau).
+
+**Point de vigilance noté pour la Partie 3 (difficulté)** : le test de
+régression `test-boat-wave` (30s, aléatoire non figé) a affiché des
+brèches assez variables d'un passage à l'autre (2 à 10) après ce
+changement — la course d'arrivée donne aux ennemis une petite longueur
+d'avance sur la défense en tout début de vague. Pas de quoi bloquer ce
+commit (aucun test n'échoue, comportement voulu), mais à repasser au
+simulateur de difficulté quand la Partie 3 démarrera, comme prévu par
+la consigne ("toute nouvelle fonctionnalité doit relancer le
+simulateur").
+
+Vérifié : `node --check`, suite de régression rejouée en HTTP
+(test-big, test-enemyprog jusqu'à la vague 230, test-boat-wave,
+test-forge, test-merchants, test-v1727) — zéro erreur JS. Capture
+d'écran confirmant l'ordre visuel forge/mur/champ/plage/eau et la
+position du joueur corrigée (`REGEN_ZONE`/`FORGE_ZONE` lues et
+comparées directement).
+
+**Partie 1 terminée** (A, B, C, D, E tous faits). Passage à la Partie 2
+(uniformisation) ensuite.

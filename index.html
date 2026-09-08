@@ -384,8 +384,10 @@ function drawBoatPassengers(b){
   const cols = Math.ceil(Math.sqrt(shown.length));
   shown.forEach((t, i) => {
     const row = Math.floor(i / cols), col = i % cols;
-    const px = cx + (col - (cols-1)/2) * 7;
-    const py = cy + (row - (Math.ceil(shown.length/cols)-1)/2) * 6;
+    // v17.32 (D) : resserré (7/6 -> 5.5/4.5) — "très condensés, serrés
+    // les uns contre les autres" sur le pont, demandé par Pierre
+    const px = cx + (col - (cols-1)/2) * 5.5;
+    const py = cy + (row - (Math.ceil(shown.length/cols)-1)/2) * 4.5;
     ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI*2);
     if (phosphorMode){ ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1; ctx.stroke(); }
     else { ctx.fillStyle = t.colorB; ctx.fill(); }
@@ -812,14 +814,19 @@ function resizeCanvas(){
   cv.style.height = STAGE_H + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // on dessine ensuite en pixels CSS
 
-  REGEN_ZONE.x = 0; REGEN_ZONE.w = STAGE_W; REGEN_ZONE.y = STAGE_H - REGEN_ZONE.h - 8;
-  buildPath();
-  // la Forge : en bas à droite du château, juste au-dessus du mur
+  // v17.32 (E — agencement demandé par Pierre) : la forge doit être DANS
+  // l'enceinte du château, pas au-dessus du mur. Ordre de bas en haut de
+  // l'écran : forge -> mur -> route -> zone de construction -> plage ->
+  // eau. La forge occupe donc la bande la plus basse de l'écran, et le
+  // mur (REGEN_ZONE) est repositionné juste devant elle (au-dessus,
+  // c'est-à-dire vers un y plus petit).
   FORGE_ZONE.x = STAGE_W - FORGE_ZONE.w - 16;
-  FORGE_ZONE.y = REGEN_ZONE.y - FORGE_ZONE.h - 12;
+  FORGE_ZONE.y = STAGE_H - FORGE_ZONE.h - 8;
+  REGEN_ZONE.x = 0; REGEN_ZONE.w = STAGE_W; REGEN_ZONE.y = FORGE_ZONE.y - REGEN_ZONE.h - 12;
+  buildPath();
 
   if (!playerPlaced){
-    player.x = STAGE_W/2; player.y = STAGE_H - 70;
+    player.x = STAGE_W/2; player.y = REGEN_ZONE.y - 16;
     playerPlaced = true;
   } else {
     player.x = Math.min(player.x, STAGE_W-MARGIN);
@@ -895,6 +902,12 @@ function enemiesForWave(w){
 // plus vite, un peu plus lent, ça oscille organiquement dans le temps),
 // plafonnée par ENEMY_PACE_AMPLITUDE — jamais un vrai pic incontrôlé.
 const ENEMY_BASE_SPEED = 0.66; // px/frame, référence pour le type de base — +20% (v17.26, était 0.55)
+// v17.32 (D — débarquement demandé par Pierre : "descendent rapidement
+// comme de vrais gens qui débarquent en courant") : courte phase de
+// course groupée juste après avoir quitté le bateau, avant toute
+// décision de rôle/stratégie (voir spawnEnemy + la boucle d'ennemis)
+const LANDING_DASH_MS = 550;
+const LANDING_SPEED_MULT = 2.4;
 const ENEMY_PACE_AMPLITUDE = 0.3; // +/- 30% de variation individuelle autour de la vitesse du type
 // v17.26 : certains ennemis peuvent "décider" d'attendre en groupe près de
 // l'eau pour attaquer ensemble, plutôt que d'avancer en ordre dispersé —
@@ -1010,6 +1023,7 @@ function spawnTrojanHorse(now){
     role: 'rusher', target: null, preferredX: player.x, commitment: 1, nextRerollAt: Infinity,
     spawnedAt: now, waitFrames: 0, siegeStartedAt: null, siegeGaveUp: false,
     fleeing: false, healUsedAtBoat: false, isTrojan: true,
+    landingUntil: 0, // le cheval de Troie ne débarque pas d'un bateau, pas de course d'arrivée
   };
   e.maxHp = e.hp;
   enemies.push(e);
@@ -1031,6 +1045,7 @@ function spawnTrojanSoldiers(x, y, now){
       role: 'attacker', target: pickTargetTower(ex, ey), preferredX: pickPreferredX(), commitment: Math.random(),
       nextRerollAt: Infinity, spawnedAt: now, waitFrames: 0, siegeStartedAt: null, siegeGaveUp: false,
       fleeing: false, healUsedAtBoat: false,
+      landingUntil: 0, // ne débarque pas d'un bateau (sort du cheval), pas de course d'arrivée
     };
     enemies.push(e);
   }
@@ -1819,6 +1834,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.33", text: "Agencement : la forge est maintenant dans l'enceinte, derrière le mur (avant elle était au-dessus) ; débarquement : les ennemis quittent le bateau en courant (course rapide groupée) avant de choisir leur stratégie, pont plus condensé" },
   { v: "17.32", text: "Formes redessinées à la lettre depuis les dessins de référence retrouvés : tour (porte triangulaire), forge (toit en pavillon + cheminée), mur (créneaux plissés + porte centrale), bateau (ornements proue/poupe, fanion), marchands (personnages + un seul chariot attelé pour la caravane), cheval de Troie (torse en pavé + pattes coudées), ennemis (4 paliers de complexité au lieu de 3)" },
   { v: "17.31", text: "Mode Phosphore : correctif texte noir sur noir (écran de fin de partie, erreur pub) et tous les éléments oubliés passés en vert (débarquement, croix de mort, poussière, halo de tour) ; collision entre ennemis vraiment resserrée (rayon par type, plus de superposition) ; joueur en faces noires opaques (fini l'effet fantôme)" },
   { v: "17.30", text: "Optimisation : chargement audio différé (musique plus légère au démarrage), garde-fou sur le calcul de regroupement des ennemis" },
@@ -2062,6 +2078,9 @@ function spawnEnemy(now){
     // un ennemi très affaibli peut fuir vers le bateau pour se soigner —
     // une seule fois dans sa vie, moitié du manquant (voir FLEE_HP_FRACTION)
     fleeing: false, healUsedAtBoat: false,
+    // v17.32 (D) : course rapide et groupée juste après le débarquement,
+    // avant toute stratégie — voir LANDING_DASH_MS et la boucle d'ennemis
+    landingUntil: now + LANDING_DASH_MS,
   };
   if (role === 'attacker') e.target = pickTargetTower(baseX, 0);
   enemies.push(e);
@@ -2326,11 +2345,19 @@ function update(now){
     }
     // très affaibli : tente de fuir vers le bateau pour se soigner (une
     // fois dans sa vie, moitié du manquant) — passe devant tout le reste
-    // du comportement tant que la fuite est en cours
-    if (!e.isTrojan && !e.fleeing && !e.healUsedAtBoat && e.hp/e.maxHp < FLEE_HP_FRACTION && Math.random() < FLEE_CHECK_CHANCE){
+    // du comportement tant que la fuite est en cours (jamais pendant le
+    // débarquement lui-même, voir juste en dessous)
+    if (now >= e.landingUntil && !e.isTrojan && !e.fleeing && !e.healUsedAtBoat && e.hp/e.maxHp < FLEE_HP_FRACTION && Math.random() < FLEE_CHECK_CHANCE){
       e.fleeing = true;
     }
-    if (e.fleeing){
+    if (now < e.landingUntil){
+      // v17.32 (D — débarquement demandé par Pierre) : course rapide et
+      // groupée vers la plage juste après avoir quitté le bateau, avant
+      // toute décision de rôle/stratégie (qui ne démarre qu'une fois
+      // cette phase finie — voir les branches suivantes)
+      e.y += e.speed * LANDING_SPEED_MULT;
+      e.x += Math.sin(now*0.004 + e.pacePhase) * 0.4;
+    } else if (e.fleeing){
       const ty = WATER_H - 10;
       if (e.y > ty){ e.y -= e.speed; e.x += Math.sin(now*0.002 + e.pacePhase)*0.3; }
       else {
@@ -3109,7 +3136,11 @@ function resetGame(startingGold){
   lastAutoShotAt = 0; lastManualShotAt = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0, clusterRisk:0 })); recentSuccesses = [];
   playerInWaterSince = null; trojanWarningShown = false; trojanCooldownUntilWave = 0; trojanHorse = null; trojanCauseOfDefeat = false;
-  player.x = STAGE_W/2; player.y = STAGE_H - 70;
+  // v17.32 (E) : REGEN_ZONE.y a bougé (le mur n'est plus collé au bord
+  // bas de l'écran, la forge est maintenant derrière lui) — se caler sur
+  // REGEN_ZONE.y comme le fait resizeCanvas, pas sur une valeur fixe
+  // devenue fausse (le joueur réapparaissait dans la forge, pas devant le mur)
+  player.x = STAGE_W/2; player.y = REGEN_ZONE.y - 16;
   startWaveBoats(performance.now());
   document.getElementById('over').style.display = 'none';
 }
