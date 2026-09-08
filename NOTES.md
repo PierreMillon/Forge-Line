@@ -2274,3 +2274,61 @@ signalée par Pierre concernant le cheval de la caravane (voir échanges
 Vérifié : `node --check`, rendu Playwright (capture complète de
 l'interface + zoom sur le bateau confirmant que la ligne de l'eau
 s'arrête bien à la silhouette), aucune erreur JS.
+
+## v17.47 — Régression du cheval de la caravane : cause racine trouvée et réglée
+
+Pierre : "ça n'a rien à voir avec ce qu'on a fixé avec la méthode
+rigoureuse... il y a un processus qui est cassé, remonte la source du
+problème."
+
+**Investigation** : ré-extraction fraîche (`extract_hough.py` relancé
+sur `caravane-marchands.jpg`, mêmes paramètres) des 20 segments du
+cheval → comparaison point par point avec les coordonnées déjà dans
+`drawCaravanCart()`. **Identiques à 0,01 unité près.** Donc pas un bug
+de coordonnées, pas un bug de transformation pixel→unités locales (le
+repère `A` + l'échelle `k=12` déjà en place étaient corrects).
+
+**Cause réelle** : le rendu "parfait" que Pierre avait validé
+(`occ-caravane-occlusion-test.png`) incluait le **canton noir en
+arrière-plan** (silhouette pleine) — mais ce traitement n'avait été
+porté qu'au bateau (v17.46), jamais à la caravane. Le cheval en jeu
+n'était donc que des traits verts nus, sans le fond qui donne sa
+lisibilité et ses proportions apparentes correctes. D'où l'impression
+que "ça n'a rien à voir", alors que le tracé lui-même n'avait jamais
+bougé.
+
+**Correctif** : silhouette calculée une fois hors-jeu par `shapely`
+(buffer 3.5 + union, sur les 20 mêmes segments convertis en unités
+locales) et posée en `ctx.fill()` noir avant les traits, exactement
+comme pour le bateau. Comparé visuellement au rendu Playwright
+zoomé : correspond maintenant à `occ-caravane-occlusion-test.png`.
+
+La caisse de la caravane n'a PAS reçu ce traitement (elle utilise un
+tracé "contour ouvert, pas de face pleine" confirmé séparément en
+v17.36 sur demande explicite de Pierre — la retoucher n'était pas ce
+qui était signalé ici, et son jeu de segments extrait est plus
+ambigu — deux caisses ou caisse+roues mélangées selon l'extraction).
+
+**Leçon pour la suite** : toute forme qui reçoit le traitement
+"coordonnées exactes" doit AUSSI recevoir le traitement "silhouette
+pleine" dans le même mouvement, pas en différé — sinon le rendu en
+jeu ne correspond pas à ce qui a été validé hors-jeu même si le tracé
+est identique.
+
+Vérifié : `node --check`, rendu Playwright zoomé (`drawCaravanCart`
+isolé, RAF gelé) comparé visuellement au rendu de référence validé.
+
+**Curseurs musique/bruitage** : signalés comme ne répondant pas au
+toucher. La logique JS de mise à jour du volume était déjà correcte
+(revérifié). Correctif défensif côté CSS : hauteur explicite (28px) et
+`touch-action:none` sur `.menu-slider-row input[type=range]`, pour que
+le glissé tactile ne soit pas intercepté par un ancêtre (typiquement
+le scroll de page). Pas de moyen de tester le tactile réel dans cet
+environnement — à confirmer par Pierre sur son téléphone.
+
+**À partir de ce point, Pierre est parti se coucher et m'a laissé
+travailler en autonomie sur tout le reste du backlog, en privilégiant
+l'avancement au blocage ("il vaut mieux avancer... plus tard on
+corrige"). La suite de ce fichier documente les décisions prises sans
+validation préalable en direct — chacune reste réversible et signalée
+comme telle.**

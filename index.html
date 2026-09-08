@@ -19,7 +19,12 @@
   #menu-panel .disabled{opacity:.45;cursor:default}
   .menu-slider-row{padding:8px 14px;font-size:13px;color:#3a3529}
   .menu-slider-row label{display:block;margin-bottom:4px}
-  .menu-slider-row input[type=range]{width:100%;accent-color:#5b8dd9}
+  /* v17.47 (curseurs signalés "ne marchent pas") : hauteur explicite +
+     touch-action:none pour que le glissé tactile ne soit pas intercepté
+     par un ancêtre (le scroll de la page notamment) — la logique JS
+     elle-même était déjà correcte (vérifié), donc le souci était très
+     probablement la prise en main tactile, pas la mise à jour du volume */
+  .menu-slider-row input[type=range]{width:100%;height:28px;accent-color:#5b8dd9;touch-action:none}
   body.phosphor .menu-slider-row{color:#3dff7a}
   body.phosphor .menu-slider-row input[type=range]{accent-color:#3dff7a}
 
@@ -2175,6 +2180,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.47", text: "Cheval de la caravane : régression réglée à la racine — les coordonnées étaient déjà exactes, mais le fond noir plein (silhouette) validé comme \"parfait\" n'avait jamais été porté dans le jeu, seuls les traits verts existaient. Ajouté. Curseurs de musique/bruitage qui ne répondaient pas au toucher : zone de glissé agrandie (touch-action dédiée)." },
   { v: "17.46", text: "Or déplacé en haut à côté de la vague (barre du bas retirée, plus d'espace de jeu) + bouton \"passer la vague\" (bonus d'or immédiat). Bateau réduit de 30%, avec un fond noir plein qui bloque enfin ce qu'il y a derrière (la ligne de l'eau se voyait à travers). Ennemis en attente sur le pont : plus de plafond d'affichage ni de \"+N\", chacun existe physiquement. Zone constructible agrandie (ligne remontée à mi-chemin de l'eau). Correctif : \"Recommencer\" ne réécrivait pas la sauvegarde locale, l'ancien or revenait après un rechargement de page." },
   { v: "17.45", text: "Même traitement rigoureux (recopiage pixel-exact) appliqué au bateau (coque + les 4 ornements) et au cheval de la caravane, en plus de ce qui l'était déjà (tour, forge, mur) — coordonnées directement recopiées des croquis, plus d'approximation à l'œil." },
   { v: "17.44", text: "Marchands : retour aux simples billes vertes (la silhouette de \"petit bonhomme\" ne plaisait pas). Bateau : le mât/fanion n'existait pas sur le croquis de référence (vérifié pixel-exact via une nouvelle méthode de recopiage automatique, voir tools/) — retiré, remplacé par les 4 vrais ornements en losange (2 à la proue, 2 à la poupe) au lieu de 2." },
@@ -3012,6 +3018,60 @@ function drawCaravanCart(x, y){
   // de l'approximation "réétalée à l'œil" du v17.42.
   const A = { x: E.x+3, y: E.y };
   ctx.beginPath(); ctx.moveTo(S.x, S.y-1); ctx.lineTo(A.x, A.y); ctx.stroke();
+  // v17.47 (régression signalée par Pierre : "ça n'a rien à voir avec ce
+  // qu'on a fixé") — cause racine : les 20 coordonnées étaient déjà
+  // exactes (revérifié, identiques à une ré-extraction Hough fraîche),
+  // mais le "canton noir en arrière-plan" qu'il avait validé comme
+  // "parfait" sur le rendu hors-jeu n'avait jamais été porté dans le
+  // jeu — seuls les traits verts existaient. Silhouette calculée une
+  // fois par shapely (buffer 3.5 + union) à partir de ces mêmes 20
+  // segments, posée en fond plein AVANT les traits.
+  ctx.save(); ctx.fillStyle = '#000'; ctx.beginPath();
+  ctx.moveTo(A.x+1.60, A.y-14.93);
+  ctx.lineTo(A.x-1.77, A.y-12.99);
+  ctx.lineTo(A.x+1.73, A.y-6.92);
+  ctx.lineTo(A.x+5.13, A.y-8.89);
+  ctx.lineTo(A.x+5.14, A.y-7.00);
+  ctx.lineTo(A.x-1.75, A.y-3.03);
+  ctx.lineTo(A.x+0.00, A.y+0.00);
+  ctx.lineTo(A.x-3.50, A.y+0.01);
+  ctx.lineTo(A.x-3.46, A.y+19.92);
+  ctx.lineTo(A.x+3.54, A.y+19.90);
+  ctx.lineTo(A.x+3.52, A.y+9.95);
+  ctx.lineTo(A.x+3.51, A.y+6.05);
+  ctx.lineTo(A.x+13.82, A.y+11.97);
+  ctx.lineTo(A.x+13.84, A.y+19.90);
+  ctx.lineTo(A.x+13.86, A.y+29.86);
+  ctx.lineTo(A.x+17.36, A.y+29.85);
+  ctx.lineTo(A.x+20.86, A.y+29.84);
+  ctx.lineTo(A.x+20.83, A.y+15.99);
+  ctx.lineTo(A.x+21.09, A.y+16.14);
+  ctx.lineTo(A.x+22.05, A.y+16.69);
+  ctx.lineTo(A.x+22.48, A.y+16.94);
+  ctx.lineTo(A.x+22.50, A.y+24.87);
+  ctx.lineTo(A.x+29.50, A.y+24.86);
+  ctx.lineTo(A.x+29.48, A.y+14.90);
+  ctx.lineTo(A.x+25.98, A.y+14.91);
+  ctx.lineTo(A.x+27.72, A.y+11.87);
+  ctx.lineTo(A.x+22.10, A.y+8.65);
+  ctx.lineTo(A.x+25.10, A.y+3.46);
+  ctx.lineTo(A.x+27.71, A.y+7.99);
+  ctx.lineTo(A.x+36.35, A.y+3.00);
+  ctx.lineTo(A.x+34.60, A.y-0.03);
+  ctx.lineTo(A.x+36.34, A.y-3.07);
+  ctx.lineTo(A.x+27.68, A.y-8.04);
+  ctx.lineTo(A.x+25.94, A.y-5.00);
+  ctx.lineTo(A.x+24.19, A.y-8.03);
+  ctx.lineTo(A.x+16.36, A.y-3.52);
+  ctx.lineTo(A.x+9.49, A.y-3.51);
+  ctx.lineTo(A.x+8.64, A.y-4.99);
+  ctx.lineTo(A.x+12.14, A.y-4.99);
+  ctx.lineTo(A.x+12.12, A.y-14.95);
+  ctx.lineTo(A.x+8.62, A.y-14.94);
+  ctx.lineTo(A.x+10.36, A.y-17.98);
+  ctx.lineTo(A.x+1.70, A.y-22.94);
+  ctx.lineTo(A.x-1.78, A.y-16.87);
+  ctx.closePath(); ctx.fill(); ctx.restore();
   const HL = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(A.x+x1,A.y+y1); ctx.lineTo(A.x+x2,A.y+y2); ctx.stroke(); };
   HL(0.0,0.0,25.98,14.91);
   HL(0.0,0.0,0.04,19.91);
