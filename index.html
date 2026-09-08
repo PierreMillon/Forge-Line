@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Forge Line — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
   :root{ --topbar-h:52px; --bottombar-h:64px; --bonusbar-row-h:58px; --bonusbar-h:calc(var(--bonusbar-row-h) * 2 + 4px); }
   html,body{margin:0;height:100%;background:#e8dfc8;color:#3a3529;font-family:system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
@@ -74,6 +77,37 @@
   @media (hover:none) and (pointer:coarse){
     #joyzone{display:block}
   }
+
+  /* --- Mode Phosphore : le style validé sur Bastion Orbit, repris ici à
+     l'identique dans son PRINCIPE — les fonctions de dessin elles-mêmes
+     changent de comportement (voir phosphorMode dans le script : drawIsoBox,
+     drawCastle, drawForge, drawPath, les cercles d'ennemis/joueur/marchands/
+     soldats...), pas un filtre CSS posé par-dessus le rendu habituel. Même
+     géométrie, même état de jeu réel, juste des contours verts sans
+     dégradé au lieu du remplissage habituel. Le HUD (topbar/bottombar/
+     bonusbar/menu/panneaux) bascule aussi en vert sur noir. Activé par
+     défaut, désactivable dans le menu. */
+  #scanlines{position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 1px, rgba(0,0,0,.32) 2px, rgba(0,0,0,.32) 3px);
+    mix-blend-mode:multiply}
+  body.phosphor #scanlines{opacity:1}
+  body.phosphor html, body.phosphor{background:#020a04}
+  body.phosphor #stage, body.phosphor canvas{background:#020a04}
+  body.phosphor #topbar, body.phosphor #bottombar, body.phosphor #bonusbar,
+  body.phosphor #menu-panel, body.phosphor #version-panel, body.phosphor #faq-panel,
+  body.phosphor #over-card, body.phosphor #ad-error-card{
+    background:#040e06; color:#3dff7a; font-family:'Share Tech Mono','Courier New',monospace;
+    text-shadow:0 0 4px rgba(61,255,122,.5);
+  }
+  body.phosphor #menu-panel a, body.phosphor #menu-panel .disabled{ color:#3dff7a; }
+  body.phosphor #menu-panel a:hover{ background:#0a1c0e; }
+  body.phosphor #menu-btn, body.phosphor #version-btn{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; }
+  body.phosphor #bonusbar button{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; text-shadow:none; }
+  body.phosphor #bonusbar button .b-cost{ color:#8fe0a8; }
+  body.phosphor #continue-btn, body.phosphor #revive-btn{ background:#0f3a1c; color:#baffcf; }
+  body.phosphor #spectate-btn, body.phosphor #restart-btn, body.phosphor #ad-error-ok{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; }
+  body.phosphor #version-panel .row:not(:last-child){ border-bottom-color:#1c6b39; }
+  body.phosphor #bonus-btn{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; }
 </style>
 </head>
 <body>
@@ -84,6 +118,7 @@
     <a href="https://pierremillon.github.io/Bastion-Orbit/">Bastion Orbit</a>
     <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
     <a id="grid-toggle" href="#">Afficher la grille (debug)</a>
+    <a id="phosphor-toggle" href="#">Mode Phosphore : Activé</a>
     <a id="faq-toggle" href="#">Aide / FAQ</a>
     <a id="mute-toggle" href="#">Couper la musique</a>
     <a id="menu-restart" href="#">Recommencer une nouvelle partie</a>
@@ -97,6 +132,7 @@
 
 <div id="stage">
   <canvas id="c"></canvas>
+  <div id="scanlines"></div>
   <div id="joyzone"></div>
   <div id="joy-base"></div>
   <div id="joy-knob"></div>
@@ -279,18 +315,32 @@ function drawOneBoat(b){
   // coque : un pavé isométrique large et bas, couleur bois (même
   // fonction que les tours, juste des proportions différentes)
   drawIsoBox(0, 0, BOAT_HW, BOAT_HH, BOAT_SH, '#a9764a', '#7a5233', '#5c3f26', 1);
+  if (phosphorMode){
+    // v17.29 (dessin de référence : planches diagonales sur le pont) —
+    // quelques lignes parallèles sur la face du dessus, entre les bords
+    // N-W et E-S du losange (même géométrie que drawIsoBox)
+    const cyTop = 0 - BOAT_SH - 2*BOAT_HH;
+    const N={x:0,y:cyTop}, E={x:BOAT_HW,y:cyTop+BOAT_HH}, S={x:0,y:cyTop+2*BOAT_HH}, W={x:-BOAT_HW,y:cyTop+BOAT_HH};
+    ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 0.8;
+    for (let i = 1; i < 5; i++){
+      const t = i/5;
+      const p1 = { x: N.x+(W.x-N.x)*t, y: N.y+(W.y-N.y)*t };
+      const p2 = { x: E.x+(S.x-E.x)*t, y: E.y+(S.y-E.y)*t };
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+  }
   // mât + voile : repère simple pour que ça se lise comme un bateau,
   // pas un vrai gréement
-  ctx.strokeStyle = '#5c3f26';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#5c3f26';
+  ctx.lineWidth = phosphorMode ? 1 : 2;
   ctx.beginPath(); ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH); ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 20); ctx.stroke();
-  ctx.fillStyle = '#e8dfc8';
   ctx.beginPath();
   ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH - 18);
   ctx.lineTo(13, -BOAT_SH - 2*BOAT_HH - 6);
   ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 4);
   ctx.closePath();
-  ctx.fill();
+  if (phosphorMode) ctx.stroke();
+  else { ctx.fillStyle = '#e8dfc8'; ctx.fill(); }
   ctx.restore();
   drawBoatPassengers(b);
 }
@@ -335,6 +385,13 @@ function drawBoatPassengers(b){
 // (distance entre cases voisines < 2×TOWER_SOLID_RADIUS).
 const GRID_TW = 48, GRID_TH = 24;
 let showGrid = true; // activée par défaut pour l'instant (demandé)
+// Mode Phosphore : style validé sur Bastion Orbit, repris ici à l'identique
+// dans son principe (voir le bloc CSS "Mode Phosphore" pour le HUD, et
+// drawIsoBox/drawCastle/drawForge/drawPath/les cercles plus bas pour le
+// canvas) — activé par défaut, désactivable dans le menu.
+let phosphorMode = true;
+try { phosphorMode = localStorage.getItem('fl_phosphor') !== '0'; } catch (e) { /* ignore */ }
+const PHOSPHOR_GREEN = 'rgba(70,255,130,0.92)';
 function gridToScreen(gx, gy){
   return { x: (gx-gy)*GRID_TW/2, y: (gx+gy)*GRID_TH/2 };
 }
@@ -1449,14 +1506,23 @@ function tryRepair(){
   t.repairCount = (t.repairCount||0) + 1; // sert à repérer "la tour qu'on défend le plus" (IA harceleurs)
 }
 // une tour posée est un obstacle solide : personne (joueur ni ennemis) ne
-// peut marcher dedans — elle sert aussi de mur pour la ligne de défense
+// peut marcher dedans — elle sert aussi de mur pour la ligne de défense.
+// v17.28 (demandé) : contact SOUPLE, comme entre ennemis (v17.24) — plus
+// une paroi rigide qui téléportait instantanément sur le bord au premier
+// contact. Même principe : un peu de chevauchement toléré, correction
+// partielle par frame plutôt qu'un snap immédiat.
+const OBJECT_OVERLAP_ALLOWED = 0.3;   // jusqu'à 30% de chevauchement toléré avant correction
+const OBJECT_COLLISION_PUSH = 0.35;   // correction partielle par frame (plus rapide que l'ennemi-ennemi : reste réactif au contact d'un obstacle solide)
 function resolveTowerCollision(pos, radius){
+  const minDist = radius * (1 - OBJECT_OVERLAP_ALLOWED);
   for (const t of towers){
     const dx = pos.x-t.x, dy = pos.y-t.y;
     const d = Math.hypot(dx, dy);
-    if (d < radius){
-      if (d > 0.001){ pos.x = t.x + dx/d*radius; pos.y = t.y + dy/d*radius; }
-      else { pos.x = t.x + radius; pos.y = t.y; }
+    if (d < minDist){
+      if (d > 0.001){
+        const push = (minDist - d) * OBJECT_COLLISION_PUSH;
+        pos.x += dx/d*push; pos.y += dy/d*push;
+      } else { pos.x = t.x + minDist; pos.y = t.y; }
     }
   }
 }
@@ -1658,6 +1724,15 @@ document.getElementById('grid-toggle').addEventListener('click', e => {
   showGrid = !showGrid;
   e.target.textContent = showGrid ? 'Cacher la grille (debug)' : 'Afficher la grille (debug)';
 });
+document.getElementById('phosphor-toggle').addEventListener('click', e => {
+  e.preventDefault();
+  phosphorMode = !phosphorMode;
+  try { localStorage.setItem('fl_phosphor', phosphorMode ? '1' : '0'); } catch (err) { /* ignore */ }
+  document.body.classList.toggle('phosphor', phosphorMode);
+  e.target.textContent = 'Mode Phosphore : ' + (phosphorMode ? 'Activé' : 'Désactivé');
+});
+document.body.classList.toggle('phosphor', phosphorMode);
+document.getElementById('phosphor-toggle').textContent = 'Mode Phosphore : ' + (phosphorMode ? 'Activé' : 'Désactivé');
 document.getElementById('menu-restart').addEventListener('click', e => {
   e.preventDefault();
   menuPanel.style.display = 'none';
@@ -1679,6 +1754,8 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.29", text: "Mode Phosphore : formes propres pour la forge, le mur, le bateau, les marchands, le cheval de Troie et les ennemis selon leur difficulté ; contact souple avec les tours" },
+  { v: "17.28", text: "Mode Phosphore (vert sur noir, style écran vectoriel) activé par défaut, désactivable dans le menu — nouvelle forme de tour avec porte/fenêtre/cube de renfort" },
   { v: "17.27", text: "Nouvelle compétence de la Forge : les soldats peuvent réparer les tours (achat unique, 60 or)" },
   { v: "17.26", text: "Correctif : caravane qui se déclenchait sans marcher sur le chemin ; ennemis 20% plus rapides ; certains ennemis attendent en groupe avant d'attaquer ensemble" },
   { v: "17.25", text: "Marchands 3x plus lents et amortis, caravanes possibles dès la vague 1 mais max une fois toutes les 2 vagues, tours 2x plus chères, zone de sable hors construction" },
@@ -2333,18 +2410,28 @@ function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked){
   const S = { x: cx,    y: cyTop+2*hh };
   const W = { x: cx-hw, y: cyTop+hh };
 
-  ctx.fillStyle = colTop;
-  ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.fill();
+  // Mode Phosphore : contours verts, pas de remplissage en dégradé — les
+  // couleurs passées en argument (colTop/colLeft/colRight) sont ignorées,
+  // comme un vrai écran vectoriel n'a jamais eu d'éclairage par face
+  if (phosphorMode){
+    ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(S.x,S.y+sh); ctx.lineTo(W.x,W.y+sh); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(E.x,E.y+sh); ctx.lineTo(S.x,S.y+sh); ctx.closePath(); ctx.stroke();
+  } else {
+    ctx.fillStyle = colTop;
+    ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.fill();
 
-  ctx.fillStyle = colLeft;
-  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(S.x,S.y+sh); ctx.lineTo(W.x,W.y+sh); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = colLeft;
+    ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(S.x,S.y+sh); ctx.lineTo(W.x,W.y+sh); ctx.closePath(); ctx.fill();
 
-  ctx.fillStyle = colRight;
-  ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(E.x,E.y+sh); ctx.lineTo(S.x,S.y+sh); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = colRight;
+    ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(E.x,E.y+sh); ctx.lineTo(S.x,S.y+sh); ctx.closePath(); ctx.fill();
+  }
 
   if (stacked){
     const segments = stacked === true ? 2 : Math.max(1, stacked);
-    ctx.strokeStyle = '#00000030';
+    ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#00000030';
     for (let i = 1; i < segments; i++){
       const frac = i / segments;
       ctx.beginPath();
@@ -2352,6 +2439,72 @@ function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked){
       ctx.stroke();
     }
   }
+}
+
+// Mode Phosphore — formes d'ennemis par complexité (dessin de référence
+// fourni : 4 cubes de complexité croissante). Traduit en 3 paliers plutôt
+// que 4 (mapping raisonnable, pas de correspondance 1:1 précisée) :
+// 0 = simple losange (types faibles), 1 = cube + croix sur la face du
+// dessus (type intermédiaire), 2 = cube avec treillis dense sur les 3
+// faces (types forts — boss, cheval de Troie). Toujours en traits verts,
+// jamais rempli.
+function drawEnemyShape(cx, cy, hw, complexity){
+  const hh = hw*0.55, sh = hw*0.85;
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.1;
+  if (complexity <= 0){
+    // simple losange (juste la face du dessus, pas de corps) — les plus faibles
+    const N={x:cx,y:cy-hh*1.6}, E={x:cx+hw,y:cy-hh*0.6}, S={x:cx,y:cy+hh*0.4}, W={x:cx-hw,y:cy-hh*0.6};
+    ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
+    return;
+  }
+  const cyTop = cy - sh - 2*hh;
+  const N={x:cx,y:cyTop}, E={x:cx+hw,y:cyTop+hh}, S={x:cx,y:cyTop+2*hh}, W={x:cx-hw,y:cyTop+hh};
+  const Sb={x:S.x,y:S.y+sh}, Wb={x:W.x,y:W.y+sh}, Eb={x:E.x,y:E.y+sh};
+  ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(Sb.x,Sb.y); ctx.lineTo(Wb.x,Wb.y); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(Eb.x,Eb.y); ctx.lineTo(Sb.x,Sb.y); ctx.closePath(); ctx.stroke();
+  if (complexity === 1){
+    ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(S.x,S.y); ctx.moveTo(E.x,E.y); ctx.lineTo(W.x,W.y); ctx.stroke();
+  } else {
+    // treillis : chaque face subdivisée + diagonales croisées, pour la
+    // densité du dessin le plus complexe
+    const lattice = (a,b,c,d) => {
+      const SEGS = 3;
+      for (let i = 1; i < SEGS; i++){
+        const t = i/SEGS;
+        ctx.beginPath();
+        ctx.moveTo(a.x+(b.x-a.x)*t, a.y+(b.y-a.y)*t); ctx.lineTo(d.x+(c.x-d.x)*t, d.y+(c.y-d.y)*t);
+        ctx.moveTo(a.x+(d.x-a.x)*t, a.y+(d.y-a.y)*t); ctx.lineTo(b.x+(c.x-b.x)*t, b.y+(c.y-b.y)*t);
+        ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(c.x,c.y); ctx.moveTo(b.x,b.y); ctx.lineTo(d.x,d.y); ctx.stroke();
+    };
+    lattice(N,E,S,W); lattice(W,S,Sb,Wb); lattice(S,E,Eb,Sb);
+  }
+}
+
+// Mode Phosphore — silhouette angulaire du cheval de Troie (dessin de
+// référence), au lieu du cube générique des autres ennemis : quelques
+// segments droits (tête/encolure/dos/pattes), volontairement anguleux et
+// pas lissés, pour rester dans l'esprit "bas-poly" du dessin
+function drawTrojanHorseShape(cx, cy, size){
+  const s = size / 18; // échelle relative au rayon habituel du cheval de Troie
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(cx-16*s, cy-2*s);
+  ctx.lineTo(cx-10*s, cy-14*s);   // encolure vers la tête
+  ctx.lineTo(cx-2*s,  cy-9*s);    // tête
+  ctx.lineTo(cx-6*s,  cy-2*s);    // retour vers le poitrail
+  ctx.lineTo(cx+6*s,  cy-6*s);    // dos
+  ctx.lineTo(cx+16*s, cy-2*s);    // croupe
+  ctx.lineTo(cx+12*s, cy+8*s);    // patte arrière
+  ctx.lineTo(cx+8*s,  cy+2*s);
+  ctx.lineTo(cx+2*s,  cy+8*s);    // patte avant droite
+  ctx.lineTo(cx-2*s,  cy+2*s);
+  ctx.lineTo(cx-8*s,  cy+8*s);    // patte avant gauche
+  ctx.lineTo(cx-12*s, cy+2*s);
+  ctx.lineTo(cx-16*s, cy-2*s);
+  ctx.stroke();
 }
 
 // l'illusion de 3D tient uniquement à l'ordre de dessin : ce qui est plus
@@ -2392,21 +2545,31 @@ function drawCastle(){
   const { x, y, w, h } = REGEN_ZONE;
   const destroyed = Math.min(CASTLE_SEGMENTS, breaches);
 
-  ctx.fillStyle = '#d8cca4';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = '#6b5f45';
-  ctx.lineWidth = 3;
+  if (!phosphorMode) ctx.fillStyle = '#d8cca4';
+  if (!phosphorMode) ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#6b5f45';
+  ctx.lineWidth = phosphorMode ? 1.4 : 3;
   ctx.strokeRect(x, y, w, h);
 
   // 10 créneaux égaux le long du bord haut ; un créneau détruit laisse
   // juste le mur plat à sa place (pas de trou dans la pierre en dessous)
   const slot = w / CASTLE_SEGMENTS;
   const merlonW = slot * 0.55, merlonH = 8;
-  ctx.fillStyle = '#6b5f45';
   for (let i = 0; i < CASTLE_SEGMENTS; i++){
     if (i < destroyed) continue;
     const mx = x + i * slot + (slot - merlonW) / 2;
-    ctx.fillRect(mx, y - merlonH, merlonW, merlonH);
+    if (phosphorMode){
+      // v17.29 (dessin de référence : mur en zigzag) : chaque créneau
+      // devient une dent pointue (un "^") au lieu d'un simple rectangle —
+      // mis côte à côte, ça lit comme le zigzag du dessin
+      ctx.beginPath();
+      ctx.moveTo(mx, y);
+      ctx.lineTo(mx, y - merlonH*0.4);
+      ctx.lineTo(mx + merlonW/2, y - merlonH);
+      ctx.lineTo(mx + merlonW, y - merlonH*0.4);
+      ctx.lineTo(mx + merlonW, y);
+      ctx.stroke();
+    } else { ctx.fillStyle = '#6b5f45'; ctx.fillRect(mx, y - merlonH, merlonW, merlonH); }
   }
 }
 
@@ -2415,15 +2578,35 @@ function drawCastle(){
 // lumineuse (façon braise) pour se distinguer d'un simple emplacement vide.
 function drawForge(){
   const { x, y, w, h } = FORGE_ZONE;
-  ctx.fillStyle = forgeBuilt ? '#8a5a35' : '#00000012';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = forgeBuilt ? '#e0793a' : '#6b5f45';
-  ctx.lineWidth = 3;
+  if (!phosphorMode){ ctx.fillStyle = forgeBuilt ? '#8a5a35' : '#00000012'; ctx.fillRect(x, y, w, h); }
+  ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : (forgeBuilt ? '#e0793a' : '#6b5f45');
+  ctx.lineWidth = phosphorMode ? 1.4 : 3;
   ctx.strokeRect(x, y, w, h);
-  ctx.font = '24px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('⚒️', x + w/2, y + h/2);
+  // l'émoji casse le monochrome — en phosphore, une petite forge en
+  // ziggourat (dessin de référence : structure à étages avec une flèche
+  // au sommet) plutôt que le glyphe couleur
+  if (phosphorMode){
+    const mx = x + w/2, baseY = y + h*0.82;
+    ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+    const tiers = 3;
+    for (let i = 0; i < tiers; i++){
+      const tw = (w*0.42) * (1 - i*0.22);
+      const th = h*0.1;
+      const ty = baseY - i*(h*0.14);
+      ctx.beginPath();
+      ctx.moveTo(mx-tw, ty); ctx.lineTo(mx, ty-th); ctx.lineTo(mx+tw, ty);
+      ctx.lineTo(mx+tw*0.7, ty+th*0.6); ctx.lineTo(mx-tw*0.7, ty+th*0.6); ctx.closePath();
+      ctx.stroke();
+    }
+    // flèche/cheminée au sommet
+    const topY = baseY - (tiers-1)*(h*0.14) - h*0.1;
+    ctx.beginPath(); ctx.moveTo(mx, topY); ctx.lineTo(mx, topY - h*0.22); ctx.stroke();
+  } else {
+    ctx.font = '24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚒️', x + w/2, y + h/2);
+  }
 }
 
 // petit chemin décoratif (voir buildPath) : juste une bande stroke le long
@@ -2433,34 +2616,51 @@ function drawPath(){
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#c9b48f';
-  ctx.lineWidth = 10;
-  ctx.beginPath();
-  ctx.moveTo(pathScreenPoints[0].x, pathScreenPoints[0].y);
-  for (let i = 1; i < pathScreenPoints.length; i++) ctx.lineTo(pathScreenPoints[i].x, pathScreenPoints[i].y);
-  ctx.stroke();
-  ctx.strokeStyle = '#e0cfa8'; // fine ligne claire au centre, pour la texture
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  if (phosphorMode){
+    ctx.strokeStyle = PHOSPHOR_GREEN;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pathScreenPoints[0].x, pathScreenPoints[0].y);
+    for (let i = 1; i < pathScreenPoints.length; i++) ctx.lineTo(pathScreenPoints[i].x, pathScreenPoints[i].y);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = '#c9b48f';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(pathScreenPoints[0].x, pathScreenPoints[0].y);
+    for (let i = 1; i < pathScreenPoints.length; i++) ctx.lineTo(pathScreenPoints[i].x, pathScreenPoints[i].y);
+    ctx.stroke();
+    ctx.strokeStyle = '#e0cfa8'; // fine ligne claire au centre, pour la texture
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
 function draw(now){
   ctx.clearRect(0, 0, STAGE_W, STAGE_H); // fond beige uni (posé par le CSS du canvas), aucune ligne de sol
 
-  // v17.25 : zone de sable, entre l'eau et la moitié de l'écran — hors
-  // construction (voir tryBuild), comme l'eau elle-même. Purement visuel
-  // ici, le blocage de construction est vérifié séparément.
-  ctx.fillStyle = '#e0cd7a';
-  ctx.fillRect(0, WATER_H, STAGE_W, noBuildY() - WATER_H);
+  if (phosphorMode){
+    // fond déjà noir (voir CSS body.phosphor canvas) — juste les lignes
+    // de démarcation eau/sable/terrain, pas de remplissage de couleur
+    ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, WATER_H); ctx.lineTo(STAGE_W, WATER_H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, noBuildY()); ctx.lineTo(STAGE_W, noBuildY()); ctx.stroke();
+  } else {
+    // v17.25 : zone de sable, entre l'eau et la moitié de l'écran — hors
+    // construction (voir tryBuild), comme l'eau elle-même. Purement visuel
+    // ici, le blocage de construction est vérifié séparément.
+    ctx.fillStyle = '#e0cd7a';
+    ctx.fillRect(0, WATER_H, STAGE_W, noBuildY() - WATER_H);
 
-  // la plage : une bande d'eau tout en haut, le bateau viking d'où
-  // débarquent les ennemis — le reste de la carte est le château fort
-  const grad = ctx.createLinearGradient(0, 0, 0, WATER_H);
-  grad.addColorStop(0, '#6fa8c9');
-  grad.addColorStop(1, '#a9cfe0');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, STAGE_W, WATER_H);
+    // la plage : une bande d'eau tout en haut, le bateau viking d'où
+    // débarquent les ennemis — le reste de la carte est le château fort
+    const grad = ctx.createLinearGradient(0, 0, 0, WATER_H);
+    grad.addColorStop(0, '#6fa8c9');
+    grad.addColorStop(1, '#a9cfe0');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, STAGE_W, WATER_H);
+  }
   drawBoat();
   drawPath();
   drawCastle();
@@ -2505,6 +2705,25 @@ function draw(now){
       }
       if (flashing) ctx.globalAlpha = 0.45;
       drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments);
+      if (phosphorMode){
+        // nouvelle forme (dessin fourni) : une fente (meurtrière) et une
+        // porte en arc sur le corps, un petit cube au sommet qui grossit
+        // avec le niveau — indicateur de renfort, confirmé en question
+        const bodyTopY = t.y - sh - 2*TOWER_HH;
+        ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(t.x, bodyTopY + sh*0.22); ctx.lineTo(t.x, bodyTopY + sh*0.52);
+        ctx.stroke();
+        const doorX = t.x + TOWER_HW*0.35, doorW = TOWER_HW*0.5, doorH = TOWER_HH*1.6;
+        ctx.beginPath();
+        ctx.moveTo(doorX - doorW/2, t.y);
+        ctx.lineTo(doorX - doorW/2, t.y - doorH*0.6);
+        ctx.arc(doorX, t.y - doorH*0.6, doorW/2, Math.PI, 0);
+        ctx.lineTo(doorX + doorW/2, t.y);
+        ctx.stroke();
+        const capScale = Math.min(1.6, 0.6 + level*0.15);
+        drawIsoBox(t.x, bodyTopY, TOWER_HW*0.4*capScale, TOWER_HH*0.4*capScale, TOWER_HH*0.8*capScale, null, null, null);
+      }
       if (flashing) ctx.globalAlpha = 1;
     }});
   }
@@ -2540,15 +2759,28 @@ function draw(now){
     }});
   }
 
+  // v17.29 : complexité de la forme d'ennemi par type (dessin de
+  // référence : 4 cubes de complexité croissante, voir drawEnemyShape) —
+  // les types faibles restent lisibles/simples, les forts se voient
+  // nettement plus "chargés"
+  const ENEMY_COMPLEXITY = { base: 0, fast_frail: 0, fast_tough: 1, boss: 2, trojan: 2 };
   for (const e of enemies){
     layers.push({ y: e.y, draw: () => {
       const t = e.type || ENEMY_TYPES[0];
       const rr = t.id === 'trojan' ? 18 : (t.id === 'boss' ? 11 : 8); // le cheval de Troie se voit nettement, le boss un peu plus gros
-      const grad = ctx.createRadialGradient(e.x-3, e.y-8-rr*0.4, 1, e.x, e.y-8, rr+1);
-      grad.addColorStop(0, t.colorA);
-      grad.addColorStop(1, t.colorB);
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(e.x, e.y-8, rr, 0, Math.PI*2); ctx.fill();
+      if (phosphorMode){
+        if (t.id === 'trojan') drawTrojanHorseShape(e.x, e.y-8, rr);
+        else drawEnemyShape(e.x, e.y-8, rr*0.85, ENEMY_COMPLEXITY[t.id] ?? 0);
+        return;
+      }
+      ctx.beginPath(); ctx.arc(e.x, e.y-8, rr, 0, Math.PI*2);
+      {
+        const grad = ctx.createRadialGradient(e.x-3, e.y-8-rr*0.4, 1, e.x, e.y-8, rr+1);
+        grad.addColorStop(0, t.colorA);
+        grad.addColorStop(1, t.colorB);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
     }});
   }
 
@@ -2556,11 +2788,25 @@ function draw(now){
   // ont une — demandé explicitement, contrairement aux ennemis/tours)
   for (const m of merchants){
     layers.push({ y: m.y, draw: () => {
-      ctx.fillStyle = m.retreating ? '#e0a94a' : '#d9a441';
-      ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2); ctx.fill();
+      if (phosphorMode){
+        // v17.29 (dessin de référence : chariot + cheval) — simplifié en
+        // petit chariot (boîte à roues) à cette échelle, la silhouette du
+        // cheval complète ne serait pas lisible en aussi petit et répétée
+        // pour chaque marchand d'une caravane
+        const w = 9, h = 6;
+        ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.1;
+        ctx.strokeRect(m.x-w/2, m.y-14, w, h);
+        ctx.beginPath();
+        ctx.arc(m.x-w/2+1.5, m.y-8, 1.6, 0, Math.PI*2);
+        ctx.moveTo(m.x+w/2-1.5+1.6, m.y-8); ctx.arc(m.x+w/2-1.5, m.y-8, 1.6, 0, Math.PI*2);
+        ctx.stroke();
+      } else {
+      ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2);
+      ctx.fillStyle = m.retreating ? '#e0a94a' : '#d9a441'; ctx.fill();
+      }
       const barW = 16, frac = Math.max(0, m.hp/m.maxHp);
-      ctx.fillStyle = '#00000030'; ctx.fillRect(m.x-barW/2, m.y-20, barW, 3);
-      ctx.fillStyle = frac > 0.4 ? '#4a9d4a' : '#c33f3f';
+      ctx.fillStyle = phosphorMode ? 'rgba(0,0,0,0.6)' : '#00000030'; ctx.fillRect(m.x-barW/2, m.y-20, barW, 3);
+      ctx.fillStyle = phosphorMode ? PHOSPHOR_GREEN : (frac > 0.4 ? '#4a9d4a' : '#c33f3f');
       ctx.fillRect(m.x-barW/2, m.y-20, barW*frac, 3);
     }});
   }
@@ -2568,22 +2814,30 @@ function draw(now){
   // ennemis (rouge/violet/orange) et du joueur (jaune)
   for (const s of soldiers){
     layers.push({ y: s.y, draw: () => {
-      const grad = ctx.createRadialGradient(s.x-3, s.y-8-3, 1, s.x, s.y-8, 9);
-      grad.addColorStop(0, '#a3e0c0');
-      grad.addColorStop(1, '#3f9d6f');
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(s.x, s.y-8, 8, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x, s.y-8, 8, 0, Math.PI*2);
+      if (phosphorMode){ ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.2; ctx.stroke(); }
+      else {
+        const grad = ctx.createRadialGradient(s.x-3, s.y-8-3, 1, s.x, s.y-8, 9);
+        grad.addColorStop(0, '#a3e0c0');
+        grad.addColorStop(1, '#3f9d6f');
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
     }});
   }
 
   for (const pr of projectiles){
     layers.push({ y: pr.y, draw: () => {
       const r = pr.r || 4;
-      const grad = ctx.createRadialGradient(pr.x-r*0.4, pr.y-r*0.4, 0.5, pr.x, pr.y, r);
-      grad.addColorStop(0, '#4a4a4a');
-      grad.addColorStop(1, '#000000');
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(pr.x, pr.y, r, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(pr.x, pr.y, r, 0, Math.PI*2);
+      if (phosphorMode){ ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1; ctx.stroke(); }
+      else {
+        const grad = ctx.createRadialGradient(pr.x-r*0.4, pr.y-r*0.4, 0.5, pr.x, pr.y, r);
+        grad.addColorStop(0, '#4a4a4a');
+        grad.addColorStop(1, '#000000');
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
     }});
   }
 

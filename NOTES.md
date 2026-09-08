@@ -1239,3 +1239,105 @@ proche, testé avec deux tours à PV différents) et la répare sans
 toucher à l'autre. Capture d'écran du bandeau (3 boutons sur la 2e
 ligne, mise en page correcte). Suite de régression complète toujours
 verte, aucune erreur JS.
+
+## v17.28 : Mode Phosphore (style validé sur Bastion Orbit, adapté ici)
+
+**Contexte, important pour comprendre le choix technique** : demandé
+initialement comme "copier le style de Bastion Orbit et l'appliquer à
+Forge Line". Deux mauvaises pistes essayées côté Bastion Orbit avant de
+trouver la bonne (voir son propre historique) : une scène reconstruite
+dans un cadre de moniteur inventé, puis un filtre CSS posé sur le rendu
+habituel (restait "semi-réaliste" juste repeint en vert). La bonne
+approche, reprise ici à l'identique : les fonctions de dessin
+elles-mêmes changent de comportement selon `phosphorMode` — mêmes
+coordonnées, même état de jeu réel, mais des CONTOURS verts sans
+dégradé/remplissage, comme un vrai écran vectoriel n'aurait jamais eu
+d'éclairage par face. Pas un filtre, pas une reconstruction.
+
+**Ce qui bascule** : `drawIsoBox` (donc tours, bateau, joueur — tout ce
+qui passe par cette fonction partagée), `drawCastle` (mur + créneaux),
+`drawForge` (contour + petit repère en trait plutôt que l'émoji ⚒️,
+qui casse le monochrome), `drawPath` (ligne fine au lieu de la bande
+épaisse), le fond eau/sable (lignes de démarcation au lieu de zones
+colorées, fond noir déjà posé par le canvas), les cercles
+ennemis/marchands/soldats/projectiles (contour vert au lieu du
+dégradé). Le HUD complet (topbar/bottombar/bonusbar/menu/panneaux)
+bascule aussi en vert sur noir, police Share Tech Mono, via une classe
+`body.phosphor`. Scanlines CRT en overlay (`#scanlines`, CSS
+`repeating-linear-gradient` + `mix-blend-mode:multiply`).
+
+**Nouvelle forme de tour** (dessin de référence fourni par
+l'utilisateur, recodée en canvas — tranché en quiz : recréer en trait
+plutôt qu'utiliser les images exportées telles quelles, pour rester
+dynamique avec le niveau/la taille d'écran) : une fente verticale
+(meurtrière) et une porte en arc sur le corps existant, plus un petit
+cube au sommet dont la taille grossit avec le niveau de la tour —
+confirmé en quiz : c'est un indicateur visuel de renfort, pas un simple
+chapeau décoratif.
+
+Activé par défaut (`phosphorMode = true`), persistant en localStorage
+(`fl_phosphor`), toggle dans le menu.
+
+**Pas encore fait, sujet encore ouvert** : les formes géométriques
+spécifiques par élément (forge détaillée, mur du château en zigzag,
+bateau, caravane des marchands, cheval de Troie, ennemis avec une
+complexité croissante selon la difficulté) ont été fournies en dessins
+de référence mais pas encore toutes adaptées — seule la tour a été
+traitée pour l'instant (comme demandé explicitement, une chose à la
+fois). Les ennemis/marchands/soldats/projectiles utilisent pour
+l'instant un simple cercle en contour vert, pas les formes
+géométriques spécifiques dessinées.
+
+Vérifié avec Playwright : toggle testé dans les deux sens (phosphore
+actif/inactif), capture d'écran des deux modes, suite de régression
+complète toujours verte, aucune erreur JS. Pas encore poussé en
+production — l'utilisateur doit valider le style avant qu'on décide.
+
+## v17.29 : formes spécifiques par élément (dessins de référence), contact souple avec les tours
+
+**Suite du Mode Phosphore** — les dessins de référence restants
+(forge, mur du château, bateau, caravane des marchands, cheval de
+Troie, ennemis selon la difficulté) adaptés d'un coup ("fonce tout,
+ne t'arrête pas") :
+
+- **Ennemis** : complexité de la forme selon le type
+  (`drawEnemyShape`, `ENEMY_COMPLEXITY`) — losange simple pour les
+  types faibles (base, rapide/fragile), cube avec croix sur la face du
+  dessus pour le type intermédiaire (rapide/costaud), cube avec
+  treillis dense sur les 3 faces pour les plus forts (boss). Mapping
+  raisonnable sur les 4 dessins fournis, pas de correspondance 1:1
+  précisée par l'utilisateur.
+- **Cheval de Troie** : silhouette dédiée (`drawTrojanHorseShape`,
+  quelques segments droits anguleux — tête, encolure, dos, 3 pattes),
+  plutôt que le cube générique des autres ennemis — assez important
+  comme entité nommée pour mériter sa propre forme.
+- **Mur du château** : chaque créneau devient une dent pointue ("^")
+  au lieu d'un rectangle plat — mis côte à côte, ça lit comme le
+  zigzag du dessin. Toujours 10 créneaux individuellement
+  destructibles (mécanique inchangée).
+- **Forge** : petite ziggourat à 3 étages avec une flèche/cheminée au
+  sommet, à la place du glyphe marteau, à l'échelle de `FORGE_ZONE`.
+- **Bateau** : lignes de planches diagonales sur la face du dessus de
+  la coque (5 lignes parallèles entre les bords du losange), en plus
+  du mât/voile déjà en trait.
+- **Marchands** : simplifiés en petit chariot (boîte + 2 roues) plutôt
+  que la silhouette complète chariot+cheval du dessin — pas lisible en
+  aussi petit et répété pour chaque marchand d'une caravane (jusqu'à
+  8).
+
+**Contact souple avec les tours** (question posée par l'utilisateur :
+"et les contacts souples entre ennemis et objets ?") — le contact
+joueur/ennemi ↔ tour (`resolveTowerCollision`) était resté une paroi
+RIGIDE (téléportation instantanée sur le bord au premier contact),
+contrairement à la collision ennemi-ennemi (v17.24, déjà souple).
+Corrigé avec le même principe : un peu de chevauchement toléré
+(`OBJECT_OVERLAP_ALLOWED`), correction partielle par frame
+(`OBJECT_COLLISION_PUSH`, plus rapide que l'ennemi-ennemi pour rester
+réactif face à un vrai obstacle solide).
+
+Vérifié avec Playwright : scène combinée (2 tours à niveaux
+différents, 3 types d'ennemis, marchand, cheval de Troie) capturée en
+écran, chaque forme confirmée visuellement distincte et correcte,
+aucune erreur JS. Bateau vérifié séparément (planches + mât/voile).
+Suite de régression complète toujours verte. Pas encore poussé en
+production.
