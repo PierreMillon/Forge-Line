@@ -2131,3 +2131,61 @@ inutile.
 Vérifié : `node --check`, rendu Playwright avant/après (capture native
 420×800 sans zoom numérique) — porte et cube de renfort de la tour
 clairement visibles à l'échelle réelle du jeu, aucune erreur JS.
+
+## v17.44 — Nouvelle méthode de recopiage (voir tools/) + application
+
+Pierre a validé une méthode bien plus rigoureuse que tout ce qui avait
+été tenté jusque-là pour recopier ses croquis exactement : détection de
+la grille isométrique par ajustement aux moindres carrés (élimine une
+dérive d'environ 30px trouvée sur la caravane), détection des traits
+par transformée de Hough (`cv2.HoughLinesP`, recherché sur internet à sa
+demande — outil standard, pas une heuristique maison), recalage sur la
+grille, et auto-vérification contre l'image d'origine (rejette tout
+seul les arêtes qui ne suivent pas un vrai trait blanc). Confirmée
+"parfait" sur bateau, cheval de Troie, tour, forge, mur, caisse+roues
+de la caravane. Sauvegardée dans `tools/` (scripts + `tools/README.md`)
+pour être réutilisée directement sur un futur croquis.
+
+Deuxième étape demandée : que chaque forme ait UN SEUL contour fermé
+("comme un ballon qu'on dégonfle autour de l'objet"), rempli en noir,
+posé sous les traits verts — pour qu'aucune forme ne laisse voir des
+choses en transparence derrière une fois en jeu. Calculé automatiquement
+(shapely : chaque segment de trait est gonflé d'un rayon fixe puis
+fusionné) pour 5 formes sur 6 sans problème. Le cheval de Troie a cassé
+en plusieurs morceaux séparés (pattes/dos trop loin du torse pour se
+souder au rayon utilisé) — Pierre a jugé que le résultat automatique ne
+correspondait toujours pas à son intention même après correctif du
+rayon, et a demandé d'utiliser DIRECTEMENT son propre tracé (un trait
+vert dessiné à la main sur l'image de référence) comme contour de
+vérité plutôt que mon calcul. Fait : détection du trait vert par
+couleur, fermeture des petits trous de tracé à main levée (dilatation
+25px), remplissage, extraction du contour exact — recalé sur la même
+image que l'extraction Hough pour rester cohérent. Validé.
+
+Appliqué au jeu (les 3 formes déjà pixel-exactes — tour/forge/mur —
+n'avaient rien à changer, confirmées par la vérification automatique) :
+
+- **Marchands** : la silhouette "petit bonhomme" du v17.32 ne plaisait
+  pas à Pierre ("des petits bonhommes un peu bizarres") — retour à de
+  simples billes vertes (comme avant le v17.32), qui accompagnent le
+  chariot.
+- **Bateau** : le mât + fanion n'existe PAS sur le croquis de référence
+  (vérifié pixel-exact) — c'était inventé au v17.32. Retiré, remplacé
+  par les 4 vrais ornements en losange (2 côté proue, 2 côté poupe, au
+  lieu d'1 de chaque). Positions approximatives (pas de conversion
+  unité-exacte faite depuis les coordonnées pixel extraites vers le
+  repère local du code, faute de temps) — à affiner si Pierre le
+  signale.
+
+Non fait dans ce passage, noté pour plus tard : le cheval de la
+caravane a déjà été réétalé pour la lisibilité au v17.42 mais pas
+recalé sur les coordonnées exactes maintenant disponibles (extraction
+Hough validée à 86% de complétude sur ce croquis) — amélioration
+possible mais pas une erreur bloquante. Le système "un seul contour
+noir plein par forme" n'est PAS encore intégré au rendu du jeu
+(uniquement validé via les scripts de `tools/`) — Pierre a dit explicitement
+que le moment de l'intégrer en jeu (et le réglage du zoom) viendrait
+plus tard.
+
+Vérifié : `node --check`, rendu Playwright (menu + jeu), aucune erreur
+JS.

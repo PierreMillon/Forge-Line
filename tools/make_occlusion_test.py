@@ -19,15 +19,30 @@ DOT = (60, 130, 80)
 LINE = (70, 255, 130)
 
 
+def silhouette_path(kept_coords, x0, y0, contour_radius=16):
+    """Un seul contour ("ballon qu'on dégonfle" autour du dessin) — mais un
+    léger défaut d'arrondi au recalage sur la grille peut laisser deux
+    arêtes censées partager un sommet à quelques pixels l'une de l'autre
+    (ex. cheval de Troie : dos/pattes trop loin du corps pour se souder à
+    un petit rayon). Ne JAMAIS garder que le plus gros morceau si le
+    résultat se coupe en plusieurs polygones — dessiner tous les
+    morceaux, sinon des bouts entiers du dessin (pattes, dos) restent
+    sans remplissage alors qu'ils font bien partie de la même forme.
+    """
+    lines = [LineString([p1, p2]) for _, (p1, p2) in kept_coords]
+    merged = unary_union([ln.buffer(contour_radius, cap_style=1, join_style=1) for ln in lines])
+    polys = list(merged.geoms) if merged.geom_type == 'MultiPolygon' else [merged]
+    path_parts = []
+    for poly in polys:
+        pts = list(poly.simplify(3).exterior.coords)
+        path_parts.append('M ' + ' L '.join(f'{px-x0:.1f},{py-y0:.1f}' for px, py in pts) + ' Z')
+    return ' '.join(path_parts)
+
+
 def build_transparent_svg(kept_coords, bbox, out_svg, contour_radius=16):
     x0, y0, x1, y1 = bbox
     w, h = x1 - x0, y1 - y0
-    lines = [LineString([p1, p2]) for _, (p1, p2) in kept_coords]
-    merged = unary_union([ln.buffer(contour_radius, cap_style=1, join_style=1) for ln in lines])
-    if merged.geom_type == 'MultiPolygon':
-        merged = max(merged.geoms, key=lambda g: g.area)
-    contour_pts = list(merged.simplify(3).exterior.coords)
-    contour_path = 'M ' + ' L '.join(f'{px-x0:.1f},{py-y0:.1f}' for px, py in contour_pts) + ' Z'
+    contour_path = silhouette_path(kept_coords, x0, y0, contour_radius=contour_radius)
 
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w:.0f}" height="{h:.0f}" viewBox="0 0 {w:.0f} {h:.0f}">']
     # AUCUN rectangle de fond : le canevas reste transparent, seule la

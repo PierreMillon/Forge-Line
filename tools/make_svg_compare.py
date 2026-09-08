@@ -14,6 +14,26 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from extract_hough import extract
 
 
+def silhouette_path(kept_coords, x0, y0, contour_radius=16):
+    """Un seul contour ("ballon qu'on dégonfle" autour du dessin) — mais un
+    léger défaut d'arrondi au recalage sur la grille peut laisser deux
+    arêtes censées partager un sommet à quelques pixels l'une de l'autre
+    (ex. cheval de Troie : dos/pattes trop loin du corps pour se souder à
+    un petit rayon). Ne JAMAIS garder que le plus gros morceau si le
+    résultat se coupe en plusieurs polygones — dessiner tous les
+    morceaux, sinon des bouts entiers du dessin (pattes, dos) restent
+    sans remplissage alors qu'ils font bien partie de la même forme.
+    """
+    lines = [LineString([p1, p2]) for _, (p1, p2) in kept_coords]
+    merged = unary_union([ln.buffer(contour_radius, cap_style=1, join_style=1) for ln in lines])
+    polys = list(merged.geoms) if merged.geom_type == 'MultiPolygon' else [merged]
+    path_parts = []
+    for poly in polys:
+        pts = list(poly.simplify(3).exterior.coords)
+        path_parts.append('M ' + ' L '.join(f'{px-x0:.1f},{py-y0:.1f}' for px, py in pts) + ' Z')
+    return ' '.join(path_parts)
+
+
 def build_svg(kept_coords, basis, bbox, out_svg, contour_radius=16, grid_step=None):
     O, u, v = basis
     x0, y0, x1, y1 = bbox
@@ -21,12 +41,7 @@ def build_svg(kept_coords, basis, bbox, out_svg, contour_radius=16, grid_step=No
 
     # silhouette : on "gonfle" chaque segment de trait puis on fusionne le
     # tout — exactement l'idée de la corde tendue autour du dessin
-    lines = [LineString([p1, p2]) for _, (p1, p2) in kept_coords]
-    merged = unary_union([ln.buffer(contour_radius, cap_style=1, join_style=1) for ln in lines])
-    if merged.geom_type == 'MultiPolygon':
-        merged = max(merged.geoms, key=lambda g: g.area)
-    contour_pts = list(merged.simplify(3).exterior.coords)
-    contour_path = 'M ' + ' L '.join(f'{px-x0:.1f},{py-y0:.1f}' for px, py in contour_pts) + ' Z'
+    contour_path = silhouette_path(kept_coords, x0, y0, contour_radius=contour_radius)
 
     # grille de points isométrique (même pas que le croquis d'origine)
     dots = []

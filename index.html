@@ -527,25 +527,21 @@ function drawOneBoat(b){
   const hullTopY = phosphorMode ? (-BOAT_SH - 2*BOAT_HULL_HH) : (-BOAT_SH - 2*BOAT_HH);
   ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#5c3f26';
   ctx.lineWidth = phosphorMode ? 1 : 2;
-  ctx.beginPath(); ctx.moveTo(0, hullTopY); ctx.lineTo(0, hullTopY - 20); ctx.stroke();
   if (phosphorMode){
-    // v17.32 (dessin de référence retrouvé) : pas une voile triangulaire
-    // pleine — un mât surmonté d'une petite fanion en losange, comme le
-    // trait-puis-losange du croquis
-    const px = 13, py = hullTopY - 18, ps = 5;
-    ctx.beginPath(); ctx.moveTo(0, hullTopY - 18); ctx.lineTo(px-ps, py); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(px-ps, py); ctx.lineTo(px, py-ps); ctx.lineTo(px+ps, py); ctx.lineTo(px, py+ps); ctx.closePath();
-    ctx.stroke();
-    // ornements de proue et de poupe : un trait qui part de chaque pointe
-    // de la coque vers un petit losange, comme sur le croquis
+    // v17.44 (correctif après vérification pixel-exacte du croquis,
+    // méthode Hough — voir tools/) : il n'y a PAS de mât/fanion sur le
+    // dessin de référence, c'était inventé. Il y a 4 losanges (des
+    // rames/ornements) reliés par un trait à la coque — 2 côté proue, 2
+    // côté poupe — pas 1 de chaque comme avant.
     const ornament = (fromX, fromY, dx, dy, size) => {
       const tx = fromX+dx, ty = fromY+dy;
       ctx.beginPath(); ctx.moveTo(fromX, fromY); ctx.lineTo(tx, ty); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(tx, ty-size); ctx.lineTo(tx+size, ty); ctx.lineTo(tx, ty+size); ctx.lineTo(tx-size, ty); ctx.closePath(); ctx.stroke();
     };
-    ornament(0, hullTopY, -20, -16, 5);            // proue
-    ornament(0, hullTopY + 2*BOAT_HULL_HH + BOAT_SH, 20, 16, 5); // poupe
+    ornament(0, hullTopY, 20, -16, 5);
+    ornament(20, hullTopY-4, 25, 5, 5);
+    ornament(0, hullTopY + 2*BOAT_HULL_HH + BOAT_SH, -20, 16, 5);
+    ornament(-20, hullTopY + 2*BOAT_HULL_HH + BOAT_SH + 4, -25, -5, 5);
   } else {
     ctx.beginPath();
     ctx.moveTo(0, hullTopY - 18);
@@ -2090,6 +2086,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.44", text: "Marchands : retour aux simples billes vertes (la silhouette de \"petit bonhomme\" ne plaisait pas). Bateau : le mât/fanion n'existait pas sur le croquis de référence (vérifié pixel-exact via une nouvelle méthode de recopiage automatique, voir tools/) — retiré, remplacé par les 4 vrais ornements en losange (2 à la proue, 2 à la poupe) au lieu de 2." },
   { v: "17.43", text: "Vu sur une vraie capture d'écran envoyée par Pierre : les proportions de la tour étaient correctes mais bien trop petites pour se lire sur un téléphone — porte et cube de renfort quasi invisibles à l'œil nu. Tour agrandie ×1,5 (visuel uniquement, aucun changement de portée/collision/gameplay)." },
   { v: "17.42", text: "Correctifs de forme suite au signalement \"ça ne correspond pas du tout\" : cube de renfort de la tour agrandi (il était 25% trop petit dès le niveau 1, quasi invisible) ; les 4 paliers de complexité des ennemis reflètent maintenant les 4 vrais motifs du croquis (trait simple / croix complète / treillis, plus de croix sur 3 faces inventée) ; cheval attelé à la caravane réétalé pour que dos/tête/4 pattes soient enfin distincts ; cheval de Troie entièrement repointé — l'ancien torse en pavé ne ressemblait pas du tout au croquis (silhouette allongée en zigzag, pas un cube)" },
   { v: "17.41", text: "Mode Phosphore devient le seul style visuel du jeu (bouton de bascule et mode couleur supprimés) — l'ancien mode couleur n'avait jamais reçu les formes redessinées d'après tes croquis de référence, donc affichait indéfiniment les anciennes formes basiques. Vagues 5-8 (fin du tutoriel) : les nouveaux types d'ennemis n'apparaissent plus en même temps que la ruée du nombre (référence Bloons TD 5 — une seule difficulté à la fois)" },
@@ -3288,18 +3285,12 @@ function draw(now){
   for (const m of merchants){
     layers.push({ y: m.y, draw: () => {
       if (phosphorMode){
-        // v17.32 (dessin de référence retrouvé) : les marchands sont des
-        // PERSONNAGES (petite silhouette humaine), pas des chariots —
-        // "derrière eux un cheval tire un chariot" : le chariot est
-        // dessiné une seule fois pour toute la caravane (voir
-        // drawCaravanCart plus bas), pas répété par marchand
+        // v17.44 (retour en arrière demandé par Pierre) : la silhouette de
+        // "petit bonhomme" du v17.32 ne lui plaît pas ("des petits
+        // bonhommes un peu bizarres") — retour à de simples billes, comme
+        // avant, qui accompagnent le chariot (devant/à côté/derrière lui)
         ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.1;
-        ctx.beginPath(); ctx.arc(m.x, m.y-15, 2, 0, Math.PI*2); ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(m.x, m.y-13); ctx.lineTo(m.x, m.y-6);
-        ctx.moveTo(m.x, m.y-6); ctx.lineTo(m.x-3, m.y);
-        ctx.moveTo(m.x, m.y-6); ctx.lineTo(m.x+3, m.y);
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2); ctx.stroke();
       } else {
       ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2);
       ctx.fillStyle = m.retreating ? '#e0a94a' : '#d9a441'; ctx.fill();
