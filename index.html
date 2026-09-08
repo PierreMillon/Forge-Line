@@ -17,6 +17,11 @@
   #menu-panel a, #menu-panel .disabled{display:block;padding:10px 14px;font-size:14px;color:#3a3529;text-decoration:none}
   #menu-panel a:hover{background:#00000010}
   #menu-panel .disabled{opacity:.45;cursor:default}
+  .menu-slider-row{padding:8px 14px;font-size:13px;color:#3a3529}
+  .menu-slider-row label{display:block;margin-bottom:4px}
+  .menu-slider-row input[type=range]{width:100%;accent-color:#5b8dd9}
+  body.phosphor .menu-slider-row{color:#3dff7a}
+  body.phosphor .menu-slider-row input[type=range]{accent-color:#3dff7a}
 
   #wave-label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:14px;font-weight:600;white-space:nowrap;pointer-events:none}
   #version-btn{margin-left:auto;margin-right:12px;padding:6px 10px;border-radius:8px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:13px;font-family:inherit;cursor:pointer}
@@ -126,7 +131,14 @@
     <a id="grid-toggle" href="#">Afficher la grille (debug)</a>
     <a id="phosphor-toggle" href="#">Mode Phosphore : Activé</a>
     <a id="faq-toggle" href="#">Aide / FAQ</a>
-    <a id="mute-toggle" href="#">Couper la musique</a>
+    <div class="menu-slider-row">
+      <label for="music-vol-slider">🎵 Musique</label>
+      <input type="range" id="music-vol-slider" min="0" max="100" value="35">
+    </div>
+    <div class="menu-slider-row">
+      <label for="sfx-vol-slider">🔊 Bruitages</label>
+      <input type="range" id="sfx-vol-slider" min="0" max="100" value="70">
+    </div>
     <a id="menu-restart" href="#">Recommencer une nouvelle partie</a>
   </div>
   <div id="wave-label">Vague <span id="wave">1</span></div>
@@ -1278,30 +1290,42 @@ iosUnmuteAudio.setAttribute('playsinline', '');
 // --- musique de fond (ambiance) --- fichier fourni par l'utilisateur,
 // servi à part (assets/ambience.ogg) plutôt qu'encodé en base64 dans la
 // page : ~6,7 Mo, bien trop lourd pour rester dans un seul fichier HTML
-// (aurait ajouté ~9 Mo à la page). Volume modéré pour ne pas couvrir les
-// bruitages. Coupure mémorisée (localStorage), bouton dans le menu.
+// (aurait ajouté ~9 Mo à la page).
+//
+// v17.34 (Partie 2, uniformisation demandée sur les 3 jeux) : deux
+// curseurs de volume (musique / bruitages), 0 à 100%, remplacent
+// l'ancien bouton "Couper la musique" tout-ou-rien — 0% coupe
+// complètement, comme demandé. Mémorisés séparément en localStorage.
 const bgMusic = document.getElementById('bg-music');
-bgMusic.volume = 0.35;
 bgMusic.setAttribute('playsinline', '');
-let musicMuted = false;
-try { musicMuted = localStorage.getItem('fl_musicMuted') === '1'; } catch (e) { /* ignore */ }
-function applyMusicMuteState(){
-  document.getElementById('mute-toggle').textContent = musicMuted ? 'Remettre la musique' : 'Couper la musique';
-  if (musicMuted) bgMusic.pause();
+const MUSIC_VOLUME_MAX = 0.35; // "à fond" (100%) reste modéré pour ne pas couvrir les bruitages
+let musicVolume = 35, sfxVolume = 70; // 0-100
+try { const v = localStorage.getItem('fl_musicVolume'); if (v !== null) musicVolume = Math.max(0, Math.min(100, parseInt(v, 10))); } catch (e) { /* ignore */ }
+try { const v = localStorage.getItem('fl_sfxVolume'); if (v !== null) sfxVolume = Math.max(0, Math.min(100, parseInt(v, 10))); } catch (e) { /* ignore */ }
+function applyMusicVolume(){
+  bgMusic.volume = (musicVolume/100) * MUSIC_VOLUME_MAX;
+  if (musicVolume <= 0) bgMusic.pause();
+  else if (!document.hidden) bgMusic.play().catch(() => {});
 }
-applyMusicMuteState();
-document.getElementById('mute-toggle').addEventListener('click', e => {
-  e.preventDefault();
-  musicMuted = !musicMuted;
-  try { localStorage.setItem('fl_musicMuted', musicMuted ? '1' : '0'); } catch (err) { /* ignore */ }
-  if (musicMuted) bgMusic.pause(); else bgMusic.play().catch(() => {});
-  applyMusicMuteState();
+const musicVolSlider = document.getElementById('music-vol-slider');
+const sfxVolSlider = document.getElementById('sfx-vol-slider');
+musicVolSlider.value = musicVolume;
+sfxVolSlider.value = sfxVolume;
+applyMusicVolume();
+musicVolSlider.addEventListener('input', e => {
+  musicVolume = parseInt(e.target.value, 10);
+  try { localStorage.setItem('fl_musicVolume', String(musicVolume)); } catch (err) { /* ignore */ }
+  applyMusicVolume();
+});
+sfxVolSlider.addEventListener('input', e => {
+  sfxVolume = parseInt(e.target.value, 10);
+  try { localStorage.setItem('fl_sfxVolume', String(sfxVolume)); } catch (err) { /* ignore */ }
 });
 
 function tryUnlockAudio(){
   const ac = getAudioCtx();
   iosUnmuteAudio.play().catch(() => {}); // ignoré si ça échoue (pas grave, retenté au geste suivant)
-  if (!musicMuted) bgMusic.play().catch(() => {});
+  if (musicVolume > 0) bgMusic.play().catch(() => {});
   if (ac.state === 'running'){
     window.removeEventListener('pointerdown', tryUnlockAudio);
     window.removeEventListener('touchstart', tryUnlockAudio);
@@ -1312,18 +1336,21 @@ window.addEventListener('pointerdown', tryUnlockAudio, { passive: true });
 window.addEventListener('touchstart', tryUnlockAudio, { passive: true });
 window.addEventListener('keydown', tryUnlockAudio);
 function playTone({ freq=440, freqEnd=null, duration=0.05, type='sine', gain=0.15 }){
+  if (sfxVolume <= 0) return; // v17.34 : curseur de bruitages à 0 = vraiment coupé, pas juste inaudible
   const ac = getAudioCtx(), t0 = ac.currentTime;
   const osc = ac.createOscillator();
   osc.type = type;
   osc.frequency.setValueAtTime(freq, t0);
   if (freqEnd) osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), t0 + duration);
   const g = ac.createGain();
-  g.gain.setValueAtTime(gain, t0);
+  const effGain = gain * (sfxVolume/100);
+  g.gain.setValueAtTime(effGain, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
   osc.connect(g); g.connect(ac.destination);
   osc.start(t0); osc.stop(t0 + duration + 0.02);
 }
 function playNoiseBurst({ duration=0.03, gain=0.15, filterFreq=2000, filterType='bandpass', filterQ=2 }){
+  if (sfxVolume <= 0) return;
   const ac = getAudioCtx(), t0 = ac.currentTime;
   const n = Math.max(1, Math.floor(ac.sampleRate * duration));
   const buffer = ac.createBuffer(1, n, ac.sampleRate);
@@ -1334,7 +1361,8 @@ function playNoiseBurst({ duration=0.03, gain=0.15, filterFreq=2000, filterType=
   const f = ac.createBiquadFilter();
   f.type = filterType; f.frequency.value = filterFreq; f.Q.value = filterQ;
   const g = ac.createGain();
-  g.gain.setValueAtTime(gain, t0);
+  const effGain = gain * (sfxVolume/100);
+  g.gain.setValueAtTime(effGain, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
   src.connect(f); f.connect(g); g.connect(ac.destination);
   src.start(t0);
@@ -1834,6 +1862,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.34", text: "Audio : deux curseurs de volume (musique, bruitages) de 0 à 100%, remplacent l'ancien bouton tout-ou-rien ; tout le son se coupe quand on quitte l'onglet/l'application" },
   { v: "17.33", text: "Agencement : la forge est maintenant dans l'enceinte, derrière le mur (avant elle était au-dessus) ; débarquement : les ennemis quittent le bateau en courant (course rapide groupée) avant de choisir leur stratégie, pont plus condensé" },
   { v: "17.32", text: "Formes redessinées à la lettre depuis les dessins de référence retrouvés : tour (porte triangulaire), forge (toit en pavillon + cheminée), mur (créneaux plissés + porte centrale), bateau (ornements proue/poupe, fanion), marchands (personnages + un seul chariot attelé pour la caravane), cheval de Troie (torse en pavé + pattes coudées), ennemis (4 paliers de complexité au lieu de 3)" },
   { v: "17.31", text: "Mode Phosphore : correctif texte noir sur noir (écran de fin de partie, erreur pub) et tous les éléments oubliés passés en vert (débarquement, croix de mort, poussière, halo de tour) ; collision entre ennemis vraiment resserrée (rayon par type, plus de superposition) ; joueur en faces noires opaques (fini l'effet fantôme)" },
@@ -3231,7 +3260,21 @@ function reloadIfUpdateAvailable(){
   return true;
 }
 checkForUpdate();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+// v17.34 : "quand on quitte l'application... tout le son doit se
+// couper" — la musique <audio> continuerait sinon de jouer en fond
+// (l'AudioContext des bruitages, lui, est de toute façon suspendu par
+// le navigateur quand l'onglet passe en arrière-plan, mais on le fait
+// explicitement pour ne pas en dépendre)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){
+    bgMusic.pause();
+    if (audioCtx && audioCtx.state === 'running') audioCtx.suspend();
+  } else {
+    checkForUpdate();
+    if (musicVolume > 0) bgMusic.play().catch(() => {});
+    if (audioCtx) audioCtx.resume();
+  }
+});
 
 function loop(ts){
   update(ts || 0);

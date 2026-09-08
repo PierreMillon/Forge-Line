@@ -1544,3 +1544,35 @@ comparées directement).
 
 **Partie 1 terminée** (A, B, C, D, E tous faits). Passage à la Partie 2
 (uniformisation) ensuite.
+
+## v17.34 : Partie 2, point 1 — audio (volume musique/bruitages + coupure hors-focus)
+
+Consigne (envoyée identique aux 3 jeux) : "musique ET bruitages
+fonctionnels. Curseur(s) de volume accessibles depuis le menu, de 0 à
+100%, pour la musique et pour les bruitages."
+
+- Ancien bouton binaire "Couper la musique" retiré, remplacé par deux
+  `<input type="range">` dans le menu (Musique / Bruitages), 0-100,
+  mémorisés séparément (`fl_musicVolume`, `fl_sfxVolume`).
+- Musique : le curseur mappe 0-100% sur 0-`MUSIC_VOLUME_MAX` (0,35,
+  volume réel inchangé à fond — juste rendu réglable en dessous). 0%
+  met en pause comme avant.
+- Bruitages : `playTone`/`playNoiseBurst` (les deux générateurs de sons
+  synthétisés, tout est généré, pas de fichier) multiplient leur gain
+  par `sfxVolume/100` et ne jouent RIEN à 0% (pas juste inaudible —
+  sort tôt, économise même le calcul).
+- Au passage : implémenté une demande plus ancienne restée en attente
+  ("quand on quitte l'application... tout le son doit se couper") —
+  `visibilitychange` met en pause la musique et suspend l'AudioContext
+  quand l'onglet passe en arrière-plan, reprend au retour (si le volume
+  n'est pas à 0).
+
+Vérifié par script (pas seulement visuel) : les deux sliders existent et
+reflètent l'état initial ; les mettre à 0 coupe bien `bgMusic` (pause) et
+`sfxShoot()` ne lève pas d'erreur et ne joue rien ; simuler
+`document.hidden = true` + l'évènement met bien `bgMusic` en pause.
+Suite de régression complète toujours verte.
+
+**Reste Partie 2** : langue (auto-détection fr/en, anglais par défaut
+sinon), section "Astuces", lisibilité des mécaniques (jauges
+circulaires d'attente, nombres flottants déjà en place pour l'or).
