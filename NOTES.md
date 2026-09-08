@@ -1887,3 +1887,48 @@ de parties qui atteignent la vague X" pour un X à définir (ex: vague 20
 
 Vérifié : `node --check`, suite de régression complète toujours verte
 après chaque changement de constante.
+
+## Partie 3 : correctif majeur du simulateur (mauvaise largeur d'écran)
+
+Repéré en creusant pourquoi les 3 profils restaient presque identiques
+(vague ~8 quelle que soit la stratégie) : `simulate.mjs` ouvrait la
+page SANS préciser de viewport — Playwright utilise alors une largeur
+de bureau (~1280px). Une tour (portée 160px) n'en couvre qu'un quart :
+la plupart des ennemis marchaient hors de portée quoi qu'on achète,
+ce qui écrasait toute différence entre bien jouer et ne rien faire.
+Corrigé : viewport mobile (420×800, comme l'iPhone 16 de Pierre) —
+c'est la largeur d'écran RÉELLE que voit un joueur, pas une largeur de
+bureau qui n'existe pour personne sur ce jeu (pensé mobile-first).
+
+Résultat après correctif (15 parties, tir manuel 250ms) : vague
+moyenne 34,3 (naive) / 24,3 (correct) / 32,7 (good) — bien plus sain
+que les ~8 vagues mesurées avant. Repère "% encore en vie" à la vague
+25 : 80% (naive), 40% (correct), à confirmer pour "good".
+
+**Anomalie repérée, pas encore résolue** : "naive" survit en moyenne
+PLUS longtemps que "correct" (34,3 vs 24,3) — pas l'ordre attendu. Piste
+: "correct" mise tout sur UNE tour puis la renforce en priorité
+(uCost <= dCost*3), ce qui semble moins payant sur une carte étroite
+que la dépense plus étalée (dégâts/cadence/précision) que "naive" fait
+par hasard — signal que le jeu récompense déjà la diversification des
+achats (cohérent avec la consigne "chaque mécanique doit rester
+rentable"), mais la logique du bot "correct" doit être corrigée pour
+que le classement naive < correct < good redevienne cohérent avant de
+s'en servir pour caler les constantes plus finement.
+
+Pierre, en référence de ressenti : "la difficulté de Bloons TD 5 est
+parfaite." Recherché : sur Bloons TD 5, la difficulté vient d'un
+budget de vies fixe par run (200/150/100 selon le mode) et d'un nombre
+de manches croissant (50/65/85) — pas d'ennemis qui grimpent en PV à
+l'infini sans limite de vies. Forge Line a déjà un budget fixe
+équivalent (10 brèches), ce qui va dans le même sens ; la comparaison
+confirme l'approche déjà en place plutôt que d'en suggérer une nouvelle.
+
+**Reste à faire pour la suite** : corriger la logique du bot "correct"
+(classement naive < correct < good), puis relancer le simulateur avec
+plus d'essais et des repères 10/25/50/100 pour caler finement autour
+des cibles de Pierre (pas de paliers sélectionnables — tranché — donc
+ces repères de vague servent de proxy à "facile/normal/difficile/très
+difficile").
+
+Sources : [Bloons Wiki — Difficulty](https://bloons.fandom.com/wiki/Difficulty), [Bloons Wiki — Rounds (BTD5)](https://bloons.fandom.com/wiki/Rounds_(BTD5)).

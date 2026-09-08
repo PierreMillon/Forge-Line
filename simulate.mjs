@@ -64,7 +64,15 @@ const URL = argVal('url', 'http://localhost:8930/index.html');
 const MAX_WAVE_TRACK = parseInt(argVal('maxWaveTrack', '100'), 10); // "vagues infinies : mesure sur les 100 premières" (consigne)
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-const page = await browser.newPage();
+// v17.41 — trouvé en creusant pourquoi TOUTES les stratégies mouraient
+// pareil (naive quasi = correct = good) : sans viewport précisé,
+// Playwright ouvre une page de bureau (~1280px de large). Une tour
+// (portée 160px) n'en couvre alors qu'un quart — la plupart des
+// ennemis marchent hors de portée quoi qu'on achète, ce qui écrasait
+// toute différence entre les stratégies. Un vrai joueur est sur mobile
+// (Pierre : iPhone 16) — viewport resserré pour que le simulateur
+// mesure la même largeur de carte qu'en vrai.
+const page = await browser.newPage({ viewport: { width: 420, height: 800 } });
 // La page a sa propre boucle requestAnimationFrame (temps réel, horloge
 // système) qui tournerait EN PLUS de nos appels manuels à update() avec des
 // timestamps synthétiques -- les deux horloges se marchent dessus et
@@ -166,9 +174,19 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
   for (let i = 0; i < trials; i++) runs.correct.push(runOne('correct'));
   for (let i = 0; i < trials; i++) runs.good.push(runOne('good'));
 
+  // v17.41 (Partie 3 — "pas de paliers de difficulté sélectionnables,
+  // un seul mode" tranché par Pierre) : au lieu de viser des % de
+  // victoire sur des paliers qui n'existent pas, on lit la même chose
+  // sur la courbe de survie du mode continu — quelle fraction des
+  // parties est encore vivante à un numéro de vague donné. Sert de
+  // repère pour caler "facile" (tôt), "normal" (milieu), "difficile"/
+  // "très difficile" (tard) SANS ajouter de menu de difficulté.
+  const CHECKPOINTS = [10, 25, 50, 100];
   function summarize(list){
     const waves = list.map(r => r.endWave).sort((a,b) => a-b);
     const sum = waves.reduce((a,b) => a+b, 0);
+    const survival = {};
+    for (const cp of CHECKPOINTS) survival[cp] = +(100 * list.filter(r => r.endWave >= cp).length / list.length).toFixed(1);
     return {
       n: list.length,
       meanWave: +(sum/list.length).toFixed(2),
@@ -178,6 +196,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       stdDev: +Math.sqrt(waves.reduce((a,w) => a + (w - sum/list.length)**2, 0) / list.length).toFixed(2),
       reasonCounts: list.reduce((acc,r) => { acc[r.reason] = (acc[r.reason]||0)+1; return acc; }, {}),
       pctReachedWaveTrack: +(100 * list.filter(r => r.reachedWaveTrack).length / list.length).toFixed(1),
+      survivalPctAtWave: survival, // "% encore en vie" à chaque repère (10/25/50/100)
     };
   }
 
