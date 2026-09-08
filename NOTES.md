@@ -1659,3 +1659,55 @@ pixel-parfaite avec le tracé d'origine.
 Vérifié : `node --check`, captures Playwright de chaque forme corrigée
 comparées aux dessins d'origine, suite de régression complète toujours
 verte.
+
+## v17.37 : extraction pixel-exacte des dessins (analyse d'image, plus fiable que l'œil)
+
+Pierre, après avoir vu la comparaison en direct : "Trouve un moyen de
+recopier de manière exacte." — plutôt que de continuer à estimer les
+coordonnées à l'œil sur les images, installé Pillow/NumPy/SciPy et
+écrit un script d'analyse d'image qui :
+1. Détecte les petits points blancs marqués sur chaque dessin (les vrais
+   sommets du tracé, visibles comme des points plus denses que les
+   traits) par filtrage de densité locale + labellisation de composantes
+   connexes — coordonnées pixel exactes, pas une estimation.
+2. Détecte automatiquement les ARÊTES entre ces sommets : pour chaque
+   paire de points, échantillonne le segment qui les relierait et
+   vérifie que des pixels clairs sont bien présents tout du long — si
+   oui, l'arête existe réellement sur le dessin.
+3. Génère une image de vérification (le dessin original + les arêtes
+   détectées superposées en rouge) pour confirmer visuellement, avant
+   de coder quoi que ce soit, que l'extraction correspond bien au trait
+   d'origine — Pierre a lui-même repéré que certains traits blancs
+   n'étaient pas repassés en rouge sur un premier essai ("plus rigoureux
+   il faut"), ce qui a permis d'affiner les seuils jusqu'à recouvrement
+   quasi complet.
+
+**Tour et mur du château : recouvrement à ~100 %** (tous les traits du
+dessin confirmés retrouvés par l'algorithme, vérifié visuellement) —
+converti en proportions exactes (fractions de TOWER_HW / de la hauteur)
+et appliqué au code :
+- Porte de la tour : forme à 4 points exacte (un repli sur le bord
+  gauche avant de rejoindre le bord droit près du sommet), pas un
+  simple triangle.
+- Cube de renfort : son pic touche le coin N (virtuel) du corps
+  principal à moins de 2px près sur le dessin — ancré exactement là.
+- Créneaux du mur : la vallée fait 0,82× la hauteur d'un pic (pas 0,4×
+  comme estimé à l'œil avant) — un zigzag bien plus doux que ce qui
+  avait été codé. Le sommet de la porte culmine à 1,585× (pas 2,4×).
+
+**Bateau, chariot de caravane, cheval de Troie** : tous les sommets
+retrouvés avec précision, mais la détection automatique des arêtes
+reste incomplète sur ces dessins (traits visiblement moins rectilignes
+— dessinés à main levée plutôt qu'avec l'outil formes/lignes de
+l'appli) — recouvrement partiel malgré plusieurs passes de réglage des
+seuils. La structure déjà codée en v17.36 reste donc la meilleure
+approximation disponible pour ces trois ; pas encore reconverti en
+proportions pixel-exactes comme la tour et le mur. Prochaine étape si
+Pierre veut pousser plus loin : affiner la détection d'arêtes pour ces
+tracés à main levée (tolérance à la courbure plutôt qu'au segment
+droit), ou lire les sommets un par un directement depuis l'image de
+vérification (déjà quasi complète pour le cheval de Troie : 22
+sommets tous localisés).
+
+Vérifié : `node --check`, captures Playwright de la tour et du mur
+après application, suite de régression complète toujours verte.
