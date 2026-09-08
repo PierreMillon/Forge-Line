@@ -108,6 +108,12 @@
   body.phosphor #spectate-btn, body.phosphor #restart-btn, body.phosphor #ad-error-ok{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; }
   body.phosphor #version-panel .row:not(:last-child){ border-bottom-color:#1c6b39; }
   body.phosphor #bonus-btn{ background:#0a1c0e; color:#3dff7a; border-color:#1c6b39; }
+  /* v17.31 (bug signalé en direct : "écritures noires sur noir") — ces
+     enfants avaient leur propre `color` sombre non repris par la règle
+     groupée ci-dessus (qui ne fixe que le conteneur), donc restaient
+     illisibles sur fond noir */
+  body.phosphor #over-card h2, body.phosphor #over-card p,
+  body.phosphor #ad-error-card p{ color:#3dff7a; }
 </style>
 </head>
 <body>
@@ -360,11 +366,12 @@ function drawBoatPassengers(b){
     const row = Math.floor(i / cols), col = i % cols;
     const px = cx + (col - (cols-1)/2) * 7;
     const py = cy + (row - (Math.ceil(shown.length/cols)-1)/2) * 6;
-    ctx.fillStyle = t.colorB;
-    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI*2);
+    if (phosphorMode){ ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1; ctx.stroke(); }
+    else { ctx.fillStyle = t.colorB; ctx.fill(); }
   });
   if (b.passengers.length > BOAT_PASSENGER_DISPLAY_MAX){
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = phosphorMode ? PHOSPHOR_GREEN : '#fff';
     ctx.font = '9px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('+' + (b.passengers.length - BOAT_PASSENGER_DISPLAY_MAX), cx, cy - 14);
@@ -1022,17 +1029,31 @@ function drawDeathEffect(d, now){
   const t = now - d.createdAt;
   if (t < DEATH_EFFECT_SMOKE_MS){
     const p = t / DEATH_EFFECT_SMOKE_MS;
-    ctx.fillStyle = `rgba(50,50,50,${0.5*(1-p)})`;
-    ctx.beginPath(); ctx.arc(d.x, d.y-8, 6+p*10, 0, Math.PI*2); ctx.fill();
+    if (phosphorMode){
+      ctx.globalAlpha = 0.6*(1-p);
+      ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(d.x, d.y-8, 6+p*10, 0, Math.PI*2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = `rgba(50,50,50,${0.5*(1-p)})`;
+      ctx.beginPath(); ctx.arc(d.x, d.y-8, 6+p*10, 0, Math.PI*2); ctx.fill();
+    }
   } else {
     const p = (t - DEATH_EFFECT_SMOKE_MS) / (DEATH_EFFECT_TOTAL_MS - DEATH_EFFECT_SMOKE_MS);
     const riseY = d.y - 8 - p*30;
-    ctx.strokeStyle = `rgba(90,80,60,${0.7*(1-p)})`;
+    if (phosphorMode){
+      ctx.globalAlpha = 0.9*(1-p);
+      ctx.strokeStyle = PHOSPHOR_GREEN;
+    } else {
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = `rgba(90,80,60,${0.7*(1-p)})`;
+    }
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(d.x, riseY-6); ctx.lineTo(d.x, riseY+6);
     ctx.moveTo(d.x-4, riseY-2); ctx.lineTo(d.x+4, riseY-2);
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -1066,7 +1087,7 @@ function updateParticles(){
 }
 function drawParticles(){
   for (const p of particles){
-    ctx.fillStyle = `rgba(90,80,60,${p.opacity})`;
+    ctx.fillStyle = phosphorMode ? `rgba(70,255,130,${p.opacity})` : `rgba(90,80,60,${p.opacity})`;
     ctx.fillRect(p.x, p.y, p.size, p.size);
   }
 }
@@ -1526,38 +1547,62 @@ function resolveTowerCollision(pos, radius){
     }
   }
 }
+// rayon visuel par type d'ennemi — sert à la fois au dessin (v17.29) et à
+// la collision (v17.31) : avant, la collision utilisait une distance
+// fixe (16px) bien plus petite que le rayon réel de certains types (le
+// cheval de Troie fait 18px de rayon à lui seul), d'où le chevauchement
+// massif signalé ("n'importe quoi, tout le monde se superpose").
+function enemyRadius(e){
+  const id = (e.type || ENEMY_TYPES[0]).id;
+  return id === 'trojan' ? 18 : (id === 'boss' ? 11 : 8);
+}
 // v17.24 : collision souple entre ennemis débarqués (demandé) — pas une
-// paroi rigide, une élasticité : ENEMY_MIN_DIST est la distance visée,
-// mais ENEMY_OVERLAP_ALLOWED permet de s'enfoncer un peu dedans avant que
-// la poussée ne fasse effet, et la correction n'est que partielle par
-// frame (pas instantanée) pour rester souple à l'œil. Encore permis de se
-// chevaucher tant qu'ils sont sur le bateau (pas encore débarqués — pas
-// dans le tableau `enemies`, donc hors de cette fonction de toute façon).
-// O(n²) : plafonné à ENEMY_COLLISION_MAX_COUNT ennemis simultanés pour ne
-// pas coûter cher en toute fin de partie où les vagues sont énormes —
-// au-delà, le chevauchement redevient juste visuel, sans conséquence de
-// jeu (déjà le cas avant cette version).
-const ENEMY_MIN_DIST = 16;
-const ENEMY_OVERLAP_ALLOWED = 0.4; // jusqu'à 40% de chevauchement toléré avant correction
+// paroi rigide, une élasticité : la somme des deux rayons est la distance
+// visée, mais ENEMY_OVERLAP_ALLOWED permet de s'enfoncer un peu dedans
+// (léger effet "caoutchouc"), et la correction n'est que partielle par
+// frame (pas instantanée) pour rester souple à l'œil.
+// v17.31 (corrige un vrai bug signalé — deux personnages ne doivent
+// JAMAIS pouvoir se superposer) : la tolérance était bien trop large
+// (40% du rayon, lui-même sous-dimensionné — voir enemyRadius ci-dessus)
+// et une seule passe de correction par frame ne suffisait pas à résorber
+// un empilement sous pression continue (plusieurs ennemis convergeant
+// vers le même point). Resserré à 12% de tolérance, poussée plus franche,
+// et deux passes de relaxation par frame — un chevauchement réel ne
+// persiste plus, sans pour autant être un snap instantané rigide.
+const ENEMY_OVERLAP_ALLOWED = 0.12; // tolérance "caoutchouc", pas une vraie superposition
 const ENEMY_COLLISION_MAX_COUNT = 150;
-const ENEMY_COLLISION_PUSH = 0.25; // correction partielle par frame, pas instantanée
+const ENEMY_COLLISION_PUSH = 0.5;   // correction par passe, pas instantanée mais franche
+const ENEMY_COLLISION_ITER = 2;     // deux passes de relaxation par frame : résout la quasi-totalité des chevauchements même sous pression continue
+// O(n²) par passe : plafonné à ENEMY_COLLISION_MAX_COUNT ennemis simultanés
+// pour ne pas coûter cher en toute fin de partie où les vagues sont
+// énormes — au-delà, le chevauchement redevient juste visuel, sans
+// conséquence de jeu (déjà le cas avant cette version).
 function resolveEnemyCollisions(){
   const n = enemies.length;
   if (n < 2 || n > ENEMY_COLLISION_MAX_COUNT) return;
-  const minDist = ENEMY_MIN_DIST * (1 - ENEMY_OVERLAP_ALLOWED);
-  for (let i = 0; i < n; i++){
-    const a = enemies[i];
-    if (a.fleeing) continue; // en fuite vers le bateau : laissé traverser, pas de bousculade
-    for (let j = i+1; j < n; j++){
-      const b = enemies[j];
-      if (b.fleeing) continue;
-      const dx = b.x-a.x, dy = b.y-a.y;
-      const d = Math.hypot(dx, dy);
-      if (d > 0.001 && d < minDist){
-        const push = (minDist - d) * ENEMY_COLLISION_PUSH;
-        const ux = dx/d, uy = dy/d;
-        a.x -= ux*push*0.5; a.y -= uy*push*0.5;
-        b.x += ux*push*0.5; b.y += uy*push*0.5;
+  for (let iter = 0; iter < ENEMY_COLLISION_ITER; iter++){
+    for (let i = 0; i < n; i++){
+      const a = enemies[i];
+      if (a.fleeing) continue; // en fuite vers le bateau : laissé traverser, pas de bousculade
+      for (let j = i+1; j < n; j++){
+        const b = enemies[j];
+        if (b.fleeing) continue;
+        const minDist = (enemyRadius(a) + enemyRadius(b)) * (1 - ENEMY_OVERLAP_ALLOWED);
+        const dx = b.x-a.x, dy = b.y-a.y;
+        const d = Math.hypot(dx, dy);
+        if (d < minDist){
+          if (d > 0.001){
+            const push = (minDist - d) * ENEMY_COLLISION_PUSH;
+            const ux = dx/d, uy = dy/d;
+            a.x -= ux*push*0.5; a.y -= uy*push*0.5;
+            b.x += ux*push*0.5; b.y += uy*push*0.5;
+          } else {
+            // exactement au même endroit (cas limite) : sépare dans une
+            // direction arbitraire mais déterministe, pour ne jamais
+            // rester bloqué à distance nulle (division par zéro évitée)
+            a.x -= 0.5; b.x += 0.5;
+          }
+        }
       }
     }
   }
@@ -1754,6 +1799,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.31", text: "Mode Phosphore : correctif texte noir sur noir (écran de fin de partie, erreur pub) et tous les éléments oubliés passés en vert (débarquement, croix de mort, poussière, halo de tour) ; collision entre ennemis vraiment resserrée (rayon par type, plus de superposition) ; joueur en faces noires opaques (fini l'effet fantôme)" },
   { v: "17.30", text: "Optimisation : chargement audio différé (musique plus légère au démarrage), garde-fou sur le calcul de regroupement des ennemis" },
   { v: "17.29", text: "Mode Phosphore : formes propres pour la forge, le mur, le bateau, les marchands, le cheval de Troie et les ennemis selon leur difficulté ; contact souple avec les tours" },
   { v: "17.28", text: "Mode Phosphore (vert sur noir, style écran vectoriel) activé par défaut, désactivable dans le menu — nouvelle forme de tour avec porte/fenêtre/cube de renfort" },
@@ -2404,7 +2450,7 @@ function update(now){
 // "stacked" est soit un booléen (une seule ligne médiane, comme avant),
 // soit un nombre d'étages (niveau de la tour) : dans ce cas on dessine une
 // ligne par jointure entre étages, pour que le renfort se voie vraiment
-function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked){
+function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked, opaque){
   const cyTop = cyBase - sh - 2*hh;
   const N = { x: cx,    y: cyTop };
   const E = { x: cx+hw, y: cyTop+hh };
@@ -2413,12 +2459,21 @@ function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked){
 
   // Mode Phosphore : contours verts, pas de remplissage en dégradé — les
   // couleurs passées en argument (colTop/colLeft/colRight) sont ignorées,
-  // comme un vrai écran vectoriel n'a jamais eu d'éclairage par face
+  // comme un vrai écran vectoriel n'a jamais eu d'éclairage par face.
+  // v17.31 : `opaque` (utilisé pour le joueur uniquement, sur demande —
+  // "les faces doivent être complètement noires, pas en fil de fer
+  // fantôme") remplit chaque face en noir plein avant de tracer le
+  // contour, au lieu de laisser voir au travers.
   if (phosphorMode){
     ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(S.x,S.y+sh); ctx.lineTo(W.x,W.y+sh); ctx.closePath(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(E.x,E.y+sh); ctx.lineTo(S.x,S.y+sh); ctx.closePath(); ctx.stroke();
+    const face = (p1,p2,p3,p4) => {
+      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y); ctx.closePath();
+      if (opaque){ ctx.fillStyle = '#000'; ctx.fill(); }
+      ctx.stroke();
+    };
+    face(N,E,S,W);
+    face(W,S,{x:S.x,y:S.y+sh},{x:W.x,y:W.y+sh});
+    face(S,E,{x:E.x,y:E.y+sh},{x:S.x,y:S.y+sh});
   } else {
     ctx.fillStyle = colTop;
     ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.fill();
@@ -2699,7 +2754,7 @@ function draw(now){
         // halo doré au sol, pulsé doucement pour bien attirer l'œil
         const pulse = 0.6 + 0.4 * Math.sin(now / 200);
         ctx.save();
-        ctx.strokeStyle = `rgba(217, 164, 65, ${0.5 + 0.3*pulse})`;
+        ctx.strokeStyle = phosphorMode ? `rgba(70,255,130,${0.5 + 0.3*pulse})` : `rgba(217, 164, 65, ${0.5 + 0.3*pulse})`;
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.ellipse(t.x, t.y, TOWER_HW*2.2, TOWER_HH*2.2, 0, 0, Math.PI*2); ctx.stroke();
         ctx.restore();
@@ -2733,7 +2788,7 @@ function draw(now){
   // reconstruction tant qu'elle est là (voir towerGraves/updateGraves)
   for (const g of towerGraves){
     layers.push({ y: g.y, draw: () => {
-      ctx.strokeStyle = '#5c5347';
+      ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#5c3f26';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(g.x, g.y-2); ctx.lineTo(g.x, g.y-18);
@@ -2745,12 +2800,12 @@ function draw(now){
         const p = Math.min(1, (performance.now() - playerPrayingSince) / GRAVE_PRAY_MS);
         ctx.save();
         ctx.globalAlpha = 0.85;
-        ctx.fillStyle = '#faf6ea';
-        ctx.strokeStyle = '#3a3529';
+        if (phosphorMode){ ctx.fillStyle = '#000'; ctx.strokeStyle = PHOSPHOR_GREEN; }
+        else { ctx.fillStyle = '#faf6ea'; ctx.strokeStyle = '#3a3529'; }
         ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(player.x, player.y-32, 9, 0, Math.PI*2*p); ctx.lineTo(player.x, player.y-32); ctx.closePath();
         ctx.fill(); ctx.stroke();
-        ctx.strokeStyle = '#5c5347'; ctx.lineWidth = 1.5;
+        ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#5c3f26'; ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(player.x, player.y-36); ctx.lineTo(player.x, player.y-28);
         ctx.moveTo(player.x-3, player.y-33); ctx.lineTo(player.x+3, player.y-33);
@@ -2768,7 +2823,7 @@ function draw(now){
   for (const e of enemies){
     layers.push({ y: e.y, draw: () => {
       const t = e.type || ENEMY_TYPES[0];
-      const rr = t.id === 'trojan' ? 18 : (t.id === 'boss' ? 11 : 8); // le cheval de Troie se voit nettement, le boss un peu plus gros
+      const rr = enemyRadius(e); // même rayon que la collision (v17.31) — le cheval de Troie se voit nettement, le boss un peu plus gros
       if (phosphorMode){
         if (t.id === 'trojan') drawTrojanHorseShape(e.x, e.y-8, rr);
         else drawEnemyShape(e.x, e.y-8, rr*0.85, ENEMY_COMPLEXITY[t.id] ?? 0);
@@ -2858,7 +2913,7 @@ function draw(now){
     const blinkOn = !critical || Math.floor(now / 150) % 2 === 0;
     layers.push({ y: player.y, draw: () => {
       if (!blinkOn) ctx.globalAlpha = 0.3;
-      drawIsoBox(player.x, player.y, PLAYER_HW, PLAYER_HH, PLAYER_SH, pTop, pLeft, pRight);
+      drawIsoBox(player.x, player.y, PLAYER_HW, PLAYER_HH, PLAYER_SH, pTop, pLeft, pRight, false, true);
       if (!blinkOn) ctx.globalAlpha = 1;
     }});
   }
@@ -2872,7 +2927,7 @@ function draw(now){
   for (const f of floatingTexts){
     const t = (now - f.createdAt) / 700;
     ctx.globalAlpha = Math.max(0, 1-t);
-    ctx.fillStyle = f.color;
+    ctx.fillStyle = phosphorMode ? PHOSPHOR_GREEN : f.color;
     ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(f.text, f.x, f.y - t*18);

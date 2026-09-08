@@ -1378,3 +1378,65 @@ Vérifié : `node --check` sur le script extrait, suite de tests
 Playwright rejouée en HTTP (test-big, test-enemyprog jusqu'à la vague
 230, test-boat-wave, test-forge, test-merchants, test-v1727) —
 zéro erreur JS à chaque fois.
+
+## v17.31 : corrections signalées en direct par Pierre (mode Phosphore + collision + joueur)
+
+Grosse consigne dictée reçue via routine planifiée ("Forge Line —
+corrections + uniformisation + difficulté"), Partie 1 (prioritaire).
+Pendant que ce travail démarrait, Pierre a testé le jeu en direct et
+signalé deux bugs visuels concrets dans le mode Phosphore déjà en
+production (v17.28-30) :
+
+- **"Les écritures doivent être vertes... là on a des noirs sur noir"**
+  — `#over-card h2`/`p` (écran "Tu as perdu") et `#ad-error-card p`
+  avaient leur propre `color:#3a3529` (beige foncé) jamais repris par
+  la règle CSS groupée du mode Phosphore (qui ne fixe que le
+  conteneur, pas ces enfants) — texte quasi invisible sur fond noir.
+  Corrigé (règle CSS dédiée, `color:#3dff7a`).
+- **"La croix de mort ennemis et tout doit être vert"** — audit complet
+  de tous les `ctx.fillStyle`/`strokeStyle` non protégés par
+  `phosphorMode` : trouvés et corrigés — la fumée+croix de mort d'un
+  ennemi (`drawDeathEffect`), les points de passagers sur le bateau et
+  le texte "+N" en surplus, les particules d'ambiance, la croix du
+  cimetière des tours + la bulle de prière, le halo doré de
+  surbrillance d'une tour, et les textes flottants (or gagné, dégâts)
+  qui gardaient leur couleur d'origine au lieu du vert. Plus aucun
+  élément ne devrait échapper au style en mode Phosphore.
+
+Profité du même passage pour avancer sur la Partie 1 du plan (B et C,
+qui ne nécessitent pas les dessins de référence — voir plus bas pour
+pourquoi A attend) :
+
+- **B. Collision vraiment souple entre ennemis** (signalé "n'importe
+  quoi, tout le monde se superpose") — bug réel trouvé : la distance
+  de collision était une constante fixe (16px) bien plus petite que le
+  rayon visuel réel de plusieurs types (le cheval de Troie fait 18px à
+  lui seul), ET la tolérance de chevauchement était énorme (40%), ET
+  une seule passe de correction par frame ne suffisait pas sous
+  pression continue. Résultat : chevauchement massif visible en
+  permanence. Corrigé : nouvelle fonction `enemyRadius(e)` (même valeur
+  que le dessin, donc cohérente), tolérance resserrée à 12% (léger
+  effet "caoutchouc" volontaire, jamais une vraie superposition),
+  poussée plus franche, deux passes de relaxation par frame. Vérifié
+  par script : distance minimale entre ennemis après résolution toujours
+  au-dessus du seuil attendu, plus aucune paire en dessous.
+- **C. Joueur en faces opaques** (signalé "en fil de fer, on voit tout
+  à travers comme un fantôme") — `drawIsoBox` a maintenant un paramètre
+  `opaque` : remplit chaque face en noir plein avant de tracer le
+  contour vert, au lieu de laisser voir au travers. Utilisé UNIQUEMENT
+  pour le joueur (les tours/forge/bateau restent en fil de fer pur,
+  c'est le style validé pour eux — Pierre n'a demandé le remplissage
+  que pour le personnage joueur).
+
+**A (dessins de référence) reste en attente** : le contexte de cette
+session a été résumé/compacté depuis leur envoi — les images
+elles-mêmes ne sont plus accessibles ici. Il faudra que Pierre les
+renvoie pour redessiner forge/mur/bateau/caravane/cheval de Troie à
+la lettre, comme demandé. Note pour la suite : E (agencement —
+forge dans l'enceinte) et D (débarquement condensé + course rapide)
+restent aussi à faire, pas encore commencés au moment de ce commit.
+
+Vérifié : `node --check`, suite de tests Playwright rejouée en HTTP
+(test-big, capture d'écran de l'écran de fin de partie confirmant le
+texte vert, capture de scène avec ennemis + croix de mort confirmant
+tout en vert et sans chevauchement) — zéro erreur JS.
