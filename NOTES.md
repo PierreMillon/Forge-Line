@@ -2594,9 +2594,9 @@ capture du bateau avec 20 puis 7 passagers confirmant un vrai amas
 organique (cercles qui se touchent, pas une grille) qui reste compact
 en se vidant plutôt que de laisser des trous.
 
-**Pas encore fait** : rendre le groupe de marchands qui a débarqué
-(sur la plage, une fois hors du bateau) tout aussi élastique/organique
-plutôt que dispersé — la collision au sol existe déjà et s'applique à
-tout le monde une fois en mouvement, donc c'est probablement déjà bon,
-mais pas revérifié spécifiquement pour ce cas après le correctif du
-pont ci-dessus.
+**Revérifié après coup** : une fois débarqués sur la plage, le groupe
+reste bien compact — simulation d'une vague de 25 ennemis (spawn +
+`update()` rejoué ~250 frames) : les paires les plus proches se
+stabilisent à ~13-14px d'écart, exactement la distance élastique
+minimale attendue (`2×rayon×(1-0.12) ≈ 14.08px`). Le système au sol
+s'applique bien à tout le monde dès l'arrivée, rien à ajouter là.
