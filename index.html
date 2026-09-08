@@ -1151,8 +1151,20 @@ const ENEMY_TYPES = [
 // doucement de 0% jusqu'à son taux plein, sur quelques vagues — pas de
 // rupture nette. Taux pleins repris de l'ancien réglage (15%/15%), juste
 // étalés dans le temps au lieu d'être actifs dès la vague 1.
-const WAVE_TYPE2_START = 5,  WAVE_TYPE2_RAMP_WAVES = 15, TYPE2_MAX_RATE = 0.15; // rapide/fragile
-const WAVE_TYPE3_START = 10, WAVE_TYPE3_RAMP_WAVES = 20, TYPE3_MAX_RATE = 0.15; // rapide/costaud
+// v17.41 (Partie 3, en réaction directe à la référence de Pierre "la
+// difficulté de Bloons TD 5 est parfaite") : dans Bloons TD 5, un round
+// difficile fait monter UNE seule variable à la fois (soit plus de
+// ballons, soit un nouveau type de ballon), jamais les deux en même
+// temps — c'est ce qui rend chaque pic prévisible/lisible au lieu de
+// brutal. Ici, WAVE_TYPE2_START valait 5 : EXACTEMENT la même vague que
+// le début de la "ruée" du nombre d'ennemis (EARLY_RUSH_WAVES démarre
+// aussi vague 5) — un joueur qui sortait du tutoriel encaissait donc
+// PLUS d'ennemis ET un nouveau type plus rapide en même temps. Décalé
+// pour que le nouveau type n'arrive qu'une fois la ruée de nombre
+// terminée (vague 9 = EARLY_RUSH_WAVES+1), et le 2e type décalé d'autant
+// pour garder l'écartement d'origine entre les deux introductions.
+const WAVE_TYPE2_START = 9,  WAVE_TYPE2_RAMP_WAVES = 15, TYPE2_MAX_RATE = 0.15; // rapide/fragile
+const WAVE_TYPE3_START = 14, WAVE_TYPE3_RAMP_WAVES = 20, TYPE3_MAX_RATE = 0.15; // rapide/costaud — même écart de 5 vagues qu'avant avec WAVE_TYPE2_START (décalé en bloc, v17.41)
 function rampedRate(startWave, rampWaves, maxRate){
   if (wave < startWave) return 0;
   return maxRate * Math.min(1, (wave - startWave) / rampWaves);
