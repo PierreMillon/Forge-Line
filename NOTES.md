@@ -2600,3 +2600,29 @@ reste bien compact — simulation d'une vague de 25 ennemis (spawn +
 stabilisent à ~13-14px d'écart, exactement la distance élastique
 minimale attendue (`2×rayon×(1-0.12) ≈ 14.08px`). Le système au sol
 s'applique bien à tout le monde dès l'arrivée, rien à ajouter là.
+
+**Caisse de la caravane, revérifiée avec Hough (19 segments dans sa
+zone) pendant la revue exhaustive** : la topologie déjà codée (rebord
+ouvert + 3 chutes verticales W/S/E + 2 roues séparées) correspond bien
+au croquis. Un détail intrigant repéré mais PAS changé : le croquis
+semble montrer un petit poteau/montant vertical au-dessus d'un coin du
+rebord (~120px de haut, un plein cran de grille), que le code actuel
+ne dessine pas — pourrait être un montant d'attelage. Pierre n'a rien
+signalé de spécifique sur la caisse cette fois (contrairement à la
+forge) et le rendu actuel est déjà fidèle sur l'essentiel — pas touché
+sans confirmation, pour éviter de "corriger" quelque chose qui n'était
+pas cassé. À vérifier avec Pierre si ça le chiffonne en le regardant.
+
+**Bateau, revérifié avec Hough** (61 segments, complétude 100%,
+exactement le même compte que ce qui est déjà codé) : comparaison
+visuelle côte à côte parfaitement identique au croquis — confirmé
+inchangé, aucune régression.
+
+**Scène complète à l'échelle réelle de jeu** (2 tours de niveaux
+différents, bateau avec passagers, 5 ennemis, caravane, forge, mur)
+capturée en une fois : tout reste lisible, aucun chevauchement
+cassé, aucune erreur JS. Revue exhaustive demandée par Pierre
+terminée pour cette passe — seule la forge avait un vrai écart de
+tracé, corrigée ; mur/tour/bateau/caisse de caravane confirmés
+fidèles au pixel près (sauf le petit détail du montant noté
+ci-dessus, laissé de côté faute de signal clair que c'est un problème).
