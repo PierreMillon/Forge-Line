@@ -1985,3 +1985,108 @@ assez de données pour la confirmer.
 Vérifié : `node --check` (aucun changement au jeu dans ce passage, que
 `simulate.mjs`), suite de régression déjà verte avant ce commit
 (logique de simulation seule, pas de risque de régression jeu).
+
+## v17.41 — Mode Phosphore devient le seul style visuel
+
+Pierre a signalé que les formes redessinées d'après ses croquis
+n'apparaissaient pas en jeu ("j'ai toujours les vieux dessins tout
+pourri"). Cause trouvée : tout le travail de redessin de cette session
+(tour, forge, mur, bateau, caravane, cheval de Troie, ennemis) n'a
+JAMAIS touché le mode couleur normal — seul le Mode Phosphore (branches
+`if (phosphorMode){...} else {...}`) a reçu ces formes. Le mode couleur
+gardait donc indéfiniment les anciennes formes basiques (cercles,
+boîtes colorées), et le réglage du mode restait mémorisé par appareil
+(localStorage `fl_phosphor`) — un ancien choix de mode couleur sur le
+téléphone de Pierre bloquait la mise à jour même après un rechargement.
+
+Question posée à Pierre (AskUserQuestion) : garder les deux modes (en
+recopiant aussi les formes exactes dans le mode couleur, deux fois plus
+de code à maintenir) ou n'en garder qu'un seul. Réponse : un seul mode,
+supprimer le mode couleur.
+
+Fait : bouton "Mode Phosphore" retiré du menu (HTML + i18n fr/en),
+`phosphorMode` devient une constante (`true`) au lieu d'une variable
+lue/écrite dans localStorage, écouteur de clic supprimé. Les branches
+internes `if (phosphorMode) {...} else {...}` du rendu restent en
+l'état — les réécrire toutes aurait été un chantier disproportionné
+pour le bénéfice (l'`else` est juste du code mort inoffensif tant que
+`phosphorMode` vaut toujours `true`). Nettoyage cosmétique possible
+plus tard si besoin.
+
+CHANGELOG remonté à v17.41 (oublié au commit précédent — Pierre n'avait
+alors aucun moyen fiable de vérifier qu'il était sur la bonne version).
+
+Vérifié : Playwright headless (mobile viewport), v17.41 affichée,
+classe `phosphor` toujours active, bouton absent, aucune erreur JS,
+menu complet et fonctionnel.
+
+## v17.42 — Les formes ne correspondaient TOUJOURS pas (correctifs réels)
+
+Après le v17.41, Pierre a rechargé et confirmé : "les formes ne
+correspondent pas du tout". Plutôt que de re-questionner, comparaison
+directe et systématique : rendu de chaque forme isolée en jeu
+(fonctions de dessin appelées directement via Playwright, RAF gelé)
+contre les 7 images de référence dans `references/`. Quatre vrais bugs
+trouvés :
+
+**1) Cube de renfort de la tour, 25% trop petit au niveau 1.** Les
+fractions pixel-exactes mesurées en v17.37 (0.333/0.19/0.379) étaient
+correctes pour un cube de référence à `capScale=1`, mais la formule
+`capScale = Math.min(1.6, 0.6 + level*0.15)` valait 0.75 au niveau 1
+(le niveau que voit tout le monde par défaut) — le cube de renfort
+était donc systématiquement rendu 25% plus petit que sa vraie taille,
+quasi invisible à l'échelle du jeu. Corrigé : `capScale = Math.min(1.6,
+1 + (level-1)*0.15)`, donc exactement 1 (taille de référence) au
+niveau 1, grandissant ensuite avec les renforts.
+
+**2) Paliers de complexité des ennemis, mauvais motifs.** Remesuré sur
+`ennemis-complexite.png` (5 cubes dessinés, pas une simple rampe) : les
+4 motifs RÉELLEMENT distincts sont — plan (0), UN SEUL trait diagonal
+sur la face du dessus (1), croix COMPLÈTE sur la face du dessus
+uniquement (2), treillis dense sur les 3 faces (3). L'ancien code
+faisait déjà une croix complète au palier 1 (donc un palier de moins
+que voulu) et inventait une "croix sur les 3 faces" au palier 2 qui
+n'existe pas sur le dessin. Corrigé pour suivre exactement les 4 motifs
+observés.
+
+**3) Cheval de la caravane, illisible.** Topologie correcte dans le
+code (tête relevée, dos, 4 pattes) mais les coordonnées numériques
+étaient si resserrées que plusieurs traits se chevauchaient quasiment
+— rendu comme un gribouillis à peine reconnaissable comme un cheval, au
+lieu du profil allongé du croquis. Coordonnées réétalées (mêmes
+proportions relatives, juste plus de distance entre les points) pour
+que tête/dos/4 pattes soient enfin visuellement distincts. Pas
+re-mesuré pixel-exact (le croquis est à main levée, comme le bateau/la
+caravane l'étaient déjà) — amélioration de lisibilité, pas prétention
+à l'exactitude pixel.
+
+**4) Cheval de Troie, complètement à côté (le plus gros écart).**
+L'ancien dessin (torse en pavé isométrique + 4 pattes à deux segments)
+ne ressemblait pas du tout au croquis. En remesurant `cheval-de-
+troie.png` (dessin à traits droits, donc a priori mesurable
+précisément comme la tour/le mur) : c'est en réalité une silhouette
+ANGULEUSE ET ALLONGÉE vue de côté — oreille dressée à gauche, dos en
+zigzag à plusieurs bosses qui s'étire loin vers la droite jusqu'à une
+pointe de queue, pattes anguleuses à différents points le long du
+corps. Repointé entièrement à partir de coordonnées mesurées sur
+l'image (grille pixel + lecture directe des sommets, une vingtaine de
+points). Limite honnête : faute de temps pour driver le pipeline
+d'extraction automatique (scipy) jusqu'au bout sur cette forme précise,
+les coordonnées viennent d'une lecture manuelle soigneuse sur crops
+zoomés avec grille, pas d'une extraction pixel-exacte vérifiée par
+recouvrement rouge comme pour la tour/le mur en v17.37 — la silhouette
+générale (tête/zigzag/queue/pattes) correspond nettement mieux qu'avant,
+mais certains sommets peuvent être décalés de quelques pixels par
+rapport au croquis.
+
+**Bateau : vérifié aussi, écart mineur non corrigé.** Le croquis montre
+4 ornements en losange reliés directement aux coins de la coque (pas de
+mât central) ; le rendu actuel a un mât + fanion en haut et 2 losanges
+seulement. Assez proche dans l'esprit (coque hexagonale à planches
+correcte, losanges présents) pour ne pas être ce que Pierre a signalé
+en premier — laissé tel quel pour ce passage, à reprendre si Pierre le
+signale aussi.
+
+Vérifié : `node --check`, rendu Playwright (RAF gelé, chaque forme
+dessinée isolément + galerie complète), aucune erreur JS, comparaison
+visuelle directe avec chacune des 7 images de référence.

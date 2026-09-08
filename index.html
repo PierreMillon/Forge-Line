@@ -2085,6 +2085,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.42", text: "Correctifs de forme suite au signalement \"ça ne correspond pas du tout\" : cube de renfort de la tour agrandi (il était 25% trop petit dès le niveau 1, quasi invisible) ; les 4 paliers de complexité des ennemis reflètent maintenant les 4 vrais motifs du croquis (trait simple / croix complète / treillis, plus de croix sur 3 faces inventée) ; cheval attelé à la caravane réétalé pour que dos/tête/4 pattes soient enfin distincts ; cheval de Troie entièrement repointé — l'ancien torse en pavé ne ressemblait pas du tout au croquis (silhouette allongée en zigzag, pas un cube)" },
   { v: "17.41", text: "Mode Phosphore devient le seul style visuel du jeu (bouton de bascule et mode couleur supprimés) — l'ancien mode couleur n'avait jamais reçu les formes redessinées d'après tes croquis de référence, donc affichait indéfiniment les anciennes formes basiques. Vagues 5-8 (fin du tutoriel) : les nouveaux types d'ennemis n'apparaissent plus en même temps que la ruée du nombre (référence Bloons TD 5 — une seule difficulté à la fois)" },
   { v: "17.40", text: "Difficulté : les 4 premières vagues sont un vrai tutoriel (1, 3, 4, 6 ennemis, dicté explicitement), la ruée qui suivait était bien trop brutale (le simulateur montrait une mort vague 3-5 même en jouant bien) — resserrée. Simulateur étendu à 3 profils de joueur (naïf/correct/bon)" },
   { v: "17.38", text: "Section \"Astuces\" (menu) : explique clairement toutes les mécaniques du jeu avec des exemples chiffrés (combat, tours, Forge, vagues, marchands, cheval de Troie, effet domino, château) — remplace \"Aide / FAQ\"" },
@@ -2822,14 +2823,21 @@ function drawEnemyShape(cx, cy, hw, complexity){
   ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(Sb.x,Sb.y); ctx.lineTo(Wb.x,Wb.y); ctx.closePath(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(Eb.x,Eb.y); ctx.lineTo(Sb.x,Sb.y); ctx.closePath(); ctx.stroke();
   if (complexity <= 0) return; // cube tout simple, rien de plus
-  const cross = (a,b,c,d) => { ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(c.x,c.y); ctx.moveTo(b.x,b.y); ctx.lineTo(d.x,d.y); ctx.stroke(); };
+  // v17.42 (correctif demandé : "les formes ne correspondent pas du
+  // tout") — re-mesuré sur le dessin de référence (5 cubes) : ce ne sont
+  // PAS 4 paliers avec de plus en plus de faces marquées, mais 4 motifs
+  // distincts, tous sur la face du DESSUS uniquement jusqu'au dernier
+  // palier : un simple trait diagonal (palier 1), puis une croix
+  // complète (palier 2, les deux diagonales), le treillis dense restant
+  // le seul palier à couvrir les 3 faces visibles (palier 3).
+  const diag = (a,c) => { ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(c.x,c.y); ctx.stroke(); };
+  const cross = (a,b,c,d) => { diag(a,c); diag(b,d); };
   if (complexity === 1){
-    cross(N,E,S,W); // croix sur la face du dessus seulement
+    diag(N, S); // un seul trait, du sommet au coin avant — face du dessus seulement
     return;
   }
   if (complexity === 2){
-    // croix sur les 3 faces visibles ("cube fil de fer" du dessin)
-    cross(N,E,S,W); cross(W,S,Sb,Wb); cross(S,E,Eb,Sb);
+    cross(N,E,S,W); // croix complète (les deux diagonales), face du dessus seulement
     return;
   }
   // treillis : chaque face subdivisée + diagonales croisées, pour la
@@ -2848,57 +2856,34 @@ function drawEnemyShape(cx, cy, hw, complexity){
   lattice(N,E,S,W); lattice(W,S,Sb,Wb); lattice(S,E,Eb,Sb);
 }
 
-// Mode Phosphore — silhouette angulaire du cheval de Troie (dessin de
-// référence), au lieu du cube générique des autres ennemis : quelques
-// segments droits (tête/encolure/dos/pattes), volontairement anguleux et
-// pas lissés, pour rester dans l'esprit "bas-poly" du dessin
+// Mode Phosphore — silhouette du cheval de Troie (dessin de référence)
+// v17.42 (correctif majeur demandé : "les formes ne correspondent pas
+// du tout") — l'ancienne version (torse en pavé isométrique + 4 pattes
+// courtes à deux segments) ne ressemblait pas du tout au croquis. Le
+// dessin de référence montre en réalité une silhouette ANGULEUSE ET
+// ALLONGÉE (cheval vu de côté, presque au galop) : pas un cube du tout —
+// une tête avec une oreille dressée à gauche, un dos en zigzag avec
+// plusieurs bosses qui s'étire loin vers la droite jusqu'à une pointe de
+// queue, et des pattes anguleuses qui pendent à différents points le
+// long du corps. Repointé directement sur le dessin (coordonnées
+// mesurées en pixels sur l'image de référence, converties en unités
+// relatives à `size`) plutôt que reconstruit "à la forme" comme avant.
 function drawTrojanHorseShape(cx, cy, size){
-  const s = size / 18; // échelle relative au rayon habituel du cheval de Troie
+  const s = size / 40; // échelle relative à l'envergure totale mesurée sur le dessin
   ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.3;
-  // v17.32 (redessiné à partir du dessin de référence retrouvé) : un
-  // torse en pavé isométrique (même style que le reste du décor), avec
-  // encolure/tête anguleuse, une petite crinière, et 4 pattes à deux
-  // segments (un coude, comme sur le croquis) — plus fidèle que la
-  // silhouette plate de la première interprétation
-  const bw = 9*s, bh = 5*s, bsh = 6*s;
-  const cyTop = cy - bsh - 2*bh;
-  const N={x:cx,y:cyTop}, E={x:cx+bw,y:cyTop+bh}, S={x:cx,y:cyTop+2*bh}, W={x:cx-bw,y:cyTop+bh};
-  const Sb={x:S.x,y:S.y+bsh}, Wb={x:W.x,y:W.y+bsh}, Eb={x:E.x,y:E.y+bsh};
-  ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(Sb.x,Sb.y); ctx.lineTo(Wb.x,Wb.y); ctx.closePath(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(Eb.x,Eb.y); ctx.lineTo(Sb.x,Sb.y); ctx.closePath(); ctx.stroke();
-  // encolure + tête, anguleuses, partent du coin avant-haut du torse (N)
-  const neckTop = { x: N.x-3*s, y: N.y-11*s };
-  const earTip  = { x: neckTop.x-1*s, y: neckTop.y-7*s };
-  const noseTop = { x: neckTop.x+4*s, y: neckTop.y-2*s };
-  const headTip = { x: neckTop.x+9*s, y: neckTop.y-4*s };
-  const jaw     = { x: neckTop.x+5*s, y: neckTop.y+3*s };
-  ctx.beginPath();
-  ctx.moveTo(N.x, N.y);
-  ctx.lineTo(neckTop.x, neckTop.y);
-  ctx.lineTo(earTip.x, earTip.y);
-  ctx.lineTo(noseTop.x, noseTop.y);
-  ctx.lineTo(headTip.x, headTip.y);
-  ctx.lineTo(jaw.x, jaw.y);
-  ctx.lineTo(N.x, N.y);
-  ctx.stroke();
-  // crinière : plutôt sur l'arrière (dos/croupe, près du coin E) que
-  // sur l'encolure — relu de plus près sur le dessin de référence, le
-  // petit bouquet de traits est du côté arrière, pas contre la tête
-  for (let i = 0; i < 3; i++){
-    const bx = E.x - i*2.5*s, by = E.y - 2*s - i*1.5*s;
-    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+4*s, by-3*s); ctx.stroke();
-  }
-  // 4 pattes à deux segments (un coude), aux 4 coins du torse
-  const leg = (hip, dx1, dy1, dx2, dy2) => {
-    const knee = { x: hip.x+dx1, y: hip.y+dy1 };
-    const hoof = { x: knee.x+dx2, y: knee.y+dy2 };
-    ctx.beginPath(); ctx.moveTo(hip.x,hip.y); ctx.lineTo(knee.x,knee.y); ctx.lineTo(hoof.x,hoof.y); ctx.stroke();
-  };
-  leg(W,  -1*s, 5*s, -1*s, 5*s);
-  leg(S,  -2*s, 4*s,  1*s, 5*s);
-  leg(E,   2*s, 4*s,  1*s, 5*s);
-  leg(Sb,   0*s, 3*s,  2*s, 4*s);
+  const P = (dx, dy) => ({ x: cx + dx*s, y: cy + dy*s });
+  const earTip = P(0, 0), nose = P(15, 3), headBack = P(-1, 6), headBend = P(-5, 9),
+    mane1 = P(5, 9.5), mane2 = P(20, 6), mane3 = P(30, 6), tailTip = P(40, 11.5),
+    chest = P(-5, 15),
+    leg1bot = P(-1, 24), legAbot = P(14, 27), legBbot = P(30, 30), legCtop = P(35, 15), legCbot = P(40, 24);
+  const path = (...pts) => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke(); };
+  path(earTip, nose); // museau/mâchoire, pointe vers l'avant
+  path(earTip, headBack, headBend, mane1, mane2, mane3, tailTip); // dos en zigzag, de l'oreille à la queue
+  path(headBend, chest); // avant de l'encolure
+  path(headBack, leg1bot); // patte avant
+  path(mane2, legAbot);
+  path(mane3, legBbot);
+  path(legCtop, legCbot); // patte arrière, près de la queue
 }
 
 // v17.32 (dessin de référence retrouvé : "un cheval tire un chariot") —
@@ -2926,19 +2911,29 @@ function drawCaravanCart(x, y){
   };
   wheel(x-7, y+5); wheel(x-1, y+7);
   // cheval attelé devant, relié par un trait d'attelage depuis le coin
-  // avant-droit de la caisse : tête relevée avec museau pointu, encolure
-  // qui redescend vers le garrot, 2 pattes arrière depuis le garrot + 1
-  // patte avant depuis le point d'attelage (topologie du dessin)
+  // avant-droit de la caisse.
+  // v17.42 (correctif demandé : "les formes ne correspondent pas du
+  // tout") — remesuré sur le dessin de référence : le cheval y est
+  // nettement ALLONGÉ à l'horizontale (corps long, tête relevée loin à
+  // l'avant, 4 pattes bien séparées le long du corps), alors que
+  // l'ancien tracé compressait tous les points presque au même endroit
+  // (le dos et 2 des 4 pattes se chevauchaient, illisible à l'écran).
+  // Topologie conservée (museau relevé, dos, 4 pattes), juste les
+  // proportions étalées pour rester lisible à l'échelle du jeu.
   const A = { x: E.x+3, y: E.y };
   ctx.beginPath(); ctx.moveTo(S.x, S.y-1); ctx.lineTo(A.x, A.y); ctx.stroke();
-  const peak = { x: A.x+11, y: A.y-8 };
-  const nose = { x: peak.x+15, y: peak.y+8 };
-  const withers = { x: peak.x-1, y: peak.y+15 };
-  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(peak.x, peak.y); ctx.lineTo(nose.x, nose.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(peak.x, peak.y); ctx.lineTo(withers.x, withers.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(withers.x, withers.y); ctx.lineTo(withers.x-2, withers.y+18); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(withers.x, withers.y); ctx.lineTo(withers.x+9, withers.y+12); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(A.x-1, A.y+13); ctx.stroke();
+  const croup = { x: A.x+26, y: A.y-3 };      // arrière-train, au bout du dos
+  const neckPeak = { x: A.x+10, y: A.y-14 };  // encolure relevée
+  const nose = { x: neckPeak.x+12, y: neckPeak.y+7 }; // museau
+  const earTip = { x: neckPeak.x-3, y: neckPeak.y-6 }; // petite oreille dressée
+  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(neckPeak.x, neckPeak.y); ctx.lineTo(nose.x, nose.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(neckPeak.x, neckPeak.y); ctx.lineTo(earTip.x, earTip.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(croup.x, croup.y); ctx.stroke(); // dos
+  const leg = (hipX, hipY) => { ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(hipX-1, hipY+14); ctx.stroke(); };
+  leg(A.x, A.y);
+  leg(A.x+9, A.y-2);
+  leg(A.x+18, A.y-3);
+  leg(croup.x, croup.y);
 }
 
 // l'illusion de 3D tient uniquement à l'ordre de dessin : ce qui est plus
@@ -3210,8 +3205,14 @@ function draw(now){
         ctx.stroke();
         // cube de renfort au sommet : son propre pic touche presque
         // exactement le coin N (virtuel) du corps principal — mesuré sur
-        // le croquis à moins de 2px d'écart, donc ancré pile là
-        const capScale = Math.min(1.6, 0.6 + level*0.15);
+        // le croquis à moins de 2px d'écart, donc ancré pile là.
+        // v17.42 (correctif) : les fractions ci-dessous (0.333/0.19/0.379)
+        // sont mesurées sur le dessin de référence pour une tour de BASE
+        // (niveau 1) — capScale doit donc valoir 1 au niveau 1, pas 0.75
+        // comme avant (le cube de renfort était systématiquement 25% trop
+        // petit dès le départ, invisible en jeu). Il grandit ENSUITE avec
+        // le niveau, sans jamais descendre sous la taille de référence.
+        const capScale = Math.min(1.6, 1 + (level-1)*0.15);
         const capHw = 0.333*TOWER_HW*capScale, capHh = 0.19*TOWER_HW*capScale, capSh = 0.379*TOWER_HW*capScale;
         const capCyBase = bodyTopY + 0.757*TOWER_HW*capScale;
         drawIsoBox(t.x, capCyBase, capHw, capHh, capSh, null, null, null);
