@@ -17,9 +17,14 @@ Format condensé — l'idée, pas la formulation exacte.
 - ~~**Bateau en vraie perspective isométrique**~~ → fait en v17.12
   (drawIsoBox, comme les tours, au lieu du sprite PNG à plat).
 
-- **Plusieurs cartes** pour la suite (variété au-delà de la plage
-  actuelle). Pas encore décidé à quoi elles ressemblent — question posée
-  à nouveau en v17.24, réponse : garder en note pour l'instant.
+- ~~**Plusieurs cartes** pour la suite (variété au-delà de la plage
+  actuelle)~~ → **tranché par Pierre (2026-09-08)** : une 2ᵉ carte thème
+  FORÊT — un fleuve à la place de la mer, débarquement par radeaux au
+  lieu du bateau, décor forestier. À faire APRÈS les corrections,
+  l'uniformisation et le réglage de difficulté (dernier chantier de la
+  liste) ; la difficulté devra être re-vérifiée au simulateur sur cette
+  carte aussi une fois construite. Pas encore commencé au moment de
+  cette note.
 
 - ~~**Décor sur la grille isométrique** : une route qui part du bas du
   château~~ → fait en v17.12 (chemin décoratif qui part du bord du
@@ -644,8 +649,10 @@ en détail) : rendre le modèle depuis Blender avec une caméra orthographique
 calée sur l'angle isométrique du jeu (le même ratio 2:1 que GRID_TW/GRID_TH),
 exporter en PNG transparent, l'intégrer comme sprite (data URI, comme
 l'était l'ancien bateau) plutôt que du vecteur pur (le rendu 3D préexporté
-donne un bien meilleur résultat visuel qu'un tracé SVG à la main). À
-creuser ensemble.
+donne un bien meilleur résultat visuel qu'un tracé SVG à la main).
+
+**Abandonné par Pierre (2026-09-08)** : on reste en vectoriel/procédural,
+ce pipeline 3D→isométrique ne sera pas exploré.
 
 ### 🔮 Grosses idées de gameplay (discussion nécessaire avant tout code)
 
