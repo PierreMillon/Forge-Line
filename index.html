@@ -1104,6 +1104,23 @@ function drawDeathEffect(d, now){
   }
 }
 
+// v17.35 (Partie 2, point 4 — lisibilité des mécaniques) : "rien ne se
+// passe en silence" — quand une attente sur place déclenche quelque
+// chose (chemin des marchands, eau du cheval de Troie...), une jauge
+// circulaire se remplit au-dessus du joueur pour le montrer. Même
+// principe que la bulle de prière déjà en place pour les tombes de
+// tours (voir plus bas), généralisé ici pour être réutilisé ailleurs.
+function drawWaitGauge(px, py, progress){
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  if (phosphorMode){ ctx.fillStyle = '#000'; ctx.strokeStyle = PHOSPHOR_GREEN; }
+  else { ctx.fillStyle = '#faf6ea'; ctx.strokeStyle = '#3a3529'; }
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI*2*Math.min(1, progress)); ctx.lineTo(px, py); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
 // --- particules d'ambiance : dérivent en diagonale le long des lignes
 // isométriques (haut-gauche vers bas-droite, ratio 2:1 comme la grille),
 // purement décoratif ---
@@ -1862,6 +1879,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.35", text: "Lisibilité : une jauge circulaire se remplit au-dessus du joueur pendant une attente qui déclenche quelque chose (chemin des marchands, eau du cheval de Troie) — rien ne se passe en silence" },
   { v: "17.34", text: "Audio : deux curseurs de volume (musique, bruitages) de 0 à 100%, remplacent l'ancien bouton tout-ou-rien ; tout le son se coupe quand on quitte l'onglet/l'application" },
   { v: "17.33", text: "Agencement : la forge est maintenant dans l'enceinte, derrière le mur (avant elle était au-dessus) ; débarquement : les ennemis quittent le bateau en courant (course rapide groupée) avant de choisir leur stratégie, pont plus condensé" },
   { v: "17.32", text: "Formes redessinées à la lettre depuis les dessins de référence retrouvés : tour (porte triangulaire), forge (toit en pavillon + cheminée), mur (créneaux plissés + porte centrale), bateau (ornements proue/poupe, fanion), marchands (personnages + un seul chariot attelé pour la caravane), cheval de Troie (torse en pavé + pattes coudées), ennemis (4 paliers de complexité au lieu de 3)" },
@@ -3091,6 +3109,15 @@ function draw(now){
 
   for (const d of deathEffects) drawDeathEffect(d, now);
   drawParticles(); // par-dessus tout le reste, ambiance discrète
+
+  // v17.35 : jauges d'attente au-dessus du joueur (chemin des marchands,
+  // eau du cheval de Troie) — voir drawWaitGauge
+  if (!playerDead && !spectating && playerOnPathSince !== null){
+    drawWaitGauge(player.x, player.y-32, (now - playerOnPathSince) / MERCHANT_STAND_MS);
+  }
+  if (!playerDead && !spectating && playerInWaterSince !== null && wave >= trojanCooldownUntilWave){
+    drawWaitGauge(player.x, player.y-32, (now - playerInWaterSince) / TROJAN_TRIGGER_MS);
+  }
 
   for (const f of floatingTexts){
     const t = (now - f.createdAt) / 700;

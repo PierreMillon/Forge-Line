@@ -1574,5 +1574,28 @@ reflètent l'état initial ; les mettre à 0 coupe bien `bgMusic` (pause) et
 Suite de régression complète toujours verte.
 
 **Reste Partie 2** : langue (auto-détection fr/en, anglais par défaut
-sinon), section "Astuces", lisibilité des mécaniques (jauges
-circulaires d'attente, nombres flottants déjà en place pour l'or).
+sinon), section "Astuces".
+
+## v17.35 : Partie 2, point 4 — lisibilité des mécaniques (jauges d'attente)
+
+Consigne : "quand on se place à un endroit qui déclenche quelque chose
+après une attente..., une petite horloge/jauge circulaire au-dessus du
+personnage se remplit... Rien ne se passe en silence."
+
+Une jauge circulaire existait déjà pour UN cas (la "prière" sur une
+tombe de tour, `playerPrayingAt`/`GRAVE_PRAY_MS`) — généralisée en une
+fonction `drawWaitGauge(px, py, progress)` réutilisable, puis appliquée
+aux deux autres attentes sur place du jeu qui n'avaient encore aucun
+retour visuel :
+- le chemin des marchands (`playerOnPathSince`, `MERCHANT_STAND_MS`) ;
+- l'eau du cheval de Troie (`playerInWaterSince`, `TROJAN_TRIGGER_MS`,
+  masquée pendant le temps de recharge pour ne pas laisser une jauge
+  figée à 100% qui induirait en erreur).
+
+Les nombres flottants pour l'or gagné existaient déjà (pas besoin d'y
+retoucher) — seul le "temps d'attente silencieux" manquait.
+
+Vérifié : `node --check`, appel direct de `drawWaitGauge` en Playwright
+(RAF figé pour capturer une frame stable) confirmant le rendu — pastille
+circulaire remplie à ~70%, contour vert/fond noir en mode Phosphore.
+Suite de régression complète toujours verte.
