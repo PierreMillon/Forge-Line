@@ -2324,7 +2324,45 @@ toucher. La logique JS de mise à jour du volume était déjà correcte
 `touch-action:none` sur `.menu-slider-row input[type=range]`, pour que
 le glissé tactile ne soit pas intercepté par un ancêtre (typiquement
 le scroll de page). Pas de moyen de tester le tactile réel dans cet
-environnement — à confirmer par Pierre sur son téléphone.
+environnement — à confirmer par Pierre sur son téléphone. **Limite
+honnête** : un test avec un vrai glissé tactile simulé (CDP
+`Input.dispatchTouchEvent`, contrairement à un simple `TouchEvent` JS
+qui ne pilote pas le curseur natif) fonctionne aussi bien AVANT ce
+correctif qu'après dans ce navigateur headless — la cause exacte du
+bug sur le téléphone réel de Pierre n'a donc pas pu être reproduite
+ni confirmée ici, seulement traitée par un correctif défensif standard
+pour ce genre de symptôme.
+
+## v17.47 (suite) — Funnel des ennemis vers la porte centrale
+
+Pierre : "il faut qu'ils passent par la porte centrale et qu'ils
+disparaissent en bas d'écran, c'est à ce moment-là que ça attaque la
+vie du château."
+
+Le second point était déjà en place (`e.y >= STAGE_H - 16` déclenche
+déjà la perte de créneau, pas le passage du mur — vérifié en lisant le
+code, rien à changer). Seul le premier point manquait : la porte était
+purement visuelle, aucun ennemi n'était poussé vers son x.
+
+**Implémentation** : dans les ~100px avant le mur (`REGEN_ZONE.y`), la
+position x de chaque ennemi (hors ceux en train de débarquer, de fuir
+soigner une blessure, en attente de groupe, ou en plein siège immobile
+d'une tour) converge progressivement vers le centre de l'ouverture
+(`REGEN_ZONE.x + REGEN_ZONE.w/2`, qui coïncide exactement avec le
+centre géométrique de la porte dessinée dans `drawCastle`).
+
+**Bug trouvé pendant la vérification** : la première version ne
+touchait que `e.x` directement — mais la plupart des ennemis sont
+déplacés par `driftTowardPreferred(e, now)`, qui RECALCULE `e.x` à
+partir de `e.baseX` à chaque frame ; la correction sur `e.x` seul était
+donc écrasée dès la frame suivante (convergence quasi nulle observée
+en simulation). Corrigé en tirant aussi `e.baseX` vers la porte, en
+plus de `e.x` pour un effet immédiat sur la frame en cours.
+
+Vérifié : `node --check` + simulation Playwright (6 ennemis synthétiques
+répartis sur toute la largeur, `update()` rejoué ~400 fois) — leurs x
+convergent bien tous vers ~210 (le centre) en approchant du mur, alors
+qu'ils partaient de x = 28 à 334.
 
 **À partir de ce point, Pierre est parti se coucher et m'a laissé
 travailler en autonomie sur tout le reste du backlog, en privilégiant

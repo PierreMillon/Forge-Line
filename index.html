@@ -2180,6 +2180,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.48", text: "Les ennemis convergent maintenant vers la porte centrale du mur avant de la franchir (avant : n'importe où sur la largeur). La perte de vie du château se déclenche toujours à leur disparition en bas d'écran, pas au passage du mur lui-même." },
   { v: "17.47", text: "Cheval de la caravane : régression réglée à la racine — les coordonnées étaient déjà exactes, mais le fond noir plein (silhouette) validé comme \"parfait\" n'avait jamais été porté dans le jeu, seuls les traits verts existaient. Ajouté. Curseurs de musique/bruitage qui ne répondaient pas au toucher : zone de glissé agrandie (touch-action dédiée)." },
   { v: "17.46", text: "Or déplacé en haut à côté de la vague (barre du bas retirée, plus d'espace de jeu) + bouton \"passer la vague\" (bonus d'or immédiat). Bateau réduit de 30%, avec un fond noir plein qui bloque enfin ce qu'il y a derrière (la ligne de l'eau se voyait à travers). Ennemis en attente sur le pont : plus de plafond d'affichage ni de \"+N\", chacun existe physiquement. Zone constructible agrandie (ligne remontée à mi-chemin de l'eau). Correctif : \"Recommencer\" ne réécrivait pas la sauvegarde locale, l'ancien or revenait après un rechargement de page." },
   { v: "17.45", text: "Même traitement rigoureux (recopiage pixel-exact) appliqué au bateau (coque + les 4 ornements) et au cheval de la caravane, en plus de ce qui l'était déjà (tour, forge, mur) — coordonnées directement recopiées des croquis, plus d'approximation à l'œil." },
@@ -2773,6 +2774,27 @@ function update(now){
       e.y += e.speed*0.3;
     } else {
       driftTowardPreferred(e, now);
+    }
+    // v17.47 (demandé par Pierre : "il faut qu'ils passent par la porte
+    // centrale [du mur] et qu'ils disparaissent en bas d'écran") — dans
+    // les ~100px avant le mur, la position horizontale de chacun converge
+    // progressivement vers le centre de l'ouverture plutôt que de rester
+    // sur sa préférence habituelle : ils traversent tous par la porte au
+    // lieu de passer n'importe où sur la largeur du mur. Un attaquant en
+    // plein siège d'une tour (immobile, pas en train d'avancer) n'est pas
+    // concerné. La perte de vie du château reste déclenchée plus bas,
+    // au moment où ils disparaissent en bas d'écran (déjà en place).
+    if (now >= e.landingUntil && !e.fleeing && e.waitFrames <= 0 &&
+        !(e.role === 'attacker' && e.target && !e.siegeGaveUp)){
+      const gateX = REGEN_ZONE.x + REGEN_ZONE.w/2;
+      const funnelStartY = REGEN_ZONE.y - 100;
+      if (e.y > funnelStartY){
+        const t = Math.min(1, (e.y - funnelStartY) / 100);
+        // baseX aussi, sinon driftTowardPreferred écrase ce nudge dès la
+        // frame suivante en recalculant e.x depuis baseX + oscillation
+        if (e.baseX !== undefined) e.baseX += (gateX - e.baseX) * 0.06 * t;
+        e.x += (gateX - e.x) * 0.06 * t;
+      }
     }
     resolveTowerCollision(e, TOWER_SOLID_RADIUS); // ne peut pas traverser une tour
     e.x = Math.max(16, Math.min(STAGE_W-16, e.x));
