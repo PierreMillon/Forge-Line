@@ -1576,6 +1576,32 @@ Suite de régression complète toujours verte.
 **Reste Partie 2** : langue (auto-détection fr/en, anglais par défaut
 sinon), section "Astuces".
 
+## v17.38 : Partie 2, point 3 — section "Astuces"
+
+Consigne : "explique de manière très claire, SANS mystère, TOUTES les
+mécaniques du jeu, avec des exemples chiffrés (forces, gains, seuils,
+timings)." Nom retenu par Pierre, commun aux 3 jeux : "Astuces".
+
+L'ancien panneau "Aide / FAQ" (3 paragraphes sur les pubs/la
+progression) est conservé tel quel en bas du panneau, sous un nouveau
+contenu qui couvre chaque mécanique avec de vrais chiffres tirés des
+constantes du jeu : combat (dégâts de base, précision par distance),
+tours (coûts, portée), Forge (élite, réparateurs), revenu automatique,
+vagues/types d'ennemis (taux d'apparition, vagues de déblocage),
+marchands (durée d'attente, récompense), cheval de Troie (délais,
+risque réel à la destruction), effet domino (rayon, dégâts), château
+(10 créneaux, régénération). Bouton renommé "Aide / FAQ" -> "Astuces"
+dans le menu.
+
+**Règle de maintenance (demandée explicitement)** : tout commit qui
+modifie une constante ou une mécanique de gameplay met à jour la
+section correspondante dans le panneau Astuces (`#faq-panel` dans
+`index.html`) DANS LE MÊME COMMIT — pas de mécanique qui se désynchronise
+du texte qui l'explique. Si une future mécanique n'a pas encore de
+section, en ajouter une plutôt que de la laisser non documentée.
+
+Vérifié : `node --check`, suite de régression toujours verte.
+
 ## v17.35 : Partie 2, point 4 — lisibilité des mécaniques (jauges d'attente)
 
 Consigne : "quand on se place à un endroit qui déclenche quelque chose

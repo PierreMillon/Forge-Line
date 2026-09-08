@@ -133,7 +133,7 @@
     <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
     <a id="grid-toggle" href="#">Afficher la grille (debug)</a>
     <a id="phosphor-toggle" href="#">Mode Phosphore : Activé</a>
-    <a id="faq-toggle" href="#">Aide / FAQ</a>
+    <a id="faq-toggle" href="#">Astuces</a>
     <div class="menu-slider-row">
       <label for="music-vol-slider">🎵 Musique</label>
       <input type="range" id="music-vol-slider" min="0" max="100" value="35">
@@ -1928,6 +1928,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.38", text: "Section \"Astuces\" (menu) : explique clairement toutes les mécaniques du jeu avec des exemples chiffrés (combat, tours, Forge, vagues, marchands, cheval de Troie, effet domino, château) — remplace \"Aide / FAQ\"" },
   { v: "17.37", text: "Précision pixel-exacte (analyse automatique des dessins de référence) : forme de la porte et du cube de renfort de la tour, hauteurs des créneaux et de la porte du mur — mesurées directement sur les croquis, plus estimées à l'œil" },
   { v: "17.36", text: "Correctifs de fidélité aux dessins de référence (relecture attentive) : porte de tour sur la bonne arête, coque du bateau vraiment allongée et biseautée, mur en ruban plissé continu avec une vraie porte-ouverture, chariot de caravane en caisse ouverte fidèle au croquis, crinière du cheval de Troie repositionnée" },
   { v: "17.35", text: "Lisibilité : une jauge circulaire se remplit au-dessus du joueur pendant une attente qui déclenche quelque chose (chemin des marchands, eau du cheval de Troie) — rien ne se passe en silence" },
