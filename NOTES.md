@@ -1932,3 +1932,49 @@ ces repères de vague servent de proxy à "facile/normal/difficile/très
 difficile").
 
 Sources : [Bloons Wiki — Difficulty](https://bloons.fandom.com/wiki/Difficulty), [Bloons Wiki — Rounds (BTD5)](https://bloons.fandom.com/wiki/Rounds_(BTD5)).
+
+## Partie 3 : correctif de la logique du bot "correct" + mesure sur budget de frames réaliste
+
+Corrigé l'anomalie notée juste au-dessus : "correct" appliquait un
+biais dur ("renforcer la tour si son coût ne dépasse pas 3x celui des
+dégâts") au lieu de comparer les options à leur coût réel. Remplacé
+par la même règle que "good" (l'option la moins chère d'abord parmi
+renfort de tour / dégâts / revenu auto / précision), mais sans
+déplacement — "correct" reste sur une seule tour, "good" peut s'étaler
+sur 3 en se déplaçant, c'est ça qui les différencie maintenant, pas
+une préférence arbitraire pour les tours.
+
+Le budget de frames par défaut (60 000, ~1000s simulées) s'est révélé
+trop court une fois le jeu vraiment plus jouable — beaucoup de parties
+touchaient le plafond sans être mortes, faussant la mesure ("maxFrames"
+au lieu de "breach" dans `reasonCounts`). Retesté avec 150 000 frames
+(~2500s simulées) sur 8 parties par profil :
+
+- naive : vague moyenne 34,25 (min 13, max 80) — 25% encore en vie à
+  la vague 25, 25% à la vague 50
+- correct : vague moyenne 30 (min 18, max 79) — 37,5% à la vague 25,
+  12,5% à la vague 50
+- **good : vague moyenne 42,75 (min 21, max 79) — 62,5% à la vague 25,
+  37,5% à la vague 50**
+
+Le classement attendu (good nettement au-dessus) est maintenant net.
+naive/correct restent proches (échantillon de 8 encore bruité —
+écart-type 19 à 27 vagues) : signal que le déplacement/l'étalement des
+tours pèse plus lourd que le simple ordre de priorité d'achat, cohérent
+avec le repère Bloons TD 5 de Pierre (un budget de vies fixe qu'on
+gère par la couverture de la carte, pas juste la puissance achetée).
+
+**Où ça en est, honnêtement** : la vague 25 comme repère "normal" donne
+~37,5% pour un joueur correct (cible de Pierre : 55-65%) et la vague 50
+comme "difficile" donne ~12,5% (cible : 30-40%) — dans la bonne
+direction mais encore en dessous des cibles, avec un échantillon trop
+petit (8 parties) pour trancher finement. Le jeu est passé d'"impossible
+quelle que soit la stratégie" à "differencié et globalement dans
+l'esprit visé" en une session — la dernière étape (élargir l'échantillon,
+ajuster 1-2 constantes de plus pour remonter vers 55-65%/30-40%) demande
+un prochain passage dédié plutôt que deviner une valeur de plus sans
+assez de données pour la confirmer.
+
+Vérifié : `node --check` (aucun changement au jeu dans ce passage, que
+`simulate.mjs`), suite de régression déjà verte avant ce commit
+(logique de simulation seule, pas de risque de régression jeu).

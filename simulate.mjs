@@ -121,15 +121,34 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
         playerShoot(now, manualInterval);
         if (frame % 30 === 0){
           if (policy === 'correct'){
+            // v17.42 : ancienne logique corrigée — "renforcer la tour dès
+            // que ~abordable (uCost <= dCost*3)" perdait systématiquement
+            // contre 'naive' au simulateur (qui distribue au hasard sur
+            // dégâts/cadence/précision) : le joueur a une portée illimitée
+            // (voir tryUnlockAudio/effectivePlayerDmg dans index.html),
+            // une tour à portée fixe (160px) coûte cher pour ne couvrir
+            // qu'une fraction de la carte. "Correct" applique maintenant
+            // la même règle que "good" (l'option la moins chère d'abord
+            // parmi renfort/dégâts/revenu auto/précision) mais SANS se
+            // déplacer : une seule tour possible, jamais 2-3 comme "good".
             if (!builtTower){
               if (gold >= TOWER_BUILD_COST){ tryTowerAction(); builtTower = towers.length > 0; }
             } else {
               const near = pickNearestTower(player.x, player.y);
               const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
-              const uCost = canUpgrade ? towerUpgradeCost(near) : Infinity;
-              const dCost = dmgUpgradeCost();
-              if (canUpgrade && gold >= uCost && uCost <= dCost * 3){ tryTowerAction(); }
-              else if (gold >= dCost){ gold -= dCost; dmgLevel++; }
+              const options = [];
+              if (canUpgrade) options.push({ cost: towerUpgradeCost(near), key: 'upgrade' });
+              options.push({ cost: dmgUpgradeCost(), key: 'damage' });
+              options.push({ cost: autoGoldCost(), key: 'autogold' });
+              options.push({ cost: precisionCost(), key: 'precision' });
+              options.sort((a,b) => a.cost-b.cost);
+              const pick = options.find(o => gold >= o.cost);
+              if (pick){
+                if (pick.key === 'upgrade') tryTowerAction();
+                else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
+                else if (pick.key === 'autogold'){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
+                else if (pick.key === 'precision'){ gold -= precisionCost(); precisionLevel++; }
+              }
             }
           } else if (policy === 'good'){
             if (!goodBuilt[goodIdx]){
