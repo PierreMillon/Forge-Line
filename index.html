@@ -132,7 +132,6 @@
     <a href="https://pierremillon.github.io/Bastion-Orbit/">Bastion Orbit</a>
     <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
     <a id="grid-toggle" href="#" data-i18n="menu_grid_show">Afficher la grille (debug)</a>
-    <a id="phosphor-toggle" href="#" data-i18n="menu_phosphor_on">Mode Phosphore : Activé</a>
     <a id="faq-toggle" href="#" data-i18n="menu_astuces">Astuces</a>
     <a id="lang-toggle" href="#" data-i18n="menu_lang">Langue : Français</a>
     <div class="menu-slider-row">
@@ -242,7 +241,6 @@ const stage = document.getElementById('stage');
 const I18N = {
   fr: {
     menu_grid_show: "Afficher la grille (debug)", menu_grid_hide: "Cacher la grille (debug)",
-    menu_phosphor_on: "Mode Phosphore : Activé", menu_phosphor_off: "Mode Phosphore : Désactivé",
     menu_astuces: "Astuces", menu_lang: "Langue : Français",
     menu_music: "🎵 Musique", menu_sfx: "🔊 Bruitages",
     menu_restart: "Recommencer une nouvelle partie",
@@ -290,7 +288,6 @@ const I18N = {
   },
   en: {
     menu_grid_show: "Show grid (debug)", menu_grid_hide: "Hide grid (debug)",
-    menu_phosphor_on: "Phosphor Mode: On", menu_phosphor_off: "Phosphor Mode: Off",
     menu_astuces: "Tips", menu_lang: "Language: English",
     menu_music: "🎵 Music", menu_sfx: "🔊 Sound effects",
     menu_restart: "Start a new game",
@@ -350,8 +347,6 @@ function applyLanguage(){
   if (langToggle) langToggle.textContent = t('menu_lang');
   const gridToggleEl = document.getElementById('grid-toggle');
   if (gridToggleEl) gridToggleEl.textContent = (typeof showGrid !== 'undefined' && showGrid) ? t('menu_grid_hide') : t('menu_grid_show');
-  const phosphorToggleEl = document.getElementById('phosphor-toggle');
-  if (phosphorToggleEl) phosphorToggleEl.textContent = (typeof phosphorMode !== 'undefined' && phosphorMode) ? t('menu_phosphor_on') : t('menu_phosphor_off');
   if (typeof refreshBonusbar === 'function') refreshBonusbar();
 }
 
@@ -604,9 +599,17 @@ let showGrid = true; // activée par défaut pour l'instant (demandé)
 // Mode Phosphore : style validé sur Bastion Orbit, repris ici à l'identique
 // dans son principe (voir le bloc CSS "Mode Phosphore" pour le HUD, et
 // drawIsoBox/drawCastle/drawForge/drawPath/les cercles plus bas pour le
-// canvas) — activé par défaut, désactivable dans le menu.
-let phosphorMode = true;
-try { phosphorMode = localStorage.getItem('fl_phosphor') !== '0'; } catch (e) { /* ignore */ }
+// canvas). v17.41 : c'est maintenant le SEUL mode visuel du jeu (décision
+// de Pierre — le mode couleur normal n'avait jamais reçu les formes
+// redessinées d'après ses croquis de référence, donc gardait
+// indéfiniment les anciennes formes basiques ; plutôt que de dupliquer
+// tout le travail de redessin dans les deux styles, un seul style
+// canonique). Le bouton de bascule et le stockage localStorage associé
+// (fl_phosphor) sont supprimés ; `phosphorMode` reste une constante
+// interne (branches internes conservées telles quelles, voir NOTES.md)
+// plutôt qu'une réécriture complète du fichier — trop risqué pour le
+// gain, la variable étant de toute façon toujours vraie maintenant.
+const phosphorMode = true;
 const PHOSPHOR_GREEN = 'rgba(70,255,130,0.92)';
 function gridToScreen(gx, gy){
   return { x: (gx-gy)*GRID_TW/2, y: (gx+gy)*GRID_TH/2 };
@@ -2049,15 +2052,9 @@ document.getElementById('grid-toggle').addEventListener('click', e => {
   showGrid = !showGrid;
   e.target.textContent = showGrid ? t('menu_grid_hide') : t('menu_grid_show');
 });
-document.getElementById('phosphor-toggle').addEventListener('click', e => {
-  e.preventDefault();
-  phosphorMode = !phosphorMode;
-  try { localStorage.setItem('fl_phosphor', phosphorMode ? '1' : '0'); } catch (err) { /* ignore */ }
-  document.body.classList.toggle('phosphor', phosphorMode);
-  e.target.textContent = phosphorMode ? t('menu_phosphor_on') : t('menu_phosphor_off');
-});
-document.body.classList.toggle('phosphor', phosphorMode);
-document.getElementById('phosphor-toggle').textContent = phosphorMode ? t('menu_phosphor_on') : t('menu_phosphor_off');
+// v17.41 : mode phosphore permanent, plus de bascule — voir la
+// constante phosphorMode plus haut.
+document.body.classList.add('phosphor');
 // v17.39 (Partie 2, point 2 — langue) : auto-détection par défaut,
 // changeable dans le menu, mémorisée séparément du choix automatique
 document.getElementById('lang-toggle').addEventListener('click', e => {
@@ -2088,6 +2085,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.41", text: "Mode Phosphore devient le seul style visuel du jeu (bouton de bascule et mode couleur supprimés) — l'ancien mode couleur n'avait jamais reçu les formes redessinées d'après tes croquis de référence, donc affichait indéfiniment les anciennes formes basiques. Vagues 5-8 (fin du tutoriel) : les nouveaux types d'ennemis n'apparaissent plus en même temps que la ruée du nombre (référence Bloons TD 5 — une seule difficulté à la fois)" },
   { v: "17.40", text: "Difficulté : les 4 premières vagues sont un vrai tutoriel (1, 3, 4, 6 ennemis, dicté explicitement), la ruée qui suivait était bien trop brutale (le simulateur montrait une mort vague 3-5 même en jouant bien) — resserrée. Simulateur étendu à 3 profils de joueur (naïf/correct/bon)" },
   { v: "17.38", text: "Section \"Astuces\" (menu) : explique clairement toutes les mécaniques du jeu avec des exemples chiffrés (combat, tours, Forge, vagues, marchands, cheval de Troie, effet domino, château) — remplace \"Aide / FAQ\"" },
   { v: "17.37", text: "Précision pixel-exacte (analyse automatique des dessins de référence) : forme de la porte et du cube de renfort de la tour, hauteurs des créneaux et de la porte du mur — mesurées directement sur les croquis, plus estimées à l'œil" },
