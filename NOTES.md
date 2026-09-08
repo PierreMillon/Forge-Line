@@ -1440,3 +1440,58 @@ Vérifié : `node --check`, suite de tests Playwright rejouée en HTTP
 (test-big, capture d'écran de l'écran de fin de partie confirmant le
 texte vert, capture de scène avec ennemis + croix de mort confirmant
 tout en vert et sans chevauchement) — zéro erreur JS.
+
+## v17.32 : A — redessin à la lettre depuis les dessins de référence retrouvés
+
+Les 7 dessins (tour, forge, mur, bateau, caravane, cheval de Troie,
+complexité des ennemis) ont été retrouvés dans les données brutes de la
+session (voir plus haut) et enregistrés dans `references/`. Chacun
+relu attentivement en image avant de coder, pour redessiner à la lettre
+comme demandé — pas d'improvisation. Ce qui a changé par rapport à la
+première interprétation (approximative, faite sans revoir les images) :
+
+- **Tour** : la porte n'est plus un arc + fente — c'est un triangle
+  ouvert adossé à l'arête avant-droite du corps, comme sur le croquis.
+  Le petit cube de renfort au sommet est conservé (confirmé "indicateur
+  de niveau" par Pierre plus tôt).
+- **Forge** : abandon complet de la ziggourat (trop éloignée du dessin,
+  cause du "aplatie et méconnaissable"). Nouvelle structure : corps avec
+  bandeau horizontal, toit en pavillon (4 pans qui convergent vers une
+  cheminée), un poteau plus court sur le côté, un rebord qui dépasse —
+  les 4 éléments visibles sur le croquis. Réutilise `drawIsoBox` pour
+  rester cohérent avec le style du reste du décor.
+- **Mur du château** : chaque créneau devient un vrai "pli" (ligne
+  verticale du sommet jusqu'à la base, pas juste un triangle plat) pour
+  la lecture "ruban plissé en 3D" du dessin — et le créneau au niveau où
+  le chemin des marchands rejoint le mur est surélevé, comme le pic
+  isolé au centre du croquis (lu comme une porte).
+- **Bateau** : la voile triangulaire pleine est remplacée par un mât +
+  petit fanion en losange, et des ornements (trait + losange) partent
+  des pointes avant/arrière de la coque, fidèles au dessin — qui montre
+  clairement ce motif "trait puis losange" répété à 3 endroits.
+- **Marchands/caravane** : changement de fond, pas juste de forme —
+  Pierre a précisé "ce sont des personnages, et DERRIÈRE eux un cheval
+  tire un chariot, le chariot vient avec eux". Chaque marchand est
+  maintenant une petite silhouette humaine (tête + corps + jambes) ; le
+  chariot + cheval attelé (nouvelle fonction `drawCaravanCart`) n'est
+  dessiné qu'UNE FOIS pour toute la caravane, positionné derrière le
+  marchand le plus en arrière via `posOnPath`.
+- **Cheval de Troie** : le corps devient un vrai pavé isométrique
+  (torse en 3 faces, cohérent avec le style du reste) au lieu d'un
+  contour plat ; tête/encolure anguleuse avec une petite crinière ;
+  les 4 pattes ont désormais un coude (2 segments), comme le dessin.
+- **Ennemis (complexité)** : le dessin montre 4 cubes distincts, pas 3
+  — remappé en 4 paliers avec correspondance 1:1 sur les 4 types
+  (base/fast_frail/fast_tough/boss) : cube nu, cube + croix sur la face
+  du dessus, cube + croix sur les 3 faces ("fil de fer"), cube +
+  treillis dense. Le cheval de Troie garde sa silhouette dédiée.
+
+Vérifié : `node --check`, suite de régression complète rejouée en HTTP
+(test-big, test-enemyprog jusqu'à la vague 230, test-boat-wave,
+test-forge, test-merchants, test-v1727) — zéro erreur JS. Captures
+d'écran de chaque forme (scène combinée, zoom tour/forge/mur/bateau)
+comparées visuellement aux dessins d'origine avant de valider.
+
+**Reste à faire côté Partie 1** : E (agencement — forge dans
+l'enceinte) et D (débarquement condensé + course rapide), toujours pas
+commencés au moment de ce commit.

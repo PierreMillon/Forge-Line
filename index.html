@@ -340,13 +340,33 @@ function drawOneBoat(b){
   ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#5c3f26';
   ctx.lineWidth = phosphorMode ? 1 : 2;
   ctx.beginPath(); ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH); ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 20); ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH - 18);
-  ctx.lineTo(13, -BOAT_SH - 2*BOAT_HH - 6);
-  ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 4);
-  ctx.closePath();
-  if (phosphorMode) ctx.stroke();
-  else { ctx.fillStyle = '#e8dfc8'; ctx.fill(); }
+  if (phosphorMode){
+    // v17.32 (dessin de référence retrouvé) : pas une voile triangulaire
+    // pleine — un mât surmonté d'une petite fanion en losange, comme le
+    // trait-puis-losange du croquis
+    const px = 13, py = -BOAT_SH - 2*BOAT_HH - 18, ps = 5;
+    ctx.beginPath(); ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH - 18); ctx.lineTo(px-ps, py); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(px-ps, py); ctx.lineTo(px, py-ps); ctx.lineTo(px+ps, py); ctx.lineTo(px, py+ps); ctx.closePath();
+    ctx.stroke();
+    // ornements de proue et de poupe : un trait qui part de chaque pointe
+    // de la coque vers un petit losange, comme sur le croquis
+    const ornament = (fromX, fromY, dx, dy, size) => {
+      const tx = fromX+dx, ty = fromY+dy;
+      ctx.beginPath(); ctx.moveTo(fromX, fromY); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tx, ty-size); ctx.lineTo(tx+size, ty); ctx.lineTo(tx, ty+size); ctx.lineTo(tx-size, ty); ctx.closePath(); ctx.stroke();
+    };
+    const cyTop = 0 - BOAT_SH - 2*BOAT_HH;
+    ornament(0, cyTop, -20, -16, 5);            // proue
+    ornament(0, cyTop + 2*BOAT_HH + BOAT_SH, 20, 16, 5); // poupe
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(0, -BOAT_SH - 2*BOAT_HH - 18);
+    ctx.lineTo(13, -BOAT_SH - 2*BOAT_HH - 6);
+    ctx.lineTo(0, -BOAT_SH - 2*BOAT_HH - 4);
+    ctx.closePath();
+    ctx.fillStyle = '#e8dfc8'; ctx.fill();
+  }
   ctx.restore();
   drawBoatPassengers(b);
 }
@@ -1799,6 +1819,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.32", text: "Formes redessinées à la lettre depuis les dessins de référence retrouvés : tour (porte triangulaire), forge (toit en pavillon + cheminée), mur (créneaux plissés + porte centrale), bateau (ornements proue/poupe, fanion), marchands (personnages + un seul chariot attelé pour la caravane), cheval de Troie (torse en pavé + pattes coudées), ennemis (4 paliers de complexité au lieu de 3)" },
   { v: "17.31", text: "Mode Phosphore : correctif texte noir sur noir (écran de fin de partie, erreur pub) et tous les éléments oubliés passés en vert (débarquement, croix de mort, poussière, halo de tour) ; collision entre ennemis vraiment resserrée (rayon par type, plus de superposition) ; joueur en faces noires opaques (fini l'effet fantôme)" },
   { v: "17.30", text: "Optimisation : chargement audio différé (musique plus légère au démarrage), garde-fou sur le calcul de regroupement des ennemis" },
   { v: "17.29", text: "Mode Phosphore : formes propres pour la forge, le mur, le bateau, les marchands, le cheval de Troie et les ennemis selon leur difficulté ; contact souple avec les tours" },
@@ -2497,46 +2518,49 @@ function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked, 
   }
 }
 
-// Mode Phosphore — formes d'ennemis par complexité (dessin de référence
-// fourni : 4 cubes de complexité croissante). Traduit en 3 paliers plutôt
-// que 4 (mapping raisonnable, pas de correspondance 1:1 précisée) :
-// 0 = simple losange (types faibles), 1 = cube + croix sur la face du
-// dessus (type intermédiaire), 2 = cube avec treillis dense sur les 3
-// faces (types forts — boss, cheval de Troie). Toujours en traits verts,
-// jamais rempli.
+// Mode Phosphore — formes d'ennemis par complexité (v17.32, redessiné à
+// partir du dessin de référence retrouvé : 4 cubes distincts, pas 3
+// comme la première interprétation approximative). Mapping 1:1 avec les
+// 4 types d'ennemis, du plus faible au plus fort :
+// 0 = cube tout simple, aucune diagonale (le dessin le plus dépouillé)
+// 1 = cube + croix sur la face du dessus seulement
+// 2 = cube + croix sur les 3 faces visibles ("on voit à travers")
+// 3 = cube + treillis dense sur les 3 faces (le plus chargé)
+// Toujours en traits verts, jamais rempli.
 function drawEnemyShape(cx, cy, hw, complexity){
   const hh = hw*0.55, sh = hw*0.85;
   ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.1;
-  if (complexity <= 0){
-    // simple losange (juste la face du dessus, pas de corps) — les plus faibles
-    const N={x:cx,y:cy-hh*1.6}, E={x:cx+hw,y:cy-hh*0.6}, S={x:cx,y:cy+hh*0.4}, W={x:cx-hw,y:cy-hh*0.6};
-    ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
-    return;
-  }
   const cyTop = cy - sh - 2*hh;
   const N={x:cx,y:cyTop}, E={x:cx+hw,y:cyTop+hh}, S={x:cx,y:cyTop+2*hh}, W={x:cx-hw,y:cyTop+hh};
   const Sb={x:S.x,y:S.y+sh}, Wb={x:W.x,y:W.y+sh}, Eb={x:E.x,y:E.y+sh};
   ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(Sb.x,Sb.y); ctx.lineTo(Wb.x,Wb.y); ctx.closePath(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(Eb.x,Eb.y); ctx.lineTo(Sb.x,Sb.y); ctx.closePath(); ctx.stroke();
+  if (complexity <= 0) return; // cube tout simple, rien de plus
+  const cross = (a,b,c,d) => { ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(c.x,c.y); ctx.moveTo(b.x,b.y); ctx.lineTo(d.x,d.y); ctx.stroke(); };
   if (complexity === 1){
-    ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(S.x,S.y); ctx.moveTo(E.x,E.y); ctx.lineTo(W.x,W.y); ctx.stroke();
-  } else {
-    // treillis : chaque face subdivisée + diagonales croisées, pour la
-    // densité du dessin le plus complexe
-    const lattice = (a,b,c,d) => {
-      const SEGS = 3;
-      for (let i = 1; i < SEGS; i++){
-        const t = i/SEGS;
-        ctx.beginPath();
-        ctx.moveTo(a.x+(b.x-a.x)*t, a.y+(b.y-a.y)*t); ctx.lineTo(d.x+(c.x-d.x)*t, d.y+(c.y-d.y)*t);
-        ctx.moveTo(a.x+(d.x-a.x)*t, a.y+(d.y-a.y)*t); ctx.lineTo(b.x+(c.x-b.x)*t, b.y+(c.y-b.y)*t);
-        ctx.stroke();
-      }
-      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(c.x,c.y); ctx.moveTo(b.x,b.y); ctx.lineTo(d.x,d.y); ctx.stroke();
-    };
-    lattice(N,E,S,W); lattice(W,S,Sb,Wb); lattice(S,E,Eb,Sb);
+    cross(N,E,S,W); // croix sur la face du dessus seulement
+    return;
   }
+  if (complexity === 2){
+    // croix sur les 3 faces visibles ("cube fil de fer" du dessin)
+    cross(N,E,S,W); cross(W,S,Sb,Wb); cross(S,E,Eb,Sb);
+    return;
+  }
+  // treillis : chaque face subdivisée + diagonales croisées, pour la
+  // densité du dessin le plus complexe
+  const lattice = (a,b,c,d) => {
+    const SEGS = 3;
+    for (let i = 1; i < SEGS; i++){
+      const t = i/SEGS;
+      ctx.beginPath();
+      ctx.moveTo(a.x+(b.x-a.x)*t, a.y+(b.y-a.y)*t); ctx.lineTo(d.x+(c.x-d.x)*t, d.y+(c.y-d.y)*t);
+      ctx.moveTo(a.x+(d.x-a.x)*t, a.y+(d.y-a.y)*t); ctx.lineTo(b.x+(c.x-b.x)*t, b.y+(c.y-b.y)*t);
+      ctx.stroke();
+    }
+    cross(a,b,c,d);
+  };
+  lattice(N,E,S,W); lattice(W,S,Sb,Wb); lattice(S,E,Eb,Sb);
 }
 
 // Mode Phosphore — silhouette angulaire du cheval de Troie (dessin de
@@ -2546,21 +2570,75 @@ function drawEnemyShape(cx, cy, hw, complexity){
 function drawTrojanHorseShape(cx, cy, size){
   const s = size / 18; // échelle relative au rayon habituel du cheval de Troie
   ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.3;
+  // v17.32 (redessiné à partir du dessin de référence retrouvé) : un
+  // torse en pavé isométrique (même style que le reste du décor), avec
+  // encolure/tête anguleuse, une petite crinière, et 4 pattes à deux
+  // segments (un coude, comme sur le croquis) — plus fidèle que la
+  // silhouette plate de la première interprétation
+  const bw = 9*s, bh = 5*s, bsh = 6*s;
+  const cyTop = cy - bsh - 2*bh;
+  const N={x:cx,y:cyTop}, E={x:cx+bw,y:cyTop+bh}, S={x:cx,y:cyTop+2*bh}, W={x:cx-bw,y:cyTop+bh};
+  const Sb={x:S.x,y:S.y+bsh}, Wb={x:W.x,y:W.y+bsh}, Eb={x:E.x,y:E.y+bsh};
+  ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(Sb.x,Sb.y); ctx.lineTo(Wb.x,Wb.y); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(Eb.x,Eb.y); ctx.lineTo(Sb.x,Sb.y); ctx.closePath(); ctx.stroke();
+  // encolure + tête, anguleuses, partent du coin avant-haut du torse (N)
+  const neckTop = { x: N.x-3*s, y: N.y-11*s };
+  const earTip  = { x: neckTop.x-1*s, y: neckTop.y-7*s };
+  const noseTop = { x: neckTop.x+4*s, y: neckTop.y-2*s };
+  const headTip = { x: neckTop.x+9*s, y: neckTop.y-4*s };
+  const jaw     = { x: neckTop.x+5*s, y: neckTop.y+3*s };
   ctx.beginPath();
-  ctx.moveTo(cx-16*s, cy-2*s);
-  ctx.lineTo(cx-10*s, cy-14*s);   // encolure vers la tête
-  ctx.lineTo(cx-2*s,  cy-9*s);    // tête
-  ctx.lineTo(cx-6*s,  cy-2*s);    // retour vers le poitrail
-  ctx.lineTo(cx+6*s,  cy-6*s);    // dos
-  ctx.lineTo(cx+16*s, cy-2*s);    // croupe
-  ctx.lineTo(cx+12*s, cy+8*s);    // patte arrière
-  ctx.lineTo(cx+8*s,  cy+2*s);
-  ctx.lineTo(cx+2*s,  cy+8*s);    // patte avant droite
-  ctx.lineTo(cx-2*s,  cy+2*s);
-  ctx.lineTo(cx-8*s,  cy+8*s);    // patte avant gauche
-  ctx.lineTo(cx-12*s, cy+2*s);
-  ctx.lineTo(cx-16*s, cy-2*s);
+  ctx.moveTo(N.x, N.y);
+  ctx.lineTo(neckTop.x, neckTop.y);
+  ctx.lineTo(earTip.x, earTip.y);
+  ctx.lineTo(noseTop.x, noseTop.y);
+  ctx.lineTo(headTip.x, headTip.y);
+  ctx.lineTo(jaw.x, jaw.y);
+  ctx.lineTo(N.x, N.y);
   ctx.stroke();
+  // crinière : quelques petits traits près de l'encolure
+  for (let i = 0; i < 3; i++){
+    const t = i/2;
+    const bx = N.x + (neckTop.x-N.x)*t, by = N.y + (neckTop.y-N.y)*t;
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx-3*s, by-2*s); ctx.stroke();
+  }
+  // 4 pattes à deux segments (un coude), aux 4 coins du torse
+  const leg = (hip, dx1, dy1, dx2, dy2) => {
+    const knee = { x: hip.x+dx1, y: hip.y+dy1 };
+    const hoof = { x: knee.x+dx2, y: knee.y+dy2 };
+    ctx.beginPath(); ctx.moveTo(hip.x,hip.y); ctx.lineTo(knee.x,knee.y); ctx.lineTo(hoof.x,hoof.y); ctx.stroke();
+  };
+  leg(W,  -1*s, 5*s, -1*s, 5*s);
+  leg(S,  -2*s, 4*s,  1*s, 5*s);
+  leg(E,   2*s, 4*s,  1*s, 5*s);
+  leg(Sb,   0*s, 3*s,  2*s, 4*s);
+}
+
+// v17.32 (dessin de référence retrouvé : "un cheval tire un chariot") —
+// le chariot de la caravane des marchands, dessiné une seule fois pour
+// tout le groupe (pas par marchand, voir la boucle des marchands) : une
+// caisse ouverte sur roues, tirée par un cheval attelé devant
+function drawCaravanCart(x, y){
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  drawIsoBox(x, y, 8, 5, 5, null, null, null);
+  const wheel = (wx, wy) => {
+    ctx.beginPath(); ctx.moveTo(wx,wy-2); ctx.lineTo(wx+3,wy); ctx.lineTo(wx,wy+2); ctx.lineTo(wx-3,wy); ctx.closePath(); ctx.stroke();
+  };
+  wheel(x-6, y+2); wheel(x+6, y+2);
+  // cheval attelé devant le chariot, relié par un trait d'attelage
+  const hx = x+14, hy = y-2;
+  ctx.beginPath(); ctx.moveTo(x+5, y-4); ctx.lineTo(hx-5, hy); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(hx-5, hy);
+  ctx.lineTo(hx-3, hy-9);
+  ctx.lineTo(hx+1, hy-6);
+  ctx.lineTo(hx+5, hy-9);
+  ctx.lineTo(hx+7, hy-3);
+  ctx.lineTo(hx+3, hy);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(hx-2,hy); ctx.lineTo(hx-3,hy+6); ctx.moveTo(hx+2,hy); ctx.lineTo(hx+4,hy+6); ctx.stroke();
 }
 
 // l'illusion de 3D tient uniquement à l'ordre de dessin : ce qui est plus
@@ -2611,20 +2689,28 @@ function drawCastle(){
   // juste le mur plat à sa place (pas de trou dans la pierre en dessous)
   const slot = w / CASTLE_SEGMENTS;
   const merlonW = slot * 0.55, merlonH = 8;
+  // v17.32 (redessiné à partir du dessin de référence retrouvé) : le mur
+  // n'est pas un simple zigzag plat — chaque créneau est un "pli" avec
+  // une ligne verticale au sommet qui redescend jusqu'à la base (donne la
+  // lecture "ruban plissé en 3D" du croquis), et un créneau surélevé au
+  // niveau où le chemin des marchands rejoint le mur (porte, comme le
+  // pic isolé au centre du dessin)
+  const gateIdx = Math.min(CASTLE_SEGMENTS-1, Math.round(CASTLE_SEGMENTS * 0.52));
   for (let i = 0; i < CASTLE_SEGMENTS; i++){
     if (i < destroyed) continue;
     const mx = x + i * slot + (slot - merlonW) / 2;
+    const mh = (phosphorMode && i === gateIdx) ? merlonH * 2.4 : merlonH;
     if (phosphorMode){
-      // v17.29 (dessin de référence : mur en zigzag) : chaque créneau
-      // devient une dent pointue (un "^") au lieu d'un simple rectangle —
-      // mis côte à côte, ça lit comme le zigzag du dessin
+      const peakX = mx + merlonW/2, peakY = y - mh;
       ctx.beginPath();
       ctx.moveTo(mx, y);
-      ctx.lineTo(mx, y - merlonH*0.4);
-      ctx.lineTo(mx + merlonW/2, y - merlonH);
-      ctx.lineTo(mx + merlonW, y - merlonH*0.4);
+      ctx.lineTo(mx, y - mh*0.4);
+      ctx.lineTo(peakX, peakY);
+      ctx.lineTo(mx + merlonW, y - mh*0.4);
       ctx.lineTo(mx + merlonW, y);
       ctx.stroke();
+      // pli central : la ligne verticale qui redescend jusqu'à la base
+      ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(peakX, y); ctx.stroke();
     } else { ctx.fillStyle = '#6b5f45'; ctx.fillRect(mx, y - merlonH, merlonW, merlonH); }
   }
 }
@@ -2638,25 +2724,39 @@ function drawForge(){
   ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : (forgeBuilt ? '#e0793a' : '#6b5f45');
   ctx.lineWidth = phosphorMode ? 1.4 : 3;
   ctx.strokeRect(x, y, w, h);
-  // l'émoji casse le monochrome — en phosphore, une petite forge en
-  // ziggourat (dessin de référence : structure à étages avec une flèche
-  // au sommet) plutôt que le glyphe couleur
+  // l'émoji casse le monochrome — en phosphore, une vraie petite
+  // structure isométrique (v17.32, redessinée à partir du dessin de
+  // référence retrouvé : corps avec bandeau, toit en pavillon (4 pans
+  // qui convergent vers une cheminée), un poteau plus bas sur le côté,
+  // et un rebord qui dépasse — remplace la première interprétation en
+  // ziggourat qui ne ressemblait plus au croquis) plutôt que le glyphe
+  // couleur
   if (phosphorMode){
-    const mx = x + w/2, baseY = y + h*0.82;
+    const mx = x + w*0.55, baseY = y + h*0.92;
     ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-    const tiers = 3;
-    for (let i = 0; i < tiers; i++){
-      const tw = (w*0.42) * (1 - i*0.22);
-      const th = h*0.1;
-      const ty = baseY - i*(h*0.14);
-      ctx.beginPath();
-      ctx.moveTo(mx-tw, ty); ctx.lineTo(mx, ty-th); ctx.lineTo(mx+tw, ty);
-      ctx.lineTo(mx+tw*0.7, ty+th*0.6); ctx.lineTo(mx-tw*0.7, ty+th*0.6); ctx.closePath();
-      ctx.stroke();
-    }
-    // flèche/cheminée au sommet
-    const topY = baseY - (tiers-1)*(h*0.14) - h*0.1;
-    ctx.beginPath(); ctx.moveTo(mx, topY); ctx.lineTo(mx, topY - h*0.22); ctx.stroke();
+    // corps : pavé isométrique avec un bandeau horizontal (dessin de
+    // référence : une ligne qui traverse le corps à mi-hauteur)
+    const bw = w*0.22, bh = bw*0.55, bsh = h*0.34;
+    drawIsoBox(mx, baseY, bw, bh, bsh, null, null, null, 2);
+    // toit en pavillon : un large losange (l'avant-toit) dont les 4
+    // coins convergent vers un point au sommet
+    const roofBaseY = baseY - bsh - 2*bh;
+    const rw = bw*1.5, rh = bh*1.5;
+    const RN={x:mx,y:roofBaseY}, RE={x:mx+rw,y:roofBaseY+rh}, RS={x:mx,y:roofBaseY+2*rh}, RW={x:mx-rw,y:roofBaseY+rh};
+    ctx.beginPath(); ctx.moveTo(RN.x,RN.y); ctx.lineTo(RE.x,RE.y); ctx.lineTo(RS.x,RS.y); ctx.lineTo(RW.x,RW.y); ctx.closePath(); ctx.stroke();
+    const apex = { x: mx, y: roofBaseY - bh*1.8 };
+    ctx.beginPath();
+    for (const corner of [RN,RE,RS,RW]){ ctx.moveTo(apex.x,apex.y); ctx.lineTo(corner.x,corner.y); }
+    ctx.stroke();
+    // petite cheminée au sommet du toit
+    const cw = bw*0.35, ch = cw*0.55, csh = bh*1.3;
+    drawIsoBox(apex.x, apex.y, cw, ch, csh, null, null, null);
+    // poteau latéral, plus court, à gauche du corps principal
+    const pw = bw*0.55, ph = pw*0.55, psh = bsh*0.45;
+    drawIsoBox(x + w*0.12, baseY, pw, ph, psh, null, null, null);
+    // rebord/étal qui dépasse à droite, à mi-hauteur du corps
+    const lw = bw*0.9, lh = lw*0.55, lsh = bh*0.4;
+    drawIsoBox(mx + bw*1.7, baseY - bsh*0.55, lw, lh, lsh, null, null, null);
   } else {
     ctx.font = '24px sans-serif';
     ctx.textAlign = 'center';
@@ -2762,20 +2862,21 @@ function draw(now){
       if (flashing) ctx.globalAlpha = 0.45;
       drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments);
       if (phosphorMode){
-        // nouvelle forme (dessin fourni) : une fente (meurtrière) et une
-        // porte en arc sur le corps, un petit cube au sommet qui grossit
-        // avec le niveau — indicateur de renfort, confirmé en question
+        // v17.32 (redessiné à partir du dessin de référence retrouvé) :
+        // une porte en triangle ouvert, adossée à l'arête avant-droite du
+        // corps (pas un arc) — plus un petit cube au sommet qui grossit
+        // avec le niveau, indicateur de renfort déjà confirmé
         const bodyTopY = t.y - sh - 2*TOWER_HH;
         ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+        const edgeX = t.x + TOWER_HW;
+        const edgeTopY = bodyTopY + TOWER_HH + sh*0.15;
+        const edgeBotY = bodyTopY + TOWER_HH + sh*0.78;
+        const flapX = edgeX + TOWER_HW*0.85, flapY = bodyTopY + TOWER_HH + sh*0.45;
         ctx.beginPath();
-        ctx.moveTo(t.x, bodyTopY + sh*0.22); ctx.lineTo(t.x, bodyTopY + sh*0.52);
-        ctx.stroke();
-        const doorX = t.x + TOWER_HW*0.35, doorW = TOWER_HW*0.5, doorH = TOWER_HH*1.6;
-        ctx.beginPath();
-        ctx.moveTo(doorX - doorW/2, t.y);
-        ctx.lineTo(doorX - doorW/2, t.y - doorH*0.6);
-        ctx.arc(doorX, t.y - doorH*0.6, doorW/2, Math.PI, 0);
-        ctx.lineTo(doorX + doorW/2, t.y);
+        ctx.moveTo(edgeX, edgeTopY);
+        ctx.lineTo(edgeX, edgeBotY);
+        ctx.lineTo(flapX, flapY);
+        ctx.closePath();
         ctx.stroke();
         const capScale = Math.min(1.6, 0.6 + level*0.15);
         drawIsoBox(t.x, bodyTopY, TOWER_HW*0.4*capScale, TOWER_HH*0.4*capScale, TOWER_HH*0.8*capScale, null, null, null);
@@ -2819,7 +2920,7 @@ function draw(now){
   // référence : 4 cubes de complexité croissante, voir drawEnemyShape) —
   // les types faibles restent lisibles/simples, les forts se voient
   // nettement plus "chargés"
-  const ENEMY_COMPLEXITY = { base: 0, fast_frail: 0, fast_tough: 1, boss: 2, trojan: 2 };
+  const ENEMY_COMPLEXITY = { base: 0, fast_frail: 1, fast_tough: 2, boss: 3, trojan: 3 };
   for (const e of enemies){
     layers.push({ y: e.y, draw: () => {
       const t = e.type || ENEMY_TYPES[0];
@@ -2845,16 +2946,17 @@ function draw(now){
   for (const m of merchants){
     layers.push({ y: m.y, draw: () => {
       if (phosphorMode){
-        // v17.29 (dessin de référence : chariot + cheval) — simplifié en
-        // petit chariot (boîte à roues) à cette échelle, la silhouette du
-        // cheval complète ne serait pas lisible en aussi petit et répétée
-        // pour chaque marchand d'une caravane
-        const w = 9, h = 6;
+        // v17.32 (dessin de référence retrouvé) : les marchands sont des
+        // PERSONNAGES (petite silhouette humaine), pas des chariots —
+        // "derrière eux un cheval tire un chariot" : le chariot est
+        // dessiné une seule fois pour toute la caravane (voir
+        // drawCaravanCart plus bas), pas répété par marchand
         ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.1;
-        ctx.strokeRect(m.x-w/2, m.y-14, w, h);
+        ctx.beginPath(); ctx.arc(m.x, m.y-15, 2, 0, Math.PI*2); ctx.stroke();
         ctx.beginPath();
-        ctx.arc(m.x-w/2+1.5, m.y-8, 1.6, 0, Math.PI*2);
-        ctx.moveTo(m.x+w/2-1.5+1.6, m.y-8); ctx.arc(m.x+w/2-1.5, m.y-8, 1.6, 0, Math.PI*2);
+        ctx.moveTo(m.x, m.y-13); ctx.lineTo(m.x, m.y-6);
+        ctx.moveTo(m.x, m.y-6); ctx.lineTo(m.x-3, m.y);
+        ctx.moveTo(m.x, m.y-6); ctx.lineTo(m.x+3, m.y);
         ctx.stroke();
       } else {
       ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2);
@@ -2865,6 +2967,16 @@ function draw(now){
       ctx.fillStyle = phosphorMode ? PHOSPHOR_GREEN : (frac > 0.4 ? '#4a9d4a' : '#c33f3f');
       ctx.fillRect(m.x-barW/2, m.y-20, barW*frac, 3);
     }});
+  }
+  // le chariot tiré par un cheval : une seule fois pour toute la
+  // caravane, derrière le marchand le plus en arrière (le chemin part de
+  // l'index 0 au bord du château vers le large — "derrière" = l'index le
+  // plus grand, donc encore plus loin dans cette direction)
+  if (phosphorMode && merchants.length){
+    let backIdx = merchants[0].pathIdx;
+    for (const m of merchants) if (m.pathIdx > backIdx) backIdx = m.pathIdx;
+    const cartPos = posOnPath(backIdx + 1.6);
+    layers.push({ y: cartPos.y, draw: () => drawCaravanCart(cartPos.x, cartPos.y) });
   }
   // soldats : alliés obtenus via les marchands — bleu/vert, distinct des
   // ennemis (rouge/violet/orange) et du joueur (jaune)
