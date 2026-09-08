@@ -128,7 +128,7 @@
   <div id="version-panel"></div>
 </div>
 
-<audio id="bg-music" src="assets/ambience.ogg" loop preload="auto"></audio>
+<audio id="bg-music" src="assets/ambience.ogg" loop preload="none"></audio>
 
 <div id="stage">
   <canvas id="c"></canvas>
@@ -1754,6 +1754,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.30", text: "Optimisation : chargement audio différé (musique plus légère au démarrage), garde-fou sur le calcul de regroupement des ennemis" },
   { v: "17.29", text: "Mode Phosphore : formes propres pour la forge, le mur, le bateau, les marchands, le cheval de Troie et les ennemis selon leur difficulté ; contact souple avec les tours" },
   { v: "17.28", text: "Mode Phosphore (vert sur noir, style écran vectoriel) activé par défaut, désactivable dans le menu — nouvelle forme de tour avec porte/fenêtre/cube de renfort" },
   { v: "17.27", text: "Nouvelle compétence de la Forge : les soldats peuvent réparer les tours (achat unique, 60 or)" },
@@ -2278,7 +2279,7 @@ function update(now){
       // (GROUP_WAIT_MIN_COUNT, soi-même inclus) déclenche une ruée
       // commune, sinon ils patientent (jusqu'à GROUP_WAIT_MAX_FRAMES,
       // filet de sécurité si le groupe ne se forme jamais)
-      if (e.groupWait){
+      if (e.groupWait && enemies.length <= ENEMY_COLLISION_MAX_COUNT){
         let nearby = 0;
         for (const other of enemies){
           if (other.groupWait && other.waitFrames > 0 && Math.hypot(other.x-e.x, other.y-e.y) < GROUP_WAIT_RADIUS) nearby++;

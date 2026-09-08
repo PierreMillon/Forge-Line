@@ -1341,3 +1341,40 @@ différents, 3 types d'ennemis, marchand, cheval de Troie) capturée en
 aucune erreur JS. Bateau vérifié séparément (planches + mât/voile).
 Suite de régression complète toujours verte. Pas encore poussé en
 production.
+
+## v17.30 : audit qualité (sans code), puis correctifs demandés
+
+Audit à froid demandé par l'utilisateur ("lance un AUDIT uniquement —
+ne code rien") : lecture du fichier entier (3045 lignes / 170 877
+octets), recherche de TODO/FIXME/console.*, recensement des boucles
+`for (const ... of enemies/towers)` pour repérer des motifs O(n²), et
+vérification des tableaux dynamiques (`enemies`, `particles`,
+`floatingTexts`, `deathEffects`, `projectiles`) — tous correctement
+filtrés/vidés, pas de fuite mémoire. Aucun bug fonctionnel trouvé.
+Rapport livré, feu vert reçu ("Vas-y alors") pour les deux correctifs
+identifiés comme valables :
+
+- **`preload="auto"` → `preload="none"`** sur `<audio id="bg-music">` :
+  le fichier `assets/ambience.ogg` fait 6,77 Mo et était mis en
+  tampon en entier dès l'ouverture de la page, avant tout geste de
+  l'utilisateur — alors que le jeu attend déjà un geste utilisateur
+  (`tryUnlockAudio()`) pour démarrer le son. Gain de chargement
+  initial, aucun changement de comportement audio perçu.
+- **Garde-fou sur le scan `groupWait`** (ligne ~2281) : la boucle qui
+  compte les ennemis en attente groupée autour de chacun n'avait pas
+  le même plafond que `resolveEnemyCollisions`
+  (`ENEMY_COLLISION_MAX_COUNT = 150`) — ajouté la même condition
+  (`enemies.length <= ENEMY_COLLISION_MAX_COUNT`), avec repli sur le
+  comportement d'attente individuelle existant si jamais dépassé (le
+  filet de sécurité `GROUP_WAIT_MAX_FRAMES` reste actif). Aucun impact
+  en jeu normal (le nombre d'ennemis simultanés n'approche jamais ce
+  plafond) — purement préventif.
+
+Refactoring structurel (fichier monolithique, duplication des
+branches `phosphorMode`) jugé **pas nécessaire pour l'instant** dans
+le rapport — pas touché.
+
+Vérifié : `node --check` sur le script extrait, suite de tests
+Playwright rejouée en HTTP (test-big, test-enemyprog jusqu'à la vague
+230, test-boat-wave, test-forge, test-merchants, test-v1727) —
+zéro erreur JS à chaque fois.
