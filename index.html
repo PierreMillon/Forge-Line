@@ -482,32 +482,77 @@ function drawBoat(){
 // bord arrière. Rayons dérivés de BOAT_HW/BOAT_HH mais bien plus
 // allongés (le dessin est nettement plus long que large).
 const BOAT_HULL_HW = 40, BOAT_HULL_HH = 11, BOAT_BEVEL = 0.4;
+// v17.45 (même traitement rigoureux que la tour/le mur, demandé par
+// Pierre) : coque + planches + les 4 vrais ornements en losange (2
+// proue, 2 poupe), directement recopiés du croquis de référence par la
+// méthode Hough (voir tools/) — 61 segments, coordonnées exactes
+// converties en unités locales (échelle calée sur BOAT_HULL_HW=40,
+// origine au sommet de la proue). Remplace l'ancien hexagone
+// paramétrique (N/E/S/W + biseau) qui n'était qu'une approximation.
 function drawBoatHullPhosphor(){
-  const hw = BOAT_HULL_HW, hh = BOAT_HULL_HH, sh = BOAT_SH;
-  const cyTop = -sh - 2*hh;
-  const N={x:0,y:cyTop}, E={x:hw,y:cyTop+hh}, S={x:0,y:cyTop+2*hh}, W={x:-hw,y:cyTop+hh};
-  const lerp = (a,b,t) => ({x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t});
-  const bow1 = lerp(N,W,BOAT_BEVEL), bow2 = lerp(N,E,BOAT_BEVEL);
-  const stern1 = lerp(S,W,BOAT_BEVEL), stern2 = lerp(S,E,BOAT_BEVEL);
-  const down = p => ({x:p.x, y:p.y+sh});
   ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-  // face du dessus : hexagone (proue et poupe biseautées, pas pointues)
-  ctx.beginPath();
-  ctx.moveTo(bow1.x,bow1.y); ctx.lineTo(bow2.x,bow2.y); ctx.lineTo(E.x,E.y);
-  ctx.lineTo(stern2.x,stern2.y); ctx.lineTo(stern1.x,stern1.y); ctx.lineTo(W.x,W.y);
-  ctx.closePath(); ctx.stroke();
-  // parois (extrusion) : la gauche (W) et la droite (E), les deux bords
-  // les plus visibles dans cette vue
-  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(stern1.x,stern1.y); ctx.lineTo(down(stern1).x,down(stern1).y); ctx.lineTo(down(W).x,down(W).y); ctx.closePath(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(E.x,E.y); ctx.lineTo(stern2.x,stern2.y); ctx.lineTo(down(stern2).x,down(stern2).y); ctx.lineTo(down(E).x,down(E).y); ctx.closePath(); ctx.stroke();
-  // planches diagonales sur le pont (dessin de référence), entre le bord
-  // gauche (bow1->stern1) et le bord droit (bow2->stern2)
-  ctx.lineWidth = 0.8;
-  for (let i = 1; i < 6; i++){
-    const t = i/6;
-    const p1 = lerp(bow1, stern1, t), p2 = lerp(bow2, stern2, t);
-    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
-  }
+  const L = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
+  L(0.0,-32.0,45.72,-5.6);
+  L(-22.86,-18.8,22.86,7.6);
+  L(0.0,-25.4,45.72,1.0);
+  L(-17.14,-2.31,11.43,14.19);
+  L(17.15,4.3,34.29,-5.6);
+  L(11.43,1.0,28.57,-8.9);
+  L(-22.86,-18.8,0.0,-32.0);
+  L(34.29,-12.2,51.43,-22.1);
+  L(-28.57,10.89,-22.85,7.59);
+  L(-11.42,20.79,5.72,-2.3);
+  L(28.57,-28.7,34.29,-32.0);
+  L(22.86,14.19,45.72,1.0);
+  L(0.0,-5.6,17.14,-15.5);
+  L(-5.71,4.29,11.43,14.19);
+  L(-5.71,-8.9,11.43,-18.8);
+  L(-17.14,30.69,-11.42,27.39);
+  L(11.43,14.19,22.86,7.6);
+  L(5.72,-2.3,22.86,-12.2);
+  L(-17.14,-15.5,0.0,-25.4);
+  L(-22.85,7.59,-11.43,-12.2);
+  L(-22.85,-12.2,-17.14,-2.31);
+  L(-11.43,-12.2,5.72,-22.1);
+  L(0.0,-12.2,11.43,-18.8);
+  L(28.58,4.3,34.29,1.0);
+  L(28.57,-28.7,34.29,-25.4);
+  L(11.43,14.19,22.86,14.19);
+  L(11.43,-25.4,28.57,-28.7);
+  L(-17.14,-2.31,0.0,7.59);
+  L(51.43,-22.1,57.14,-18.8);
+  L(-17.14,-15.5,-5.71,-22.1);
+  L(22.86,14.19,28.58,10.9);
+  L(34.29,7.6,45.72,1.0);
+  L(34.29,-32.0,40.0,-28.7);
+  L(-22.85,-12.2,-22.86,-18.8);
+  L(51.43,-15.5,57.14,-18.8);
+  L(22.86,7.6,34.29,7.6);
+  L(-28.57,10.89,-28.57,17.49);
+  L(45.72,-18.8,51.43,-15.5);
+  L(-22.85,7.59,-17.14,-2.31);
+  L(-22.85,14.19,-22.85,7.59);
+  L(45.72,-5.6,45.72,1.0);
+  L(-17.14,24.09,-11.42,20.79);
+  L(-17.14,-2.31,-11.43,-12.2);
+  L(-28.57,17.49,-22.85,14.19);
+  L(-17.14,30.69,-17.14,24.09);
+  L(0.0,-32.0,0.0,-25.4);
+  L(-11.42,27.39,-11.42,20.79);
+  L(34.29,-25.4,40.0,-28.7);
+  L(5.72,-15.5,11.43,-18.8);
+  L(22.86,14.19,40.0,4.3);
+  L(5.72,10.89,11.43,14.19);
+  L(11.43,14.19,17.15,10.89);
+  L(-11.43,-18.8,0.0,-25.4);
+  L(-17.14,-15.5,-11.43,-18.8);
+  L(45.72,-18.8,51.43,-22.1);
+  L(-17.14,-2.31,-11.42,0.99);
+  L(-5.71,-8.9,5.72,-15.5);
+  L(40.0,-15.5,51.43,-22.1);
+  L(34.29,-12.2,40.0,-15.5);
+  L(17.15,10.89,22.86,7.6);
+  L(22.86,14.19,34.29,7.6);
 }
 
 function drawOneBoat(b){
@@ -528,20 +573,10 @@ function drawOneBoat(b){
   ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#5c3f26';
   ctx.lineWidth = phosphorMode ? 1 : 2;
   if (phosphorMode){
-    // v17.44 (correctif après vérification pixel-exacte du croquis,
-    // méthode Hough — voir tools/) : il n'y a PAS de mât/fanion sur le
-    // dessin de référence, c'était inventé. Il y a 4 losanges (des
-    // rames/ornements) reliés par un trait à la coque — 2 côté proue, 2
-    // côté poupe — pas 1 de chaque comme avant.
-    const ornament = (fromX, fromY, dx, dy, size) => {
-      const tx = fromX+dx, ty = fromY+dy;
-      ctx.beginPath(); ctx.moveTo(fromX, fromY); ctx.lineTo(tx, ty); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(tx, ty-size); ctx.lineTo(tx+size, ty); ctx.lineTo(tx, ty+size); ctx.lineTo(tx-size, ty); ctx.closePath(); ctx.stroke();
-    };
-    ornament(0, hullTopY, 20, -16, 5);
-    ornament(20, hullTopY-4, 25, 5, 5);
-    ornament(0, hullTopY + 2*BOAT_HULL_HH + BOAT_SH, -20, 16, 5);
-    ornament(-20, hullTopY + 2*BOAT_HULL_HH + BOAT_SH + 4, -25, -5, 5);
+    // v17.45 : mât, fanion et ornements approximatifs retirés — les 4
+    // vrais losanges sont maintenant dessinés directement dans
+    // drawBoatHullPhosphor() ci-dessus, avec les coordonnées exactes du
+    // croquis (plus de mât du tout, il n'existait pas sur l'original)
   } else {
     ctx.beginPath();
     ctx.moveTo(0, hullTopY - 18);
@@ -2086,6 +2121,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.45", text: "Même traitement rigoureux (recopiage pixel-exact) appliqué au bateau (coque + les 4 ornements) et au cheval de la caravane, en plus de ce qui l'était déjà (tour, forge, mur) — coordonnées directement recopiées des croquis, plus d'approximation à l'œil." },
   { v: "17.44", text: "Marchands : retour aux simples billes vertes (la silhouette de \"petit bonhomme\" ne plaisait pas). Bateau : le mât/fanion n'existait pas sur le croquis de référence (vérifié pixel-exact via une nouvelle méthode de recopiage automatique, voir tools/) — retiré, remplacé par les 4 vrais ornements en losange (2 à la proue, 2 à la poupe) au lieu de 2." },
   { v: "17.43", text: "Vu sur une vraie capture d'écran envoyée par Pierre : les proportions de la tour étaient correctes mais bien trop petites pour se lire sur un téléphone — porte et cube de renfort quasi invisibles à l'œil nu. Tour agrandie ×1,5 (visuel uniquement, aucun changement de portée/collision/gameplay)." },
   { v: "17.42", text: "Correctifs de forme suite au signalement \"ça ne correspond pas du tout\" : cube de renfort de la tour agrandi (il était 25% trop petit dès le niveau 1, quasi invisible) ; les 4 paliers de complexité des ennemis reflètent maintenant les 4 vrais motifs du croquis (trait simple / croix complète / treillis, plus de croix sur 3 faces inventée) ; cheval attelé à la caravane réétalé pour que dos/tête/4 pattes soient enfin distincts ; cheval de Troie entièrement repointé — l'ancien torse en pavé ne ressemblait pas du tout au croquis (silhouette allongée en zigzag, pas un cube)" },
@@ -2915,28 +2951,33 @@ function drawCaravanCart(x, y){
   wheel(x-7, y+5); wheel(x-1, y+7);
   // cheval attelé devant, relié par un trait d'attelage depuis le coin
   // avant-droit de la caisse.
-  // v17.42 (correctif demandé : "les formes ne correspondent pas du
-  // tout") — remesuré sur le dessin de référence : le cheval y est
-  // nettement ALLONGÉ à l'horizontale (corps long, tête relevée loin à
-  // l'avant, 4 pattes bien séparées le long du corps), alors que
-  // l'ancien tracé compressait tous les points presque au même endroit
-  // (le dos et 2 des 4 pattes se chevauchaient, illisible à l'écran).
-  // Topologie conservée (museau relevé, dos, 4 pattes), juste les
-  // proportions étalées pour rester lisible à l'échelle du jeu.
+  // v17.45 (même traitement rigoureux que la tour/le mur/le bateau,
+  // demandé par Pierre) : coordonnées exactes recopiées du croquis de
+  // référence par la méthode Hough (voir tools/), 20 segments, au lieu
+  // de l'approximation "réétalée à l'œil" du v17.42.
   const A = { x: E.x+3, y: E.y };
   ctx.beginPath(); ctx.moveTo(S.x, S.y-1); ctx.lineTo(A.x, A.y); ctx.stroke();
-  const croup = { x: A.x+26, y: A.y-3 };      // arrière-train, au bout du dos
-  const neckPeak = { x: A.x+10, y: A.y-14 };  // encolure relevée
-  const nose = { x: neckPeak.x+12, y: neckPeak.y+7 }; // museau
-  const earTip = { x: neckPeak.x-3, y: neckPeak.y-6 }; // petite oreille dressée
-  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(neckPeak.x, neckPeak.y); ctx.lineTo(nose.x, nose.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(neckPeak.x, neckPeak.y); ctx.lineTo(earTip.x, earTip.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(croup.x, croup.y); ctx.stroke(); // dos
-  const leg = (hipX, hipY) => { ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(hipX-1, hipY+14); ctx.stroke(); };
-  leg(A.x, A.y);
-  leg(A.x+9, A.y-2);
-  leg(A.x+18, A.y-3);
-  leg(croup.x, croup.y);
+  const HL = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(A.x+x1,A.y+y1); ctx.lineTo(A.x+x2,A.y+y2); ctx.stroke(); };
+  HL(0.0,0.0,25.98,14.91);
+  HL(0.0,0.0,0.04,19.91);
+  HL(25.94,-5.0,34.6,-0.03);
+  HL(0.0,0.0,8.66,4.97);
+  HL(17.36,29.85,17.32,9.94);
+  HL(0.0,0.0,17.3,-0.02);
+  HL(17.32,9.94,25.94,-5.0);
+  HL(-0.04,-19.91,8.62,-14.94);
+  HL(25.96,4.95,34.6,-0.03);
+  HL(26.0,24.86,25.98,14.91);
+  HL(17.34,19.89,17.36,29.85);
+  HL(0.02,9.95,0.04,19.91);
+  HL(8.64,-4.99,8.62,-14.94);
+  HL(17.3,-0.02,25.94,-5.0);
+  HL(0.0,0.0,8.64,-4.99);
+  HL(17.34,19.89,17.32,9.94);
+  HL(-0.02,-9.95,8.62,-14.94);
+  HL(0.02,9.95,0.0,0.0);
+  HL(17.32,9.94,25.98,14.91);
+  HL(8.66,4.97,25.98,14.91);
 }
 
 // l'illusion de 3D tient uniquement à l'ordre de dessin : ce qui est plus

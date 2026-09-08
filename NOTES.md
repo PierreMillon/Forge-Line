@@ -2189,3 +2189,29 @@ plus tard.
 
 Vérifié : `node --check`, rendu Playwright (menu + jeu), aucune erreur
 JS.
+
+## v17.45 — Bateau et cheval de la caravane, même rigueur que le reste
+
+Pierre a explicitement demandé le même traitement rigoureux (recopiage
+pixel-exact, pas d'approximation) pour le bateau et le cheval de la
+caravane, qui n'avaient reçu que des positions "au jugé" au v17.44/v17.42.
+
+**Bateau** : `drawBoatHullPhosphor()` réécrite en 61 segments recopiés
+directement du croquis (méthode Hough, voir `tools/`) — coque, planches
+ET les 4 ornements en losange, tous dans la même fonction (plus besoin
+d'`ornament()` séparé). Échelle calée sur `BOAT_HULL_HW=40` existant
+(demi-largeur mesurée E-W du croquis = référence), origine au sommet de
+la proue, décalage vertical calé pour repartir du même point d'ancrage
+que l'ancien code (`cyTop = -32`).
+
+**Cheval de la caravane** : les 20 segments du cheval isolés de
+l'extraction Hough de `caravane-marchands.jpg` (filtre x>950 pour
+exclure la caisse/roues déjà correctes), convertis en unités locales
+(origine au point d'attelage A, échelle réglée à l'œil sur un rendu
+Playwright pour rester cohérente avec le reste du dessin — pas de
+mesure pixel-exacte de l'échelle globale, seule la TOPOLOGIE et les
+proportions relatives sont garanties exactes).
+
+Vérifié par rendu Playwright direct (comparaison visuelle avec le
+rendu SVG déjà confirmé "parfait" par Pierre) : les deux correspondent
+maintenant à la référence. `node --check`, aucune erreur JS.
