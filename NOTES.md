@@ -2476,3 +2476,43 @@ appel, avant le garde-fou de retour anticipé qui ne s'applique qu'au
 DÉBUT de l'appel suivant) → sauvegarde locale confirmée à
 `{gold:0, wave:1}` alors que `gold`/`wave` en mémoire restent à
 5000/42 pour l'écran de fin.
+
+## Reprise de l'anomalie du simulateur (naive < correct) — investiguée, pas résolue par une nouvelle constante
+
+Repris le point laissé en suspens plus haut ("le bot 'correct' survit
+moins longtemps que 'naive', ordre inattendu"). Relancé `simulate.mjs`
+avec des budgets de frames réduits pour rester dans un temps
+raisonnable (le run complet à 60000 frames × 15 essais avait fait
+tourner un processus en fond ~1h30 plus tôt dans cette session, tué
+sans résultat) :
+
+- 20000 frames × 8 essais : naive=18,4 / correct=18,4 / good=18,5 —
+  quasi identiques, mais `reason: maxFrames` pour LES TROIS (personne
+  ne meurt dans cette fenêtre, donc ça ne mesure que "jusqu'où on
+  avance en temps fixe", pas "combien de temps on survit").
+- 45000 frames × 5 essais : naive=33,6 / correct=33,8 / good=33,6 —
+  toujours `reason: maxFrames` pour les trois, toujours personne ne meurt.
+
+**Constat honnête** : avec les correctifs faits PENDANT cette session
+(le vrai bug de cumul de difficulté trouvé et réglé en tout début de
+session, plus la correction des paliers de complexité des ennemis,
+l'agrandissement de la tour, etc.), le jeu semble nettement plus
+généreux qu'au moment où l'anomalie naive/correct avait été mesurée —
+aucune des 3 stratégies ne meurt même en simulant l'équivalent de
+~750s de jeu (45000 frames). L'ancienne mesure (34,3 vagues pour
+naive, avec de VRAIES morts, contre seulement ~18000-45000 frames
+sans aucune mort maintenant) n'est donc probablement plus comparable
+telle quelle : l'anomalie a pu se résoudre EN MÊME TEMPS que les
+autres correctifs, sans qu'on l'ait mesuré exprès.
+
+**Pas de changement de constante fait ici** : rejouer à l'aveugle sur
+des chiffres d'équilibrage (coût/portée/dégâts des tours, PV/nombre
+d'ennemis) sans un run assez long pour voir de vraies morts, ET sans
+le ressenti de Pierre en jouant vraiment, aurait plus de chances de
+dérégler que d'améliorer quelque chose qui n'est peut-être déjà plus
+cassé. **Reste à faire, proprement cette fois** : un run à 60000+
+frames et assez d'essais (donc potentiellement long, à lancer en
+tâche de fond avec un vrai budget de temps dédié plutôt qu'en
+autonomie contrainte) pour confirmer si l'anomalie existe encore une
+fois qu'on observe de vraies morts, avant de toucher à un seul chiffre
+d'équilibrage.
