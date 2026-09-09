@@ -249,6 +249,7 @@ const stage = document.getElementById('stage');
 // au quotidien) — décision de scope assumée, pas un oubli.
 const I18N = {
   fr: {
+    menu_theme_coast: "Carte : Côte", menu_theme_forest: "Carte : Forêt",
     menu_grid_show: "Afficher la grille (debug)", menu_grid_hide: "Cacher la grille (debug)",
     menu_astuces: "Astuces", menu_lang: "Langue : Français",
     menu_music: "🎵 Musique", menu_sfx: "🔊 Bruitages",
@@ -296,6 +297,7 @@ const I18N = {
     btn_bonus_code: "🎁 Code bonus : recommencer avec 100 or",
   },
   en: {
+    menu_theme_coast: "Map: Coast", menu_theme_forest: "Map: Forest",
     menu_grid_show: "Show grid (debug)", menu_grid_hide: "Hide grid (debug)",
     menu_astuces: "Tips", menu_lang: "Language: English",
     menu_music: "🎵 Music", menu_sfx: "🔊 Sound effects",
@@ -365,6 +367,8 @@ function applyLanguage(){
   if (langToggle) langToggle.textContent = t('menu_lang');
   const gridToggleEl = document.getElementById('grid-toggle');
   if (gridToggleEl) gridToggleEl.textContent = (typeof showGrid !== 'undefined' && showGrid) ? t('menu_grid_hide') : t('menu_grid_show');
+  const themeToggleEl = document.getElementById('theme-toggle');
+  if (themeToggleEl) themeToggleEl.textContent = (typeof mapTheme !== 'undefined' && mapTheme === 'forest') ? t('menu_theme_forest') : t('menu_theme_coast');
   if (typeof refreshBonusbar === 'function') refreshBonusbar();
 }
 
@@ -2247,6 +2251,15 @@ document.getElementById('grid-toggle').addEventListener('click', e => {
   showGrid = !showGrid;
   e.target.textContent = showGrid ? t('menu_grid_hide') : t('menu_grid_show');
 });
+// v17.54 (carte forêt, phase 1) : bascule purement visuelle, sauvegardée
+// comme la langue — ne touche à aucune donnée de partie en cours
+// (gold/wave/towers/etc.), juste l'habillage au prochain rendu
+document.getElementById('theme-toggle').addEventListener('click', e => {
+  e.preventDefault();
+  mapTheme = mapTheme === 'forest' ? 'coast' : 'forest';
+  try { localStorage.setItem('fl_mapTheme', mapTheme); } catch (err) { /* ignore */ }
+  e.target.textContent = mapTheme === 'forest' ? t('menu_theme_forest') : t('menu_theme_coast');
+});
 // v17.41 : mode phosphore permanent, plus de bascule — voir la
 // constante phosphorMode plus haut.
 document.body.classList.add('phosphor');
@@ -2280,6 +2293,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.54", text: "Carte Forêt (phase 1, nouveau) : bascule dans le menu (\"Carte : Côte/Forêt\"), purement visuelle — les bateaux deviennent des radeaux de rondins, des sapins apparaissent sur la rive opposée. Le jeu (ennemis, vagues, économie) reste strictement identique dans les deux thèmes." },
   { v: "17.53", text: "Chariot de la caravane redessiné entièrement depuis zéro (caisse + roues, en plus du cheval déjà refait) : le croquis montrait en fait un double liseré (l'épaisseur des parois de la caisse ouverte, jamais reproduit) — coordonnées exactes recopiées, silhouette pleine ajoutée à la caisse comme le reste." },
   { v: "17.52", text: "Cheval de la caravane : la silhouette utilisait un rayon de \"corde tendue\" trop épais, qui soudait la crinière en un bloc plein avec le corps au lieu de rester un fin contour comme sur le rendu validé. Recalculée avec le même rayon que l'outil de référence — le corps et la patte avant restent pleins, le reste redevient un tracé fin." },
   { v: "17.51", text: "Forge redessinée avec les coordonnées exactes du croquis (l'ancienne version avait dérivé loin de l'original — toit énorme, corps écrasé). Passagers du bateau : fini la grille de dés bien rangée, ils forment maintenant un vrai amas serré et organique (même principe élastique que la collision au sol), qui reste dense en se vidant. Mur et tour revérifiés contre les croquis, fidèles." },
@@ -3615,6 +3629,38 @@ function drawPath(){
   ctx.restore();
 }
 
+// v17.54 (carte forêt, phase 1) : sapins en silhouette sur la rive
+// opposée (au-delà de la ligne d'eau, zone jamais utilisée par le
+// gameplay) — dessin original simple (tronc + 3 étages triangulaires),
+// purement décoratif, aucune collision. Positions fixes réparties sur
+// la largeur (proportions de STAGE_W, pas de pixels codés en dur) pour
+// rester cohérent quel que soit l'écran.
+const FOREST_TREE_FRACTIONS = [0.06, 0.14, 0.19, 0.30, 0.40, 0.47, 0.58, 0.66, 0.74, 0.83, 0.90, 0.96];
+function drawTreePhosphor(cx, cy, s){
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  ctx.fillStyle = '#000';
+  const trunkH = s*0.6;
+  ctx.beginPath(); ctx.moveTo(cx-s*0.12, cy); ctx.lineTo(cx-s*0.12, cy-trunkH); ctx.lineTo(cx+s*0.12, cy-trunkH); ctx.lineTo(cx+s*0.12, cy); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  const tiers = [0.55, 0.35, 0.18]; // largeur décroissante, du bas vers le haut
+  let ty = cy - trunkH;
+  for (let i = 0; i < tiers.length; i++){
+    const tw = s*tiers[i], th = s*0.42;
+    ctx.beginPath(); ctx.moveTo(cx, ty-th); ctx.lineTo(cx+tw/2, ty); ctx.lineTo(cx-tw/2, ty); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ty -= th*0.68; // chevauchement léger entre étages
+  }
+}
+function drawForestDecor(){
+  for (let i = 0; i < FOREST_TREE_FRACTIONS.length; i++){
+    const x = FOREST_TREE_FRACTIONS[i] * STAGE_W;
+    // légère variation de taille (déterministe, pas aléatoire à chaque
+    // frame) pour éviter l'effet "copié-collé" d'une rangée uniforme
+    const s = 14 + 6 * Math.sin(i*2.4);
+    drawTreePhosphor(x, WATER_H - 3, s);
+  }
+}
+
 function draw(now){
   ctx.clearRect(0, 0, STAGE_W, STAGE_H); // fond beige uni (posé par le CSS du canvas), aucune ligne de sol
 
@@ -3624,6 +3670,7 @@ function draw(now){
     ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, WATER_H); ctx.lineTo(STAGE_W, WATER_H); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, noBuildY()); ctx.lineTo(STAGE_W, noBuildY()); ctx.stroke();
+    if (mapTheme === 'forest') drawForestDecor();
   } else {
     // v17.25 : zone de sable, entre l'eau et la moitié de l'écran — hors
     // construction (voir tryBuild), comme l'eau elle-même. Purement visuel

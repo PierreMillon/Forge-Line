@@ -2799,3 +2799,49 @@ ressenti en jouant : identifier PRÉCISÉMENT lequel des correctifs de
 cette session a fait basculer la difficulté (comparer le simulateur
 sur le commit d'avant-session vs maintenant, à budget de frames
 égal), plutôt que de deviner quel chiffre remonter.
+
+## v17.54 — Carte Forêt, phase 1 (Pierre : "fait tout donc")
+
+Dernier chantier de la liste, jamais commencé. Repris en gardant le
+risque au minimum : un THÈME purement visuel plutôt qu'une vraie
+2e carte séparée (pas d'architecture multi-cartes dans le jeu
+actuellement — en créer une aurait été un chantier à part entière,
+risqué à deviner sans retour de Pierre en cours de route). La
+logique de jeu (ennemis, vagues, économie, collisions, funnel vers
+la porte, etc.) est STRICTEMENT identique dans les deux thèmes —
+seul l'habillage change :
+
+- **Bascule** : nouveau lien dans le menu ("Carte : Côte" / "Carte :
+  Forêt"), mémorisée comme la langue (`fl_mapTheme`), 'coast' par
+  défaut (ne change rien pour une partie déjà en cours).
+- **Radeau** (`drawRaftPhosphor`) : remplace la coque du bateau en
+  thème forêt. **Dessin original** — contrairement à tout le reste
+  du jeu, aucun croquis de référence n'a été fourni pour un radeau ;
+  géométrie simple assumée (6 rondins parallèles + 2 traverses),
+  même empreinte que la coque (`BOAT_HULL_HW/HH`) pour rester à
+  l'échelle sans toucher `drawOneBoat`. Assumé sciemment plus simple
+  que la coque (pas d'ornements) — cohérent avec un radeau, mais pas
+  "validé" au sens où l'entend le reste du jeu (pas de source à
+  comparer). À affiner si Pierre veut un style précis.
+- **Sapins** (`drawForestDecor`/`drawTreePhosphor`) : rangée
+  d'arbres sur la rive opposée (au-delà de la ligne d'eau, zone déjà
+  hors gameplay), positions en fractions de `STAGE_W` (pas de pixels
+  en dur, reste cohérent à toute taille d'écran). Purement
+  décoratif, aucune collision.
+
+**Pas fait dans cette phase** (à faire si Pierre veut aller plus
+loin) : renommer "eau/mer" en "rivière" dans les textes (aucun texte
+UI visible ne mentionne "bateau"/"mer" directement, donc pas
+urgent) ; variante forêt pour tour/mur/forge (laissés identiques —
+une palissade en bois pourrait avoir plus de sens en forêt qu'une
+tour de pierre, mais c'est un choix esthétique qui mérite le retour
+de Pierre plutôt qu'une décision seule) ; sélection de carte au
+démarrage d'une partie plutôt qu'un simple lien de menu.
+
+Vérifié : `node --check`, rendu isolé du radeau (zoomé), rendu du
+radeau intégré en jeu avec passagers, bascule testée par un vrai
+clic (`dispatchEvent`) confirmant le changement de thème + la
+sauvegarde localStorage, scène complète en thème forêt (tours+sapins
++radeau+forge+mur, rien de cassé), thème "coast" par défaut
+revérifié sans régression, 4s de vraie boucle de jeu (RAF réel) en
+thème forêt sans erreur JS.
