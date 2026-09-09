@@ -2293,6 +2293,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.55", text: "Mur du château : les créneaux étaient étirés pour tenir sur 10 tranches quelle que soit la largeur d'écran, au lieu de garder leur vraie taille (mesurée sur le croquis) et se répéter jusqu'au bord. Corrigé — le mur est maintenant fait de créneaux à taille fixe, aussi nombreux qu'il en faut. Les 10 brèches restent le repère de défaite totale (mur entièrement rasé), juste répartis sur le nombre réel de créneaux." },
   { v: "17.54", text: "Carte Forêt (phase 1, nouveau) : bascule dans le menu (\"Carte : Côte/Forêt\"), purement visuelle — les bateaux deviennent des radeaux de rondins, des sapins apparaissent sur la rive opposée. Le jeu (ennemis, vagues, économie) reste strictement identique dans les deux thèmes." },
   { v: "17.53", text: "Chariot de la caravane redessiné entièrement depuis zéro (caisse + roues, en plus du cheval déjà refait) : le croquis montrait en fait un double liseré (l'épaisseur des parois de la caisse ouverte, jamais reproduit) — coordonnées exactes recopiées, silhouette pleine ajoutée à la caisse comme le reste." },
   { v: "17.52", text: "Cheval de la caravane : la silhouette utilisait un rayon de \"corde tendue\" trop épais, qui soudait la crinière en un bloc plein avec le corps au lieu de rester un fin contour comme sur le rendu validé. Recalculée avec le même rayon que l'outil de référence — le corps et la patte avant restent pleins, le reste redevient un tracé fin." },
@@ -3382,9 +3383,27 @@ function drawDebugGrid(){
 // régulièrement espacés, qui font office de compteur de brèches — un
 // détruit par brèche, comme des dents qui manquent sur le mur. Remplace
 // l'ancien compteur texte "Brèches : x/10" (retiré du bandeau du bas).
+// v17.55 (signalé par Pierre : "tu l'as écartée pour qu'elle touche les
+// bords... il fallait garder les proportions et compléter les murs, ça
+// faisait des zigzags, il fallait compléter jusqu'à ce qu'ils aillent au
+// bord") — `slot` était `w/CASTLE_SEGMENTS` : un créneau s'étirait ou se
+// tassait selon la largeur d'écran, jamais aux vraies proportions du
+// croquis. Mesuré sur le croquis (grille isométrique, méthode Hough) :
+// un pic à l'autre fait ~144px d'écartement pour ~50,7px de hauteur en
+// pixels source, ratio ≈2,84 — avec merlonH=8 (déjà fixe), ça donne un
+// slot fixe de ~22,7 (arrondi 23), PAS dépendant de l'écran. Le nombre
+// de créneaux devient variable (autant qu'il en faut pour couvrir toute
+// la largeur, jamais moins que CASTLE_SEGMENTS) ; les 10 brèches restent
+// le repère de "défaite totale", réparties PROPORTIONNELLEMENT sur ce
+// nombre de créneaux réel (`destroyed` = fraction plutôt qu'index fixe)
+// pour ne pas changer l'équilibrage du jeu (toujours 10 brèches = mur
+// entièrement rasé, quel que soit l'écran).
+const CASTLE_SLOT = 23;
 function drawCastle(){
   const { x, y, w, h } = REGEN_ZONE;
-  const destroyed = Math.min(CASTLE_SEGMENTS, breaches);
+  const slot = CASTLE_SLOT;
+  const segCount = Math.max(CASTLE_SEGMENTS, Math.ceil(w / slot));
+  const destroyed = Math.min(segCount, Math.round(segCount * Math.min(CASTLE_SEGMENTS, breaches) / CASTLE_SEGMENTS));
 
   if (!phosphorMode) ctx.fillStyle = '#d8cca4';
   if (!phosphorMode) ctx.fillRect(x, y, w, h);
@@ -3392,12 +3411,12 @@ function drawCastle(){
   ctx.lineWidth = phosphorMode ? 1.4 : 3;
   ctx.strokeRect(x, y, w, h);
 
-  // 10 créneaux égaux le long du bord haut ; un créneau détruit laisse
-  // juste le mur plat à sa place (pas de trou dans la pierre en dessous)
-  const slot = w / CASTLE_SEGMENTS;
+  // créneaux égaux à taille fixe le long du bord haut, répétés jusqu'au
+  // bord ; un créneau détruit laisse juste le mur plat à sa place (pas
+  // de trou dans la pierre en dessous)
   const merlonW = slot * 0.55, merlonH = 8;
   if (!phosphorMode){
-    for (let i = 0; i < CASTLE_SEGMENTS; i++){
+    for (let i = 0; i < segCount; i++){
       if (i < destroyed) continue;
       const mx = x + i * slot + (slot - merlonW) / 2;
       ctx.fillStyle = '#6b5f45'; ctx.fillRect(mx, y - merlonH, merlonW, merlonH);
@@ -3418,7 +3437,7 @@ function drawCastle(){
   // hauteur du pic, pas 0,4), et le sommet de la porte culmine à 1,585
   // fois la hauteur d'un pic normal (pas 2,4x)
   const valleyH = merlonH * 0.82;
-  const gateAfterSeg = Math.floor(CASTLE_SEGMENTS/2) - 1; // porte à la jonction centrale
+  const gateAfterSeg = Math.floor(segCount/2) - 1; // porte à la jonction centrale (centrée sur le nombre réel de créneaux)
 
   // v17.50 (silhouette pleine, comme le bateau/la tour/le cheval de
   // caravane) : un premier passage rejoue exactement la même géométrie
@@ -3431,7 +3450,7 @@ function drawCastle(){
     const topPts = [];
     let cx2 = x, cy2 = y - valleyH;
     topPts.push({ x: cx2, y: cy2 });
-    for (let i = 0; i < CASTLE_SEGMENTS; i++){
+    for (let i = 0; i < segCount; i++){
       const segEndX = x + (i+1)*slot, peakX = x + (i+0.5)*slot;
       if (i < destroyed){
         topPts.push({ x: segEndX, y: cy2 });
@@ -3440,7 +3459,7 @@ function drawCastle(){
       }
       const peakY = y - merlonH;
       topPts.push({ x: peakX, y: peakY });
-      if (i === gateAfterSeg && i+1 < CASTLE_SEGMENTS && i+1 >= destroyed){
+      if (i === gateAfterSeg && i+1 < segCount && i+1 >= destroyed){
         const nextPeakX = x + (i+1.5)*slot, nextPeakY = y - merlonH;
         const apex = { x: segEndX, y: y - merlonH*1.585 };
         topPts.push({ x: apex.x, y: apex.y }, { x: nextPeakX, y: nextPeakY });
@@ -3452,18 +3471,22 @@ function drawCastle(){
       topPts.push({ x: segEndX, y: valleyY });
       cx2 = segEndX; cy2 = valleyY;
     }
+    // bord droit du ruban : jusqu'où les créneaux vont réellement
+    // (segCount*slot peut légèrement dépasser w, "jusqu'au bord" plutôt
+    // que pile dessus — imperceptible, jamais moins loin que w)
+    const ribbonRightX = Math.max(x+w, topPts[topPts.length-1].x);
     ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.moveTo(topPts[0].x, topPts[0].y);
     for (const p of topPts.slice(1)) ctx.lineTo(p.x, p.y);
-    ctx.lineTo(x+w, y+h); ctx.lineTo(x, y+h);
+    ctx.lineTo(ribbonRightX, y+h); ctx.lineTo(x, y+h);
     ctx.closePath();
     ctx.fill();
   }
 
   let cursorX = x, cursorTopY = y - valleyH;
   ctx.beginPath(); ctx.moveTo(cursorX, y); ctx.lineTo(cursorX, cursorTopY); ctx.stroke(); // bord gauche du mur
-  for (let i = 0; i < CASTLE_SEGMENTS; i++){
+  for (let i = 0; i < segCount; i++){
     const segEndX = x + (i+1)*slot, peakX = x + (i+0.5)*slot;
     if (i < destroyed){
       // détruit : le ruban reste plat (à hauteur de vallée) sur toute la
@@ -3476,7 +3499,7 @@ function drawCastle(){
     const peakY = y - merlonH;
     ctx.beginPath(); ctx.moveTo(cursorX, cursorTopY); ctx.lineTo(peakX, peakY); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(peakX, y); ctx.stroke();
-    if (i === gateAfterSeg && i+1 < CASTLE_SEGMENTS && i+1 >= destroyed){
+    if (i === gateAfterSeg && i+1 < segCount && i+1 >= destroyed){
       const nextPeakX = x + (i+1.5)*slot, nextPeakY = y - merlonH;
       const apex = { x: segEndX, y: y - merlonH*1.585 }; // ratio mesuré sur le dessin
       ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(apex.x, apex.y); ctx.lineTo(nextPeakX, nextPeakY); ctx.stroke();

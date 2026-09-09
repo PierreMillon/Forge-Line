@@ -2845,3 +2845,35 @@ sauvegarde localStorage, scène complète en thème forêt (tours+sapins
 +radeau+forge+mur, rien de cassé), thème "coast" par défaut
 revérifié sans régression, 4s de vraie boucle de jeu (RAF réel) en
 thème forêt sans erreur JS.
+
+## v17.55 — Mur : créneaux étirés au lieu de répétés (signalé par Pierre)
+
+"La palissade... tu l'as écartée pour qu'elle touche les bords alors
+qu'il fallait garder les proportions et compléter les murs jusqu'à ce
+qu'ils aillent au bord."
+
+**Cause** : `slot = w / CASTLE_SEGMENTS` — un créneau occupait
+toujours 1/10 de la largeur d'écran, donc s'étirait ou se tassait
+selon l'appareil, jamais aux vraies proportions.
+
+**Mesure sur le croquis** (grille isométrique, lattice (i,j) via la
+méthode Hough) : écartement pic-à-pic ≈144,2px, hauteur pic-vallée
+≈41,6px = `merlonH_source * 0,82` (ratio déjà connu) → `merlonH_source
+≈ 50,7px`. Ratio largeur/hauteur ≈ 2,84. Avec le `merlonH=8` déjà fixe
+du jeu, ça donne un slot fixe de **23** (au lieu de ~40 pour un écran
+mobile typique — les créneaux étaient donc ~1,75× trop larges).
+
+**Correctif** : `slot` devient une constante (`CASTLE_SLOT=23`), le
+nombre de créneaux (`segCount`) se calcule pour couvrir toute la
+largeur (`Math.ceil(w/slot)`, jamais moins que 10) — sur un écran de
+420px ça fait 19 créneaux au lieu de 10. Les 10 brèches restent le
+repère de défaite totale : `destroyed` est maintenant une fraction
+(`segCount * min(10,breaches)/10`) plutôt qu'un index fixe, donc à
+brèches=10 le mur est TOUJOURS entièrement rasé quel que soit
+`segCount` — l'équilibrage (10 vies) ne change pas, seule la
+granularité visuelle s'affine.
+
+Vérifié : `node --check`, rendu zoomé à 0/5/10 brèches (0 = ruban
+continu jusqu'aux deux bords, 5 = moitié gauche plate comme attendu,
+10 = mur entièrement rasé), capture pleine échelle en jeu, aucune
+erreur JS.
