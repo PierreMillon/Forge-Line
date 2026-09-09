@@ -2315,6 +2315,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.61", text: "Ajouté un escalier d'accès au chemin de ronde, dessiné à partir d'un 3e croquis fourni (mur de pierre avec escalier intégré) — posé une fois près de la porte, sur les thèmes Côte et Neige (la palissade en bois de la carte Forêt garde son propre style)." },
   { v: "17.60", text: "Nouveau 3e thème de carte, \"Neige\" (menu, à côté de Côte/Forêt) : nouvelle tour dessinée à partir de deux croquis fournis (plateforme évasée + toit à glaçons, hampe qui s'étire avec les renforts sans faire bouger la porte ni le toit, même principe que le correctif de porte v17.58)." },
   { v: "17.59", text: "Nouveau : une bannière \"Vague X terminée !\" à la fin de chaque vague (repère de rythme), et une légère secousse d'écran sur un gros kill (boss) ou une brèche subie — retour sensoriel sur les moments forts." },
   { v: "17.58", text: "Retiré le carré de zone (redondant) autour du mur et de la forge — la structure dessinée suffit déjà à montrer la limite. Corrigé un vrai bug : la porte de la tour montait avec les renforts au lieu de rester à sa hauteur d'origine — elle reste maintenant à la même place quel que soit le niveau de la tour." },
@@ -3591,6 +3592,122 @@ function drawPalisade(x, y, slot, segCount, destroyed, gateAfterSeg){
     ctx.stroke();
   }
 }
+// v17.61 — escalier d'accès au chemin de ronde, décoration collée contre
+// la face intérieure du mur (référence Drive "isometric wall with
+// stairs.svg", même méthode/outil que la tour neige : tools/
+// gen_snow_tower.py réutilisé tel quel). Le croquis montrait en fait DEUX
+// choses côte à côte (un tronçon de mur avec escalier intégré, puis un
+// autre tronçon de mur nu à sa suite) — seul le premier (le vrai ajout)
+// est repris ici ; le tronçon nu était juste redondant avec le mur déjà
+// en place. Décoratif pur : ne dépend pas de segCount/breaches, ne
+// bloque aucune case, posé une fois près de la porte.
+const WALL_STAIRS_EDGES = [
+  [{x:16.2,y:-16.2}, {x:21.6,y:-18.9}],
+  [{x:-8.1,y:-17.55}, {x:0.0,y:-21.6}],
+  [{x:8.1,y:-14.85}, {x:10.8,y:-13.5}],
+  [{x:5.4,y:-10.8}, {x:8.1,y:-9.45}],
+  [{x:10.8,y:-13.5}, {x:10.8,y:-10.8}],
+  [{x:10.8,y:-18.9}, {x:10.8,y:-16.2}],
+  [{x:5.4,y:-16.2}, {x:5.4,y:-10.8}],
+  [{x:8.1,y:-12.15}, {x:5.4,y:-10.8}],
+  [{x:10.8,y:-10.8}, {x:8.1,y:-9.45}],
+  [{x:-5.4,y:-2.7}, {x:0.0,y:-5.4}],
+  [{x:0.0,y:-18.9}, {x:5.4,y:-16.2}],
+  [{x:27.0,y:-18.9}, {x:32.4,y:-21.6}],
+  [{x:0.0,y:0.0}, {x:0.0,y:-2.7}],
+  [{x:5.4,y:-16.2}, {x:10.8,y:-18.9}],
+  [{x:35.1,y:-17.55}, {x:37.8,y:-16.2}],
+  [{x:8.1,y:-6.75}, {x:5.4,y:-5.4}],
+  [{x:16.2,y:-16.2}, {x:16.2,y:-2.7}],
+  [{x:13.5,y:-14.85}, {x:13.5,y:-4.05}],
+  [{x:27.0,y:-16.2}, {x:32.4,y:-18.9}],
+  [{x:40.5,y:-17.55}, {x:37.8,y:-16.2}],
+  [{x:0.0,y:-5.4}, {x:2.7,y:-4.05}],
+  [{x:-8.1,y:-4.05}, {x:-5.4,y:-2.7}],
+  [{x:0.0,y:-18.9}, {x:0.0,y:-5.4}],
+  [{x:10.8,y:-16.2}, {x:8.1,y:-14.85}],
+  [{x:37.8,y:-2.7}, {x:43.2,y:-5.4}],
+  [{x:21.6,y:-18.9}, {x:27.0,y:-16.2}],
+  [{x:5.4,y:-5.4}, {x:5.4,y:-2.7}],
+  [{x:8.1,y:-14.85}, {x:8.1,y:-12.15}],
+  [{x:0.0,y:-21.6}, {x:5.4,y:-18.9}],
+  [{x:13.5,y:-4.05}, {x:16.2,y:-2.7}],
+  [{x:32.4,y:-18.9}, {x:35.1,y:-17.55}],
+  [{x:8.1,y:-9.45}, {x:8.1,y:-6.75}],
+  [{x:2.7,y:-4.05}, {x:2.7,y:-6.75}],
+  [{x:27.0,y:-16.2}, {x:27.0,y:-2.7}],
+  [{x:37.8,y:-2.7}, {x:32.4,y:-5.4}],
+  [{x:-8.1,y:-17.55}, {x:-5.4,y:-16.2}],
+  [{x:16.2,y:-18.9}, {x:21.6,y:-21.6}],
+  [{x:37.8,y:-16.2}, {x:37.8,y:-2.7}],
+  [{x:21.6,y:-18.9}, {x:21.6,y:-5.4}],
+  [{x:32.4,y:-21.6}, {x:37.8,y:-18.9}],
+  [{x:5.4,y:-10.8}, {x:5.4,y:-8.1}],
+  [{x:10.8,y:-18.9}, {x:16.2,y:-16.2}],
+  [{x:-5.4,y:-16.2}, {x:0.0,y:-18.9}],
+  [{x:21.6,y:-21.6}, {x:27.0,y:-18.9}],
+  [{x:13.5,y:-4.05}, {x:5.4,y:0.0}],
+  [{x:27.0,y:-2.7}, {x:32.4,y:-5.4}],
+  [{x:10.8,y:-16.2}, {x:13.5,y:-14.85}],
+  [{x:0.0,y:-2.7}, {x:2.7,y:-1.35}],
+  [{x:-5.4,y:-16.2}, {x:-5.4,y:-2.7}],
+  [{x:10.8,y:-21.6}, {x:16.2,y:-18.9}],
+  [{x:37.8,y:-18.9}, {x:40.5,y:-17.55}],
+  [{x:-8.1,y:-17.55}, {x:-8.1,y:-4.05}],
+  [{x:2.7,y:-4.05}, {x:5.4,y:-2.7}],
+  [{x:5.4,y:-8.1}, {x:2.7,y:-6.75}],
+  [{x:2.7,y:1.35}, {x:5.4,y:0.0}],
+  [{x:32.4,y:-5.4}, {x:32.4,y:-18.9}],
+  [{x:2.7,y:-1.35}, {x:2.7,y:1.35}],
+  [{x:5.4,y:-8.1}, {x:8.1,y:-6.75}],
+  [{x:21.6,y:-5.4}, {x:27.0,y:-2.7}],
+  [{x:5.4,y:-2.7}, {x:2.7,y:-1.35}],
+  [{x:40.5,y:-17.55}, {x:43.2,y:-5.4}],
+  [{x:0.0,y:0.0}, {x:2.7,y:1.35}],
+  [{x:16.2,y:-2.7}, {x:21.6,y:-5.4}],
+  [{x:13.5,y:-14.85}, {x:10.8,y:-13.5}],
+  [{x:2.7,y:-6.75}, {x:5.4,y:-5.4}],
+  [{x:5.4,y:-18.9}, {x:10.8,y:-21.6}],
+  [{x:2.7,y:-4.05}, {x:0.0,y:-2.7}],
+  [{x:8.1,y:-12.15}, {x:10.8,y:-10.8}],
+];
+const WALL_STAIRS_FACES = [
+  [{x:16.2,y:-16.2}, {x:21.6,y:-18.9}, {x:27.0,y:-16.2}, {x:32.4,y:-18.9}, {x:35.1,y:-17.55}, {x:37.8,y:-16.2}, {x:40.5,y:-17.55}, {x:37.8,y:-18.9}, {x:32.4,y:-21.6}, {x:27.0,y:-18.9}, {x:21.6,y:-21.6}, {x:16.2,y:-18.9}, {x:10.8,y:-21.6}, {x:5.4,y:-18.9}, {x:0.0,y:-21.6}, {x:-8.1,y:-17.55}, {x:-5.4,y:-16.2}, {x:0.0,y:-18.9}, {x:5.4,y:-16.2}, {x:10.8,y:-18.9}],
+  [{x:21.6,y:-18.9}, {x:16.2,y:-16.2}, {x:16.2,y:-2.7}, {x:21.6,y:-5.4}],
+  [{x:8.1,y:-14.85}, {x:10.8,y:-13.5}, {x:13.5,y:-14.85}, {x:10.8,y:-16.2}],
+  [{x:10.8,y:-13.5}, {x:8.1,y:-14.85}, {x:8.1,y:-12.15}, {x:10.8,y:-10.8}],
+  [{x:5.4,y:-10.8}, {x:8.1,y:-9.45}, {x:10.8,y:-10.8}, {x:8.1,y:-12.15}],
+  [{x:8.1,y:-9.45}, {x:5.4,y:-10.8}, {x:5.4,y:-8.1}, {x:8.1,y:-6.75}],
+  [{x:10.8,y:-13.5}, {x:10.8,y:-10.8}, {x:8.1,y:-9.45}, {x:8.1,y:-6.75}, {x:5.4,y:-5.4}, {x:5.4,y:-2.7}, {x:2.7,y:-1.35}, {x:2.7,y:1.35}, {x:5.4,y:0.0}, {x:13.5,y:-4.05}, {x:13.5,y:-14.85}],
+  [{x:10.8,y:-18.9}, {x:10.8,y:-16.2}, {x:13.5,y:-14.85}, {x:13.5,y:-4.05}, {x:16.2,y:-2.7}, {x:16.2,y:-16.2}],
+  [{x:10.8,y:-16.2}, {x:10.8,y:-18.9}, {x:5.4,y:-16.2}, {x:5.4,y:-10.8}, {x:8.1,y:-12.15}, {x:8.1,y:-14.85}],
+  [{x:5.4,y:-10.8}, {x:5.4,y:-16.2}, {x:0.0,y:-18.9}, {x:0.0,y:-5.4}, {x:2.7,y:-4.05}, {x:2.7,y:-6.75}, {x:5.4,y:-8.1}],
+  [{x:-5.4,y:-2.7}, {x:0.0,y:-5.4}, {x:0.0,y:-18.9}, {x:-5.4,y:-16.2}],
+  [{x:0.0,y:-2.7}, {x:0.0,y:0.0}, {x:2.7,y:1.35}, {x:2.7,y:-1.35}],
+  [{x:37.8,y:-16.2}, {x:35.1,y:-17.55}, {x:32.4,y:-18.9}, {x:32.4,y:-5.4}, {x:37.8,y:-2.7}],
+  [{x:5.4,y:-5.4}, {x:8.1,y:-6.75}, {x:5.4,y:-8.1}, {x:2.7,y:-6.75}],
+  [{x:32.4,y:-18.9}, {x:27.0,y:-16.2}, {x:27.0,y:-2.7}, {x:32.4,y:-5.4}],
+  [{x:40.5,y:-17.55}, {x:37.8,y:-16.2}, {x:37.8,y:-2.7}, {x:43.2,y:-5.4}],
+  [{x:-8.1,y:-4.05}, {x:-5.4,y:-2.7}, {x:-5.4,y:-16.2}, {x:-8.1,y:-17.55}],
+  [{x:27.0,y:-16.2}, {x:21.6,y:-18.9}, {x:21.6,y:-5.4}, {x:27.0,y:-2.7}],
+  [{x:5.4,y:-2.7}, {x:5.4,y:-5.4}, {x:2.7,y:-6.75}, {x:2.7,y:-4.05}],
+  [{x:0.0,y:-2.7}, {x:2.7,y:-1.35}, {x:5.4,y:-2.7}, {x:2.7,y:-4.05}],
+];
+function drawWallStairs(cx, cyBase){
+  ctx.save(); ctx.translate(cx, cyBase);
+  ctx.fillStyle = '#000';
+  for (const face of WALL_STAIRS_FACES){
+    ctx.beginPath();
+    face.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  for (const [a, b] of WALL_STAIRS_EDGES){
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawCastle(){
   const { x, y, w, h } = REGEN_ZONE;
   const slot = CASTLE_SLOT;
@@ -3719,6 +3836,14 @@ function drawCastle(){
     ctx.beginPath(); ctx.moveTo(segEndX, valleyY); ctx.lineTo(segEndX, y); ctx.stroke();
     cursorX = segEndX; cursorTopY = valleyY;
   }
+
+  // v17.61 — escalier d'accès au chemin de ronde, collé contre le mur à
+  // quelques créneaux de la porte (jamais dans la brèche elle-même).
+  // Purement décoratif (voir drawWallStairs plus haut) : posé une fois,
+  // ne dépend pas du nombre réel de créneaux au-delà de rester dans les
+  // bornes du mur.
+  const stairsSeg = Math.max(0, Math.min(segCount - 3, gateAfterSeg - 2));
+  drawWallStairs(x + stairsSeg * slot, y + h);
 }
 
 // la Forge : petit enclos près du château, visible avant même d'être

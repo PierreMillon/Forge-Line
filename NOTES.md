@@ -3082,3 +3082,45 @@ confirmer que seule la hampe s'étire et que le toit/plateforme ne
 bougent pas de taille), aucune régression sur les thèmes Côte/Forêt
 existants (capture de contrôle : mur, forge, tours de pierre
 identiques à avant).
+
+## v17.61 — Escalier d'accès au chemin de ronde (3e référence Drive)
+
+Juste après la tour neige, Pierre a signalé un 3e fichier dans le même
+dossier Drive : "isometric wall with stairs.svg" ("Regarde aussi le
+nouveau mur avec escalier"). Même format (grille magnétique) et même
+outil de décodage que la tour (`tools/gen_snow_tower.py`, appliqué tel
+quel — juste une histoire de re-fournir le bon fichier en entrée).
+
+Le SVG contenait en fait DEUX morceaux dessinés côte à côte : un
+tronçon de mur (3 créneaux) avec un escalier intégré contre sa face
+intérieure, suivi d'un second tronçon de mur nu plus long. Repéré par
+inspection visuelle du rendu brut, puis confirmé par une analyse en
+composantes connexes du graphe d'arêtes (`union-find`, même technique
+que celle qui avait servi à trier crate/roues/cheval sur le croquis de
+la caravane) : le tronçon nu est juste redondant avec le mur déjà en
+place dans le jeu (mêmes créneaux), donc pas repris. Un filtrage par
+composante connexe a aussi retiré 3 arêtes orphelines (un petit trait
+isolé sans rapport, probablement une esquisse abandonnée sur le même
+canevas) — gardé uniquement la composante principale (68 arêtes, 20
+faces de remplissage).
+
+Échelle : cette référence utilise son propre espacement de créneaux
+(mesuré ~3,5x plus large que `CASTLE_SLOT=23` du mur réel du jeu). Vu
+que c'est un ajout ponctuel/décoratif (pas un remplacement du système
+de créneaux existant), choix pragmatique : réduire l'échelle du rendu
+extrait (facteur ~0,36) pour que le tronçon avec escalier reste de
+taille comparable aux vrais créneaux voisins, plutôt que de re-bâtir
+tout le système de mur autour de cette nouvelle graduation.
+
+Intégré comme décoration fixe dans `drawCastle()` (`drawWallStairs`),
+posée une fois à 2 créneaux de la porte (jamais dans la brèche),
+uniquement sur les thèmes Côte et Neige (la palissade en bois de la
+carte Forêt retourne avant ce point du code, donc intacte — vérifié).
+Purement visuel : ne dépend pas de `segCount`/`breaches` au-delà de
+rester dans les bornes du mur, aucune interaction, aucun effet sur les
+10 brèches de défaite.
+
+Vérifié : `node --check`, rendu en jeu réel sur Côte, Neige et Forêt
+(escalier visible et bien positionné sur les deux premiers, palissade
+en bois inchangée et sans escalier sur le troisième — aucune
+régression).
