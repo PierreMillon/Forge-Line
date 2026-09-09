@@ -141,6 +141,7 @@
   <div id="menu-panel">
     <a href="https://pierremillon.github.io/Bastion-Orbit/">Bastion Orbit</a>
     <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
+    <a id="theme-toggle" href="#" data-i18n="menu_theme_coast">Carte : Côte</a>
     <a id="grid-toggle" href="#" data-i18n="menu_grid_show">Afficher la grille (debug)</a>
     <a id="faq-toggle" href="#" data-i18n="menu_astuces">Astuces</a>
     <a id="lang-toggle" href="#" data-i18n="menu_lang">Langue : Français</a>
@@ -348,6 +349,15 @@ function detectLang(){
 }
 let currentLang = detectLang();
 try { const saved = localStorage.getItem('fl_lang'); if (saved === 'fr' || saved === 'en') currentLang = saved; } catch (e) { /* ignore */ }
+// v17.54 (carte forêt, phase 1 — demandé par Pierre : "fais tout",
+// dernier chantier prévu après corrections/uniformisation/difficulté)
+// — thème de décor sélectionnable, purement visuel : la logique de
+// jeu (ennemis, vagues, économie, collisions) est STRICTEMENT
+// identique dans les deux thèmes, seul l'habillage change (radeau au
+// lieu de bateau, sapins en fond au lieu de rien). 'coast' reste le
+// thème par défaut/historique.
+let mapTheme = 'coast'; // 'coast' | 'forest'
+try { const savedTheme = localStorage.getItem('fl_mapTheme'); if (savedTheme === 'coast' || savedTheme === 'forest') mapTheme = savedTheme; } catch (e) { /* ignore */ }
 function t(key){ const d = I18N[currentLang] || I18N.en; return (key in d) ? d[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key); }
 function applyLanguage(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n')); });
@@ -636,6 +646,41 @@ function drawBoatHullPhosphor(){
   L(22.86,14.19,34.29,7.6);
 }
 
+// v17.54 (carte forêt, phase 1 — "fais tout") : radeau de rondins,
+// dessin original (aucun croquis de référence fourni pour celui-ci,
+// contrairement au reste — géométrie simple assumée, dans le même
+// style que la coque : silhouette pleine + traits fins). Même
+// empreinte que la coque du bateau (mêmes BOAT_HULL_HW/HH) pour
+// rester à l'échelle sans retoucher drawOneBoat. 6 rondins parallèles
+// (bandes fines) + 2 traverses qui les ceinturent, pas d'ornements.
+function drawRaftPhosphor(){
+  const hw = BOAT_HULL_HW, hh = BOAT_HULL_HH;
+  const N={x:0,y:-hh}, E={x:hw,y:0}, S={x:0,y:hh}, W={x:-hw,y:0};
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
+  // rondins : lignes parallèles au bord N-W (et S-E), du bord W-S au
+  // bord N-E — le "grain" du radeau
+  const lerp = (p,q,t) => ({x:p.x+(q.x-p.x)*t, y:p.y+(q.y-p.y)*t});
+  for (let i = 1; i < 6; i++){
+    const t = i/6;
+    const a = lerp(W,N,t), b2 = lerp(S,E,t);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b2.x,b2.y); ctx.stroke();
+  }
+  // 2 traverses (double trait) qui ceinturent les rondins, au tiers et
+  // aux deux tiers de la longueur
+  const beam = (t) => {
+    const a = lerp(W,S,t), b2 = lerp(N,E,t);
+    const off = 1.1;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y-off); ctx.lineTo(b2.x,b2.y-off); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(a.x,a.y+off); ctx.lineTo(b2.x,b2.y+off); ctx.stroke();
+  };
+  beam(0.28); beam(0.72);
+}
+
 function drawOneBoat(b){
   if (b.y < -BOAT_H) return; // pas encore "sorti" (départ décalé)
   const cx = b.x, cy = b.y + BOAT_H/2;
@@ -651,7 +696,9 @@ function drawOneBoat(b){
     // exactes en interne, juste redessinée plus petite
     ctx.save();
     ctx.scale(0.7, 0.7);
-    drawBoatHullPhosphor();
+    // v17.54 : carte forêt = radeau (drawRaftPhosphor) à la place de la
+    // coque du bateau, même échelle, aucun autre changement de logique
+    if (mapTheme === 'forest') drawRaftPhosphor(); else drawBoatHullPhosphor();
     ctx.restore();
   }
   else drawIsoBox(0, 0, BOAT_HW, BOAT_HH, BOAT_SH, '#a9764a', '#7a5233', '#5c3f26', 1);

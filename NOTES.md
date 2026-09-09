@@ -2767,3 +2767,35 @@ isolé du chariot complet (caisse+roues+cheval) après intégration,
 capture de la scène complète en jeu. Tout correspond visuellement au
 croquis — double liseré visible, roues non remplies (comme prévu),
 cheval avec crinière fine et corps plein.
+
+## Simulateur relancé en vrai (90 000 frames × 15 essais) — l'anomalie n'est plus reproductible, MAIS nouveau constat plus important
+
+Résultat du run long promis à Pierre : **naive=55,4 / correct=55,1 /
+good=55,4 vagues, `reason: maxFrames` pour LES 45 PARTIES SANS
+EXCEPTION** — personne ne meurt, quelle que soit la stratégie, même
+sur ~1500s de jeu simulé (25 minutes). `survivalPctAtWave` confirme :
+100% encore en vie à la vague 50 pour les 3 profils.
+
+**Ça règle l'anomalie** (naive ne "bat" plus correct, ils sont
+identiques) **mais révèle un problème plus large** : le jeu semble
+être devenu très généreux — au point qu'AUCUNE des 3 stratégies,
+même "naive" (ne construit jamais de tour, dépense au hasard), ne
+perd en 25 minutes. Pour référence, Pierre visait le ressenti de
+Bloons TD5 ("parfait"), qui devient sensiblement plus difficile bien
+avant la vague 55 en mode normal. Ce n'était pas le cas à l'ancienne
+mesure (34,3 vagues avec de VRAIES morts pour naive) — quelque chose
+a rendu le jeu beaucoup plus indulgent entre-temps, très probablement
+un ou plusieurs des correctifs de CETTE session (le vrai bug de
+cumul de difficulté trouvé et réglé en tout début de session est le
+suspect n°1, mais pas isolé formellement).
+
+**Pas de changement de constante fait ici non plus** — rééquilibrer
+à l'aveugle sur un seul run (même long) risquerait de sur-corriger
+dans l'autre sens sans le ressenti de Pierre en y jouant vraiment.
+**Mais le signal est maintenant assez clair pour être remonté** :
+si le jeu paraît "facile" en y jouant, ce n'est pas une impression,
+c'est mesuré. Prochaine étape naturelle si Pierre confirme ce
+ressenti en jouant : identifier PRÉCISÉMENT lequel des correctifs de
+cette session a fait basculer la difficulté (comparer le simulateur
+sur le commit d'avant-session vs maintenant, à budget de frames
+égal), plutôt que de deviner quel chiffre remonter.
