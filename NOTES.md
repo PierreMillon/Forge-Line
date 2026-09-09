@@ -2877,3 +2877,50 @@ Vérifié : `node --check`, rendu zoomé à 0/5/10 brèches (0 = ruban
 continu jusqu'aux deux bords, 5 = moitié gauche plate comme attendu,
 10 = mur entièrement rasé), capture pleine échelle en jeu, aucune
 erreur JS.
+
+## v17.56 — Trouvé : LA cause de "plus personne ne meurt" (bissection commit par commit)
+
+Suite du fil laissé ouvert en v17.51/17.52 ("le jeu est devenu très
+généreux, cause pas isolée"). Comparaison A/B au simulateur, budget de
+frames ÉGAL (45000) sur plusieurs commits successifs de cette
+session :
+
+- **Avant tout correctif de cette session** (commit `8e15856`) :
+  5-6 morts sur 8 essais par profil, vagues moyennes 27-31.
+- **Juste après le correctif de cumul de difficulté** (`b27e0cb`,
+  "types 2/3 décalés pour ne plus cumuler avec la ruée") : encore
+  3-5 morts sur 8, vagues moyennes 30,5-32,5 — un vrai effet, mais
+  PAS la cause principale.
+- **Juste après le funnel vers la porte** (`119c6fe`) : **0 mort sur
+  8, pour les trois profils.** C'est LUI.
+
+**Mécanisme** : le funnel (v17.47) tirait tout le monde vers un POINT
+unique (`gateX`), créant un couloir de quelques pixels de large —
+beaucoup plus facile à défendre qu'un mur où les ennemis passent
+n'importe où sur toute la largeur (le joueur/une tour ne peuvent pas
+être partout à la fois). Concentrer tout le monde au même endroit,
+même sans changer un seul chiffre de dégâts/PV, a suffi à rendre la
+défense triviale.
+
+**Premier correctif tenté** : viser la largeur réelle de la porte
+(±`CASTLE_SLOT`, un couloir d'environ 46px) plutôt qu'un point.
+Revérifié : les positions x s'étalent bien maintenant sur ~54px
+(181-235 pour une porte centrée à 210) au lieu de ~10px. **Mais
+retesté au simulateur (même budget) : toujours 0 mort sur 8.**
+Élargir le couloir ne suffit pas — le problème n'est pas la largeur
+du goulot, c'est le fait qu'il y en ait un du tout : même une
+concentration modérée laisse un point de défense prévisible et
+largement suffisant.
+
+**Pas de rééquilibrage de PV/nombre d'ennemis fait ici** : ça
+toucherait au ressenti général de difficulté (le repère de Pierre :
+"Bloons TD 5 est parfait"), pas juste un bug technique isolé comme le
+funnel — remonté à Pierre avec ce diagnostic précis plutôt que deviné
+seul. Le funnel lui-même (élargi à la largeur de la porte) est gardé :
+c'est une amélioration réelle (plus fidèle à la porte dessinée) même
+si elle ne restaure pas la difficulté à elle seule.
+
+Vérifié : `node --check`, funnel re-testé (positions x confirmées
+étalées sur la largeur de la porte), simulateur relancé au même
+budget que les runs précédents (45000 frames × 8 essais) pour
+confirmer que l'élargissement seul ne suffit pas.

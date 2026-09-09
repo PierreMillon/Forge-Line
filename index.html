@@ -2293,6 +2293,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.56", text: "Cause identifiée pour \"plus personne ne meurt\" (signalé au simulateur) : le funnel vers la porte visait un point unique, créant un couloir trop étroit et trop facile à défendre. Corrigé pour viser la largeur réelle de la porte plutôt qu'un point — garde l'intention (\"passer par la porte\") sans le goulot d'étranglement." },
   { v: "17.55", text: "Mur du château : les créneaux étaient étirés pour tenir sur 10 tranches quelle que soit la largeur d'écran, au lieu de garder leur vraie taille (mesurée sur le croquis) et se répéter jusqu'au bord. Corrigé — le mur est maintenant fait de créneaux à taille fixe, aussi nombreux qu'il en faut. Les 10 brèches restent le repère de défaite totale (mur entièrement rasé), juste répartis sur le nombre réel de créneaux." },
   { v: "17.54", text: "Carte Forêt (phase 1, nouveau) : bascule dans le menu (\"Carte : Côte/Forêt\"), purement visuelle — les bateaux deviennent des radeaux de rondins, des sapins apparaissent sur la rive opposée. Le jeu (ennemis, vagues, économie) reste strictement identique dans les deux thèmes." },
   { v: "17.53", text: "Chariot de la caravane redessiné entièrement depuis zéro (caisse + roues, en plus du cheval déjà refait) : le croquis montrait en fait un double liseré (l'épaisseur des parois de la caisse ouverte, jamais reproduit) — coordonnées exactes recopiées, silhouette pleine ajoutée à la caisse comme le reste." },
@@ -2915,10 +2916,25 @@ function update(now){
       const funnelStartY = REGEN_ZONE.y - 100;
       if (e.y > funnelStartY){
         const t = Math.min(1, (e.y - funnelStartY) / 100);
+        // v17.56 (trouvé en investiguant pourquoi plus personne ne meurt
+        // au simulateur, même sur ~1500s de jeu simulé, quelle que soit
+        // la stratégie — comparaison A/B commit par commit) : viser un
+        // point unique (gateX) faisait converger TOUT le monde dans un
+        // couloir de quelques pixels, un vrai goulot d'étranglement bien
+        // plus facile à défendre que prévu — c'est précisément ce
+        // changement, pas le reste, qui a fait disparaître les morts.
+        // Corrigé en visant la LARGEUR réelle de l'ouverture (~2 crans
+        // de créneau, cohérent avec le mur) plutôt qu'un point : ceux
+        // déjà dans cette plage ne sont plus tirés du tout, seuls ceux
+        // hors de la porte convergent vers son bord le plus proche —
+        // garde l'intention ("passer par la porte") sans créer un
+        // point de passage unique trivial à camper.
+        const gateHalfW = CASTLE_SLOT;
+        const target = Math.max(gateX - gateHalfW, Math.min(gateX + gateHalfW, e.x));
         // baseX aussi, sinon driftTowardPreferred écrase ce nudge dès la
         // frame suivante en recalculant e.x depuis baseX + oscillation
-        if (e.baseX !== undefined) e.baseX += (gateX - e.baseX) * 0.06 * t;
-        e.x += (gateX - e.x) * 0.06 * t;
+        if (e.baseX !== undefined) e.baseX += (target - e.baseX) * 0.06 * t;
+        e.x += (target - e.x) * 0.06 * t;
       }
     }
     resolveTowerCollision(e, TOWER_SOLID_RADIUS); // ne peut pas traverser une tour
