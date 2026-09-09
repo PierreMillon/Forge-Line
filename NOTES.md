@@ -2988,3 +2988,33 @@ Vérifié : `node --check`, rendu comparant une tour niveau 1 et une
 tour niveau 10 côte à côte — la porte est maintenant à la même
 hauteur absolue sur les deux, capture pleine échelle confirmant les
 deux carrés de zone disparus.
+
+## v17.59 — Suggestions de conception (Pierre : "je valide tout")
+
+Deux des quatre suggestions faites plus tôt dans la session, celles à
+faible risque/impact rapide :
+
+**Bannière de fin de vague** : "Vague X terminée !" affichée en haut
+de l'écran à chaque transition de vague (déclenchée aux deux endroits
+où `wave++` se produit — fin naturelle ET bouton "passer la vague"),
+fondu entrée/maintien/sortie sur 1,6s. Purement visuel, aucun effet
+de jeu.
+
+**Secousse d'écran** : décalage aléatoire décroissant sur
+`SHAKE_DURATION_MS=260ms`, appliqué à tout le contenu du terrain de
+jeu (pas à la bannière ni au HUD, `ctx.restore()` avant leur propre
+dessin). Déclenchée sur la mort d'un boss (magnitude 6) et sur une
+brèche subie (magnitude 3 à 8 selon le `breachDamage` de l'ennemi —
+un boss qui passe secoue plus qu'un ennemi de base). `triggerShake()`
+ne fait qu'intensifier/rallonger une secousse en cours, jamais deux
+qui s'additionnent en find.
+
+Vérifié : `node --check`, bannière rendue et visible (texte + fondu
+confirmés à mi-durée), décalage de secousse confirmé par diff de
+deux captures consécutives pendant une secousse déclenchée (zone
+large de l'image différente entre les deux frames), scène complète
+sans régression.
+
+**Restent à faire (suggestions plus grosses, en cours)** : 2e type de
+tour (catapulte, dégâts de zone) et ennemi "bouclier" (immunisé au
+premier tir).

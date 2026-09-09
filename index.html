@@ -258,6 +258,7 @@ const I18N = {
     over_title_generic: "Tu as perdu", over_title_combat: "Tu es tombé au combat",
     over_title_castle: "Le château est tombé", over_title_trojan: "Le cheval de Troie a atteint le château",
     over_wave: w => `Tu as tenu jusqu'à la vague ${w}`,
+    wave_complete_banner: w => `Vague ${w} terminée !`,
     btn_continue_ad: "🎬 Regarder une pub (30s) pour continuer",
     btn_revive_ad: "🎬 Regarder une pub (30s) pour revivre",
     btn_spectate: "Continuer à regarder", btn_restart: "Recommencer au tout début",
@@ -306,6 +307,7 @@ const I18N = {
     over_title_generic: "You lost", over_title_combat: "You fell in battle",
     over_title_castle: "The castle has fallen", over_title_trojan: "The Trojan Horse reached the castle",
     over_wave: w => `You made it to wave ${w}`,
+    wave_complete_banner: w => `Wave ${w} complete!`,
     btn_continue_ad: "🎬 Watch an ad (30s) to continue",
     btn_revive_ad: "🎬 Watch an ad (30s) to revive",
     btn_spectate: "Keep watching", btn_restart: "Restart from the beginning",
@@ -1165,6 +1167,23 @@ let playerFlashUntil = 0;
 let playerInvulnUntil = 0; // courte invulnérabilité après une résurrection
 let lastRegenTickAt = 0;
 let floatingTexts = []; // {x, y, text, createdAt, color}
+// v17.59 (suggestion validée : "conseils étudiant... repère de rythme") —
+// bannière courte affichée à chaque fin de vague, façon Bloons TD/Kingdom
+// Rush. Purement visuel, aucun effet de jeu.
+let waveBanner = null; // { text, createdAt } | null
+const WAVE_BANNER_MS = 1600;
+// v17.59 (suggestion validée : "screen-shake léger sur gros kill/
+// brèche") — retour sensoriel ponctuel, décroissant, jamais deux
+// secousses qui s'additionnent (triggerShake ne fait que RALLONGER/
+// intensifier si une secousse plus forte survient pendant une autre)
+let shakeUntil = 0, shakeMagnitude = 0;
+const SHAKE_DURATION_MS = 260;
+function triggerShake(magnitude, now){
+  if (now + SHAKE_DURATION_MS > shakeUntil || magnitude > shakeMagnitude){
+    shakeUntil = now + SHAKE_DURATION_MS;
+    shakeMagnitude = magnitude;
+  }
+}
 
 // écran de mort du joueur (distinct de la défaite par brèches) : le
 // joueur est "gelé" (playerDead) tant qu'il n'a pas choisi une option.
@@ -2096,6 +2115,7 @@ document.getElementById('skip-wave-btn').addEventListener('click', () => {
   gold += bonus;
   floatingTexts.push({ x: player.x, y: player.y-30, text: '+'+bonus, createdAt: performance.now(), color: '#d9a441' });
   enemies.length = 0;
+  waveBanner = { text: t('wave_complete_banner')(wave), createdAt: performance.now() };
   wave++;
   spawned = 0;
   enemiesThisWave = enemiesForWave(wave);
@@ -2293,6 +2313,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.59", text: "Nouveau : une bannière \"Vague X terminée !\" à la fin de chaque vague (repère de rythme), et une légère secousse d'écran sur un gros kill (boss) ou une brèche subie — retour sensoriel sur les moments forts." },
   { v: "17.58", text: "Retiré le carré de zone (redondant) autour du mur et de la forge — la structure dessinée suffit déjà à montrer la limite. Corrigé un vrai bug : la porte de la tour montait avec les renforts au lieu de rester à sa hauteur d'origine — elle reste maintenant à la même place quel que soit le niveau de la tour." },
   { v: "17.57", text: "Carte Forêt : palissade en rondins pointus (au lieu du mur de pierre) et tours de guet en bois avec toit pointu, en plus du radeau et des sapins déjà en place. La forge reste identique dans les deux thèmes." },
   { v: "17.56", text: "Cause identifiée pour \"plus personne ne meurt\" (signalé au simulateur) : le funnel vers la porte visait un point unique, créant un couloir trop étroit et trop facile à défendre. Corrigé pour viser la largeur réelle de la porte plutôt qu'un point — garde l'intention (\"passer par la porte\") sans le goulot d'étranglement." },
@@ -2800,6 +2821,7 @@ function update(now){
       }
     }
   } else if (enemies.length === 0){
+    waveBanner = { text: t('wave_complete_banner')(wave), createdAt: now };
     wave++;
     spawned = 0;
     enemiesThisWave = enemiesForWave(wave);
@@ -2957,6 +2979,9 @@ function update(now){
         // renforcé, distinct d'une mort au combat normal
         if (e.tookMoraleDamage) columnStats[col].clusterRisk += 3;
         spawnDeathEffect(e.x, e.y, now); // fumée puis croix qui monte
+        // v17.59 : secousse d'écran ponctuelle sur un "gros kill" (boss),
+        // retour sensoriel demandé — les ennemis normaux ne la déclenchent pas
+        if ((e.type || ENEMY_TYPES[0]).id === 'boss') triggerShake(6, now);
         // effet de morale : les ennemis proches sont "touchés par la
         // fumée de la mort", perdent un peu de vie (peut en tuer un
         // autre par effet domino, voulu — organique, pas garanti)
@@ -2989,7 +3014,10 @@ function update(now){
       // les créneaux détruits dépendent de la résistance du type (voir
       // ENEMY_TYPES.breachDamage) — un boss fait plus de dégâts qu'un
       // ennemi de base, pas juste 1 créneau pour tout le monde
-      e.dead = true; breaches += (e.type || ENEMY_TYPES[0]).breachDamage;
+      e.dead = true;
+      const bd = (e.type || ENEMY_TYPES[0]).breachDamage;
+      breaches += bd;
+      triggerShake(Math.min(8, 3 + bd), now); // v17.59 : secousse sur une brèche, un peu plus forte si l'ennemi valait plus de créneaux
     }
   }
   enemies = enemies.filter(e => !e.dead);
@@ -3758,6 +3786,17 @@ function drawForestDecor(){
 function draw(now){
   ctx.clearRect(0, 0, STAGE_W, STAGE_H); // fond beige uni (posé par le CSS du canvas), aucune ligne de sol
 
+  // v17.59 (suggestion validée : "screen-shake léger sur gros kill/
+  // brèche") — décalage aléatoire de courte durée, appliqué à TOUT le
+  // contenu du terrain de jeu (pas au HUD/à la bannière de vague,
+  // restaurés avant leur propre dessin plus bas).
+  ctx.save();
+  if (now < shakeUntil){
+    const remain = (shakeUntil - now) / SHAKE_DURATION_MS; // 1 -> 0
+    const mag = shakeMagnitude * remain;
+    ctx.translate((Math.random()-0.5)*2*mag, (Math.random()-0.5)*2*mag);
+  }
+
   if (phosphorMode){
     // fond déjà noir (voir CSS body.phosphor canvas) — juste les lignes
     // de démarcation eau/sable/terrain, pas de remplissage de couleur
@@ -4072,6 +4111,27 @@ function draw(now){
     ctx.fillText(f.text, f.x, f.y - t*18);
     ctx.globalAlpha = 1;
   }
+
+  ctx.restore(); // fin du décalage de secousse — tout ce qui suit reste fixe
+
+  // v17.59 : bannière de fin de vague — monte légèrement puis s'efface,
+  // toujours centrée en haut du terrain de jeu (sous le bandeau du haut)
+  if (waveBanner){
+    const age = now - waveBanner.createdAt;
+    if (age > WAVE_BANNER_MS) waveBanner = null;
+    else {
+      const p = age / WAVE_BANNER_MS;
+      // in (15%) -> hold (60%) -> out (25%)
+      const alpha = p < 0.15 ? p/0.15 : (p > 0.75 ? Math.max(0, 1-(p-0.75)/0.25) : 1);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = phosphorMode ? PHOSPHOR_GREEN : '#3a3529';
+      ctx.font = 'bold 20px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(waveBanner.text, STAGE_W/2, 60 - p*10);
+      ctx.restore();
+    }
+  }
 }
 
 function lerpColor(hexA, hexB, t){
@@ -4120,7 +4180,7 @@ function showOverModal(reason){
   document.getElementById('over').style.display = 'flex';
 }
 function resetGame(startingGold){
-  towers = []; enemies = []; projectiles = []; floatingTexts = [];
+  towers = []; enemies = []; projectiles = []; floatingTexts = []; waveBanner = null;
   gold = startingGold || 0; wave = 1; breaches = 0; gameOver = false;
   playerDead = false; spectating = false;
   spawned = 0; enemiesThisWave = enemiesForWave(1); spawnTimer = 0; spawnInterval = pickNextSpawnDelay(); bossSpawnedThisWave = false;
