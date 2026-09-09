@@ -2696,3 +2696,24 @@ plus faible). À vérifier si signalé.
 
 Vérifié : `node --check`, comparaison visuelle directe contre le
 rendu de référence validé.
+
+**Suite : cheval de Troie inspecté aussi (par précaution).** Tenté de
+comparer sa silhouette (buffer 2.5) au contour de référence sauvegardé
+(`contour-cheval-de-troie.json`, dessiné à la main par Pierre) —
+**impossible de reconstruire fidèlement la transformation pixels→
+unités locales** utilisée à l'époque pour ce cheval précis (contexte
+compacté, aucune donnée sauvegardée faisant le lien entre points
+nommés `earTip/nose/...` et pixels de l'image ; tentative d'estimation
+par bounding box a donné des échelles X/Y incohérentes — signe d'une
+rotation ou d'un repère non aligné, pas fiable à deviner). Rendu actuel
+inspecté visuellement à la place (zoom isolé) : silhouette CONNEXE et
+cohérente, pas de "crinière soudée" ni de morceaux qui se détachent
+bizarrement — contrairement au cheval de caravane, rien ici ne saute
+aux yeux comme cassé. **Laissé tel quel** : deviner un rayon "plus
+correct" sans pouvoir vérifier contre la référence serait le même
+genre d'erreur non vérifiée qui a causé ces deux régressions — mieux
+vaut ne pas toucher à quelque chose qui n'a pas été signalé et qui a
+l'air correct, que de le "corriger" à l'aveugle. Si Pierre signale un
+souci sur le cheval de Troie spécifiquement, il faudra soit qu'il
+redonne un point de repère pixel↔local, soit repartir du contour
+validé en le comparant œil pour œil avec lui en direct.
