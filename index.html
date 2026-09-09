@@ -2293,6 +2293,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.58", text: "Retiré le carré de zone (redondant) autour du mur et de la forge — la structure dessinée suffit déjà à montrer la limite. Corrigé un vrai bug : la porte de la tour montait avec les renforts au lieu de rester à sa hauteur d'origine — elle reste maintenant à la même place quel que soit le niveau de la tour." },
   { v: "17.57", text: "Carte Forêt : palissade en rondins pointus (au lieu du mur de pierre) et tours de guet en bois avec toit pointu, en plus du radeau et des sapins déjà en place. La forge reste identique dans les deux thèmes." },
   { v: "17.56", text: "Cause identifiée pour \"plus personne ne meurt\" (signalé au simulateur) : le funnel vers la porte visait un point unique, créant un couloir trop étroit et trop facile à défendre. Corrigé pour viser la largeur réelle de la porte plutôt qu'un point — garde l'intention (\"passer par la porte\") sans le goulot d'étranglement." },
   { v: "17.55", text: "Mur du château : les créneaux étaient étirés pour tenir sur 10 tranches quelle que soit la largeur d'écran, au lieu de garder leur vraie taille (mesurée sur le croquis) et se répéter jusqu'au bord. Corrigé — le mur est maintenant fait de créneaux à taille fixe, aussi nombreux qu'il en faut. Les 10 brèches restent le repère de défaite totale (mur entièrement rasé), juste répartis sur le nombre réel de créneaux." },
@@ -3462,7 +3463,13 @@ function drawCastle(){
   if (!phosphorMode) ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#6b5f45';
   ctx.lineWidth = phosphorMode ? 1.4 : 3;
-  ctx.strokeRect(x, y, w, h);
+  // v17.58 (signalé par Pierre : "enlève le carré autour de la gorge...
+  // le trait de zone du château, le mur suffit") — le rectangle de
+  // contour de toute la zone (REGEN_ZONE) était redondant avec le mur/
+  // la palissade lui-même, qui suffit déjà à montrer la limite. Retiré
+  // en mode phosphore (gardé en mode couleur, où il n'y a pas d'autre
+  // repère visuel du tout).
+  if (!phosphorMode) ctx.strokeRect(x, y, w, h);
 
   // v17.57 (carte forêt, "oui, palissade en bois etc.") : version bois
   // en thème forêt, même x/y/w/h/slot/segCount/destroyed/gate pour
@@ -3584,7 +3591,9 @@ function drawForge(){
   if (!phosphorMode){ ctx.fillStyle = forgeBuilt ? '#8a5a35' : '#00000012'; ctx.fillRect(x, y, w, h); }
   ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : (forgeBuilt ? '#e0793a' : '#6b5f45');
   ctx.lineWidth = phosphorMode ? 1.4 : 3;
-  ctx.strokeRect(x, y, w, h);
+  // v17.58 (même demande que le mur : "Forge" — retire le carré de
+  // zone redondant, la structure dessinée en dessous suffit déjà)
+  if (!phosphorMode) ctx.strokeRect(x, y, w, h);
   // l'émoji casse le monochrome — en phosphore, une vraie petite
   // structure isométrique (v17.32, redessinée à partir du dessin de
   // référence retrouvé : corps avec bandeau, toit en pavillon (4 pans
@@ -3828,9 +3837,13 @@ function draw(now){
         // comme le radeau).
         const bodyTopY = t.y - sh - 2*TOWER_HH;
         ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-        const Sy = bodyTopY + 2*TOWER_HH;
+        // v17.58 : même correctif que la tour de pierre — la porte
+        // utilise une hauteur de référence fixe (niveau 1), pas `sh`
+        // courant, pour rester à la même hauteur quel que soit le niveau
+        const doorSh = TOWER_MAX_SH * Math.max(0, t.hp/t.maxHp);
+        const doorSy = t.y - doorSh;
         // porte simple, planches (2 lattes verticales)
-        const dTop = { x: t.x+0.5*TOWER_HW, y: Sy + 0.6*sh }, dBot = { x: t.x+0.5*TOWER_HW, y: Sy + 0.9*sh };
+        const dTop = { x: t.x+0.5*TOWER_HW, y: doorSy + 0.6*doorSh }, dBot = { x: t.x+0.5*TOWER_HW, y: doorSy + 0.9*doorSh };
         ctx.beginPath(); ctx.moveTo(dTop.x-2,dTop.y); ctx.lineTo(dBot.x-2,dBot.y);
         ctx.moveTo(dTop.x+2,dTop.y); ctx.lineTo(dBot.x+2,dBot.y);
         ctx.moveTo(dTop.x-2,dTop.y); ctx.lineTo(dTop.x+2,dTop.y); ctx.stroke();
@@ -3855,11 +3868,26 @@ function draw(now){
         // bord droit près du sommet.
         const bodyTopY = t.y - sh - 2*TOWER_HH;
         ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-        const Sy = bodyTopY + 2*TOWER_HH;
-        const peak = { x: t.x+0.666*TOWER_HW, y: Sy + 0.577*sh };
-        const p10  = { x: t.x+0.341*TOWER_HW, y: Sy + 0.646*sh };
-        const p12  = { x: t.x+0.343*TOWER_HW, y: Sy + 0.790*sh };
-        const p14  = { x: t.x+0.670*TOWER_HW, y: Sy + 0.858*sh };
+        // v17.58 (signalé par Pierre : "vérifie la porte sur l'original,
+        // assure-toi qu'elle reste pareil même si la tour grandit
+        // au-dessus") — les fractions (0.577 à 0.858) ont été mesurées
+        // sur le croquis pour une tour de NIVEAU 1 (sh = TOWER_MAX_SH à
+        // l'époque). Le code utilisait `sh` COURANT (qui grandit avec le
+        // niveau) au lieu de cette référence fixe : la porte "montait"
+        // avec la tour au lieu de rester ancrée près du sol. La porte
+        // utilise maintenant TOWER_MAX_SH (pas le `visualLevel` qui
+        // grandit avec les renforts) au lieu de `sh` — bit-exacte à
+        // l'original au niveau 1 (vérifié), et figée à la même hauteur
+        // ensuite, quel que soit le niveau. Le facteur de dégâts
+        // (hp/maxHp) reste appliqué : la porte "s'enfonce" avec le
+        // corps si la tour est endommagée, comme le reste de la
+        // structure — seul le NIVEAU ne la fait plus bouger.
+        const doorSh = TOWER_MAX_SH * Math.max(0, t.hp/t.maxHp);
+        const doorSy = t.y - doorSh;
+        const peak = { x: t.x+0.666*TOWER_HW, y: doorSy + 0.577*doorSh };
+        const p10  = { x: t.x+0.341*TOWER_HW, y: doorSy + 0.646*doorSh };
+        const p12  = { x: t.x+0.343*TOWER_HW, y: doorSy + 0.790*doorSh };
+        const p14  = { x: t.x+0.670*TOWER_HW, y: doorSy + 0.858*doorSh };
         ctx.beginPath();
         ctx.moveTo(peak.x,peak.y); ctx.lineTo(p10.x,p10.y); ctx.lineTo(p12.x,p12.y); ctx.lineTo(p14.x,p14.y); ctx.closePath();
         ctx.stroke();

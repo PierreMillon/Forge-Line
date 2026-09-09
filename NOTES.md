@@ -2958,3 +2958,33 @@ Vérifié : `node --check`, rendu zoomé palissade (brèches 0 et 5),
 scène complète en thème forêt (2 tours + palissade + radeau + sapins
 + forge, rien de cassé), thème "coast" par défaut revérifié sans
 régression.
+
+## v17.58 — Carré de zone retiré, porte de la tour figée quel que soit le niveau
+
+**"Enlève le carré autour de la gorge"** / **"Forge"** / **"le trait
+de zone du château, le mur suffit"** — le `strokeRect(x,y,w,h)` qui
+entourait toute la zone (REGEN_ZONE pour le mur, FORGE_ZONE pour la
+forge) était redondant avec la palissade/le mur et la structure de la
+forge, qui suffisent déjà à montrer la limite. Retiré en mode
+phosphore (gardé en mode couleur, seul repère visuel là-bas).
+
+**"Attention à la porte des tours, vérifie-la sur l'original, assure-
+toi qu'elle reste pareille même si la tour grandit au-dessus"** —
+vrai bug trouvé : les fractions de position de la porte (0.577 à
+0.858, mesurées sur le croquis pour une tour de NIVEAU 1) étaient
+appliquées à `sh` COURANT, qui grandit avec `visualLevel` à chaque
+renfort. Résultat : la porte "montait" le long de la tour à mesure
+qu'elle grandissait, au lieu de rester ancrée près du sol comme sur
+le croquis. Corrigé en utilisant une hauteur de référence fixe
+(`TOWER_MAX_SH`, la valeur de `sh` au niveau 1) au lieu de `sh`
+courant — mathématiquement identique à l'original au niveau 1
+(aucune régression), et figée ensuite. Le facteur de dégâts (hp/
+maxHp) reste appliqué : la porte s'enfonce avec le corps si la tour
+est endommagée (cohérent avec le reste de la structure), seul le
+NIVEAU ne la fait plus bouger. Même correctif appliqué à la porte en
+bois de la variante forêt (v17.57), pour la cohérence.
+
+Vérifié : `node --check`, rendu comparant une tour niveau 1 et une
+tour niveau 10 côte à côte — la porte est maintenant à la même
+hauteur absolue sur les deux, capture pleine échelle confirmant les
+deux carrés de zone disparus.
