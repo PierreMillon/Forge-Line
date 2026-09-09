@@ -2233,6 +2233,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.52", text: "Cheval de la caravane : la silhouette utilisait un rayon de \"corde tendue\" trop épais, qui soudait la crinière en un bloc plein avec le corps au lieu de rester un fin contour comme sur le rendu validé. Recalculée avec le même rayon que l'outil de référence — le corps et la patte avant restent pleins, le reste redevient un tracé fin." },
   { v: "17.51", text: "Forge redessinée avec les coordonnées exactes du croquis (l'ancienne version avait dérivé loin de l'original — toit énorme, corps écrasé). Passagers du bateau : fini la grille de dés bien rangée, ils forment maintenant un vrai amas serré et organique (même principe élastique que la collision au sol), qui reste dense en se vidant. Mur et tour revérifiés contre les croquis, fidèles." },
   { v: "17.50", text: "Silhouette pleine (fond noir bloquant ce qu'il y a derrière) appliquée à la tour, la forge, le mur du château et le cheval de Troie, comme le bateau et le cheval de la caravane. Correctif : une vraie défaite finale (château tombé / cheval de Troie non détruit) remet maintenant la sauvegarde locale à zéro tout de suite, l'or accumulé ne se retrouve plus \"transféré\" à la partie suivante en rechargeant la page avant d'avoir cliqué Recommencer." },
   { v: "17.49", text: "Bateaux : un sur deux arrive retourné (symétrie miroir), pour varier l'impression de sens d'arrivée. Les marchands débarquent désormais du côté \"avant\" de leur bateau (qui suit ce retournement), plus jamais répartis symétriquement des deux côtés." },
@@ -3136,58 +3137,107 @@ function drawCaravanCart(x, y){
   const A = { x: E.x+3, y: E.y };
   ctx.beginPath(); ctx.moveTo(S.x, S.y-1); ctx.lineTo(A.x, A.y); ctx.stroke();
   // v17.47 (régression signalée par Pierre : "ça n'a rien à voir avec ce
-  // qu'on a fixé") — cause racine : les 20 coordonnées étaient déjà
-  // exactes (revérifié, identiques à une ré-extraction Hough fraîche),
-  // mais le "canton noir en arrière-plan" qu'il avait validé comme
-  // "parfait" sur le rendu hors-jeu n'avait jamais été porté dans le
-  // jeu — seuls les traits verts existaient. Silhouette calculée une
-  // fois par shapely (buffer 3.5 + union) à partir de ces mêmes 20
-  // segments, posée en fond plein AVANT les traits.
+  // qu'on a fixé") — cause racine #1 (déjà réglée) : les 20 coordonnées
+  // étaient exactes, mais le "canton noir en arrière-plan" validé comme
+  // "parfait" hors-jeu n'avait jamais été porté dans le jeu.
+  // v17.52 (Pierre : "recheck le cheval... c'est pas bon") — cause
+  // racine #2, trouvée en comparant précisément au rendu de référence
+  // validé (`occ-caravane-occlusion-test.png`) : le rayon de "corde
+  // tendue" utilisé ici (buffer 3.5) n'était PAS celui de l'outil qui a
+  // produit ce rendu validé (`contour_radius=16`, en pixels de l'image
+  // source — soit 16/12 ≈ 1.33 dans nos unités locales, PAS 3.5). Un
+  // rayon trop large soude la crinière/l'oreille (un simple zigzag fin
+  // sur le croquis) en un bloc plein avec le corps — exactement l'écart
+  // que Pierre a repéré. Contour recalculé avec le MÊME rayon que
+  // l'outil (16/12, cap/join ronds comme le script), simplifié
+  // (tolérance 0.06, forme visuellement identique, vérifié) : le corps
+  // et la patte avant restent pleins (plusieurs traits qui se recouvrent
+  // vraiment à cet endroit), la crinière et les 2 autres pattes
+  // redeviennent un fin contour, comme sur le rendu validé.
   ctx.save(); ctx.fillStyle = '#000'; ctx.beginPath();
-  ctx.moveTo(A.x+1.60, A.y-14.93);
-  ctx.lineTo(A.x-1.77, A.y-12.99);
-  ctx.lineTo(A.x+1.73, A.y-6.92);
-  ctx.lineTo(A.x+5.13, A.y-8.89);
-  ctx.lineTo(A.x+5.14, A.y-7.00);
-  ctx.lineTo(A.x-1.75, A.y-3.03);
-  ctx.lineTo(A.x+0.00, A.y+0.00);
-  ctx.lineTo(A.x-3.50, A.y+0.01);
-  ctx.lineTo(A.x-3.46, A.y+19.92);
-  ctx.lineTo(A.x+3.54, A.y+19.90);
-  ctx.lineTo(A.x+3.52, A.y+9.95);
-  ctx.lineTo(A.x+3.51, A.y+6.05);
-  ctx.lineTo(A.x+13.82, A.y+11.97);
-  ctx.lineTo(A.x+13.84, A.y+19.90);
-  ctx.lineTo(A.x+13.86, A.y+29.86);
-  ctx.lineTo(A.x+17.36, A.y+29.85);
-  ctx.lineTo(A.x+20.86, A.y+29.84);
-  ctx.lineTo(A.x+20.83, A.y+15.99);
-  ctx.lineTo(A.x+21.09, A.y+16.14);
-  ctx.lineTo(A.x+22.05, A.y+16.69);
-  ctx.lineTo(A.x+22.48, A.y+16.94);
-  ctx.lineTo(A.x+22.50, A.y+24.87);
-  ctx.lineTo(A.x+29.50, A.y+24.86);
-  ctx.lineTo(A.x+29.48, A.y+14.90);
-  ctx.lineTo(A.x+25.98, A.y+14.91);
-  ctx.lineTo(A.x+27.72, A.y+11.87);
-  ctx.lineTo(A.x+22.10, A.y+8.65);
-  ctx.lineTo(A.x+25.10, A.y+3.46);
-  ctx.lineTo(A.x+27.71, A.y+7.99);
-  ctx.lineTo(A.x+36.35, A.y+3.00);
-  ctx.lineTo(A.x+34.60, A.y-0.03);
-  ctx.lineTo(A.x+36.34, A.y-3.07);
-  ctx.lineTo(A.x+27.68, A.y-8.04);
-  ctx.lineTo(A.x+25.94, A.y-5.00);
-  ctx.lineTo(A.x+24.19, A.y-8.03);
-  ctx.lineTo(A.x+16.36, A.y-3.52);
-  ctx.lineTo(A.x+9.49, A.y-3.51);
-  ctx.lineTo(A.x+8.64, A.y-4.99);
-  ctx.lineTo(A.x+12.14, A.y-4.99);
-  ctx.lineTo(A.x+12.12, A.y-14.95);
-  ctx.lineTo(A.x+8.62, A.y-14.94);
-  ctx.lineTo(A.x+10.36, A.y-17.98);
-  ctx.lineTo(A.x+1.70, A.y-22.94);
-  ctx.lineTo(A.x-1.78, A.y-16.87);
+  ctx.moveTo(A.x+9.95, A.y-15.03);
+  ctx.lineTo(A.x+9.77, A.y-15.61);
+  ctx.lineTo(A.x+9.36, A.y-16.05);
+  ctx.lineTo(A.x+0.51, A.y-21.13);
+  ctx.lineTo(A.x+0.00, A.y-21.24);
+  ctx.lineTo(A.x-0.51, A.y-21.16);
+  ctx.lineTo(A.x-0.95, A.y-20.88);
+  ctx.lineTo(A.x-1.26, A.y-20.46);
+  ctx.lineTo(A.x-1.36, A.y-20.08);
+  ctx.lineTo(A.x-1.33, A.y-19.56);
+  ctx.lineTo(A.x-1.17, A.y-19.20);
+  ctx.lineTo(A.x-0.81, A.y-18.82);
+  ctx.lineTo(A.x+5.95, A.y-14.94);
+  ctx.lineTo(A.x-0.80, A.y-11.04);
+  ctx.lineTo(A.x-1.08, A.y-10.77);
+  ctx.lineTo(A.x-1.31, A.y-10.30);
+  ctx.lineTo(A.x-1.34, A.y-9.78);
+  ctx.lineTo(A.x-1.17, A.y-9.29);
+  ctx.lineTo(A.x-0.83, A.y-8.90);
+  ctx.lineTo(A.x-0.49, A.y-8.71);
+  ctx.lineTo(A.x+0.02, A.y-8.62);
+  ctx.lineTo(A.x+0.53, A.y-8.74);
+  ctx.lineTo(A.x+7.29, A.y-12.63);
+  ctx.lineTo(A.x+7.30, A.y-5.75);
+  ctx.lineTo(A.x-0.71, A.y-1.13);
+  ctx.lineTo(A.x-1.06, A.y-0.81);
+  ctx.lineTo(A.x-1.26, A.y-0.43);
+  ctx.lineTo(A.x-1.33, A.y+0.00);
+  ctx.lineTo(A.x-1.27, A.y+20.17);
+  ctx.lineTo(A.x-1.07, A.y+20.65);
+  ctx.lineTo(A.x-0.80, A.y+20.94);
+  ctx.lineTo(A.x-0.34, A.y+21.19);
+  ctx.lineTo(A.x+0.17, A.y+21.24);
+  ctx.lineTo(A.x+0.55, A.y+21.14);
+  ctx.lineTo(A.x+0.98, A.y+20.85);
+  ctx.lineTo(A.x+1.27, A.y+20.42);
+  ctx.lineTo(A.x+1.37, A.y+20.04);
+  ctx.lineTo(A.x+1.34, A.y+2.31);
+  ctx.lineTo(A.x+15.99, A.y+10.71);
+  ctx.lineTo(A.x+16.03, A.y+29.98);
+  ctx.lineTo(A.x+16.18, A.y+30.48);
+  ctx.lineTo(A.x+16.62, A.y+30.96);
+  ctx.lineTo(A.x+17.10, A.y+31.16);
+  ctx.lineTo(A.x+17.62, A.y+31.16);
+  ctx.lineTo(A.x+18.10, A.y+30.96);
+  ctx.lineTo(A.x+18.39, A.y+30.69);
+  ctx.lineTo(A.x+18.69, A.y+29.98);
+  ctx.lineTo(A.x+18.66, A.y+12.24);
+  ctx.lineTo(A.x+24.65, A.y+15.68);
+  ctx.lineTo(A.x+24.72, A.y+25.25);
+  ctx.lineTo(A.x+25.15, A.y+25.90);
+  ctx.lineTo(A.x+25.61, A.y+26.14);
+  ctx.lineTo(A.x+26.00, A.y+26.20);
+  ctx.lineTo(A.x+26.39, A.y+26.14);
+  ctx.lineTo(A.x+26.85, A.y+25.89);
+  ctx.lineTo(A.x+27.27, A.y+25.25);
+  ctx.lineTo(A.x+27.31, A.y+14.91);
+  ctx.lineTo(A.x+27.17, A.y+14.32);
+  ctx.lineTo(A.x+26.64, A.y+13.75);
+  ctx.lineTo(A.x+19.14, A.y+9.45);
+  ctx.lineTo(A.x+26.43, A.y-3.18);
+  ctx.lineTo(A.x+31.92, A.y-0.03);
+  ctx.lineTo(A.x+24.99, A.y+4.04);
+  ctx.lineTo(A.x+24.67, A.y+4.61);
+  ctx.lineTo(A.x+24.66, A.y+5.26);
+  ctx.lineTo(A.x+24.96, A.y+5.83);
+  ctx.lineTo(A.x+25.61, A.y+6.24);
+  ctx.lineTo(A.x+26.13, A.y+6.28);
+  ctx.lineTo(A.x+26.62, A.y+6.11);
+  ctx.lineTo(A.x+35.30, A.y+1.10);
+  ctx.lineTo(A.x+35.81, A.y+0.52);
+  ctx.lineTo(A.x+35.91, A.y-0.25);
+  ctx.lineTo(A.x+35.73, A.y-0.74);
+  ctx.lineTo(A.x+35.30, A.y-1.16);
+  ctx.lineTo(A.x+26.60, A.y-6.16);
+  ctx.lineTo(A.x+25.98, A.y-6.33);
+  ctx.lineTo(A.x+25.27, A.y-6.16);
+  ctx.lineTo(A.x+16.94, A.y-1.35);
+  ctx.lineTo(A.x+4.99, A.y-1.34);
+  ctx.lineTo(A.x+9.38, A.y-3.88);
+  ctx.lineTo(A.x+9.70, A.y-4.17);
+  ctx.lineTo(A.x+9.89, A.y-4.52);
+  ctx.lineTo(A.x+9.97, A.y-4.99);
   ctx.closePath(); ctx.fill(); ctx.restore();
   const HL = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(A.x+x1,A.y+y1); ctx.lineTo(A.x+x2,A.y+y2); ctx.stroke(); };
   HL(0.0,0.0,25.98,14.91);

@@ -2639,3 +2639,60 @@ terminée pour cette passe — seule la forge avait un vrai écart de
 tracé, corrigée ; mur/tour/bateau/caisse de caravane confirmés
 fidèles au pixel près (sauf le petit détail du montant noté
 ci-dessus, laissé de côté faute de signal clair que c'est un problème).
+
+## v17.52 — Cheval de la caravane, round 2 : "recheck le cheval et chariot marchand c'est pas bon"
+
+Pierre a revérifié après le v17.51 et signalé que ce n'était toujours
+pas bon. Comparaison PIXEL PAR PIXEL du rendu en jeu (`drawCaravanCart`
+isolé, zoomé) contre le rendu de référence validé
+(`occ-caravane-occlusion-test.png`, celui que Pierre avait confirmé
+"parfait") : différence nette repérée — dans le rendu validé, la
+crinière/oreille (un simple zigzag fin sur le croquis) reste un FIN
+CONTOUR, alors qu'en jeu elle apparaissait comme un bloc noir plein
+soudé au corps.
+
+**Cause racine (celle-ci, la vraie)** : la silhouette "corde tendue"
+(shapely, buffer + union des segments) utilisait un rayon de 3.5 dans
+nos unités locales. Mais l'outil qui a produit le rendu validé
+(`make_occlusion_test.py`/`make_svg_compare.py`) utilise par défaut un
+rayon de **16, exprimé en PIXELS DE L'IMAGE SOURCE** — une fois
+converti dans nos unités locales (÷ k=12, l'échelle utilisée pour ce
+cheval), ça fait environ **1.33, pas 3.5**. Un rayon 2.6× trop large
+gonfle chaque trait fin jusqu'à ce qu'il touche ses voisins et se
+fonde avec eux — exactement ce qui soudait la crinière au corps.
+
+**Correctif** : contour recalculé avec le rayon exact de l'outil
+(16/12 ≈ 1.33) et les mêmes réglages (`cap_style`/`join_style` ronds,
+comme le script d'origine — pas carrés comme la première tentative).
+Le résultat brut avait 611 points (les jointures rondes en génèrent
+beaucoup) : simplifié (`shapely.simplify`, tolérance 0.06 — assez
+petite pour ne visuellement rien changer, vérifié par comparaison
+avant/après) à 83 points, intégré au code.
+
+**Résultat vérifié par comparaison visuelle directe** (rendu Playwright
+isolé du cheval, fond gris pour bien voir le noir, comparé côte à côte
+à `occ-caravane-occlusion-test.png`) : correspondance quasi parfaite —
+corps et patte avant pleins (plusieurs traits qui se recouvrent
+vraiment à cet endroit, donc légitimement remplis), crinière/oreille et
+les 2 autres pattes redevenues un fin contour, comme sur le rendu
+validé par Pierre.
+
+**Leçon pour la suite, à ne plus refaire** : quand on porte une
+silhouette calculée par les outils hors-jeu vers le code du jeu, le
+rayon de buffer doit être recopié EXACTEMENT (en tenant compte du
+changement d'échelle pixels→unités locales), jamais réestimé à l'œil.
+C'est la deuxième fois que ce cheval casse pour une histoire de
+paramètre non recopié fidèlement (la première fois, c'était le fond
+noir carrément absent) — signal qu'il faut être plus systématique :
+noter le rayon exact utilisé à côté de CHAQUE silhouette dans le code
+(fait ici, à généraliser si d'autres silhouettes sont retouchées).
+
+**Pas encore vérifié** : le bateau et le cheval de Troie utilisent
+aussi une silhouette par buffer (rayons 4 et 2.5 respectivement,
+choisis à l'estime, pas recopiés d'un rayon validé) — mêmes symptômes
+possibles, pas revérifiés cette fois faute de temps (le bateau a déjà
+été confirmé visuellement bon par Pierre en jeu ceci dit, donc risque
+plus faible). À vérifier si signalé.
+
+Vérifié : `node --check`, comparaison visuelle directe contre le
+rendu de référence validé.
