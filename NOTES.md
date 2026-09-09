@@ -3171,3 +3171,43 @@ construites côte à côte, silhouettes bien distinctes), une catapulte
 renforcée 5 fois (seule elle grandit, pas les tours voisines — confirme
 que `pickNearestTowerOfKind` cible bien le bon type), 12 secondes de
 jeu réel (vagues, tirs, or gagné) sans erreur console.
+
+## v17.63 — Ennemi "bouclier" (dernière suggestion validée)
+
+Dernier item du backlog des quatre suggestions ("je valide tout") : un
+ennemi qui force un VRAI contre tactique plutôt qu'une simple case
+"plus de PV" de plus — absorbe tout son premier coup reçu, sans aucun
+dégât, puis redevient un ennemi normal pour le reste de sa vie.
+
+Un seul point d'entrée pour toute la logique : `applyDirectHit(target,
+dmg)`, appelé aux deux endroits où un projectile touche directement un
+ennemi (tir suivi normal ET tir raté du joueur qui touche quelqu'un
+par hasard — tour, catapulte, joueur, soldat confondus, un seul code
+partagé). Renvoie les dégâts réellement infligés (0 si le bouclier
+vient d'encaisser) pour que l'appelant sache s'il doit compter l'aggro
+du joueur (pas d'aggro pour un coup qui n'a en fait rien fait). Le
+dégât de zone de la catapulte (v17.62) NE PASSE PAS par cette
+fonction — décision délibérée : un bouclier tenu face à l'attaquant
+n'arrête pas une explosion qui vient d'à côté, et ça rend la catapulte
+mécaniquement forte contre un paquet de boucliers groupés (peut faire
+sauter plusieurs boucliers "gratuitement" via le splash d'un seul tir
+sur la cible visée en direct).
+
+Introduit progressivement à partir de la vague 20 (même rythme de
+montée que les deux types précédents, `WAVE_TYPE4_START/RAMP_WAVES/
+TYPE4_MAX_RATE`, décalé de 6 vagues après le type 3 comme l'écart déjà
+en place entre les types 2 et 3), vitesse et PV normaux (comme le type
+de base) — la difficulté vient du fait qu'il faut le viser deux fois,
+pas d'un boost de stats caché.
+
+Retour visuel explicite (Pierre avait insisté sur la lisibilité pour
+les autres suggestions) : un anneau vert autour de l'ennemi tant que
+`shieldUp` est vrai, qui disparaît net dès le premier coup absorbé —
+se voit d'un coup d'œil sans avoir à deviner au comptage de PV.
+
+Vérifié : `node --check`, rendu en jeu avec le taux d'apparition forcé
+à 100% dès la vague 1 (dans une copie de test seulement, jamais dans
+le fichier livré) — anneaux visibles sur plusieurs ennemis à l'écran,
+vagues complétées normalement avec 4 tours construites (confirme
+qu'ils meurent bien après le 2e coup, pas immortels), aucune erreur
+console sur une session de jeu réelle prolongée.

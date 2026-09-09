@@ -1348,6 +1348,14 @@ const ENEMY_TYPES = [
   { id: 'fast_frail', hpMult: 0.5, speedMult: 2,   colorA: '#a3d3f2', colorB: '#3f7fc3', goldReward: 2,  breachDamage: 1, scalesWithWave: true }, // bleu clair, rapide et fragile
   { id: 'fast_tough', hpMult: 1,   speedMult: 2,   colorA: '#cba3f2', colorB: '#7a3fc3', goldReward: 4,  breachDamage: 2, scalesWithWave: true }, // violet, rapide et costaud
   { id: 'boss',       hpMult: 4,   speedMult: 0.5, colorA: '#f2cf9e', colorB: '#c3813f', goldReward: 10, breachDamage: 3, rare: true, scalesWithWave: true }, // orange, lent et très résistant
+  // v17.63 (suggestion validée : "un ennemi qui force un contre précis,
+  // pas juste plus de PV") — vitesse et PV normaux (comme le type de
+  // base), mais absorbe TOUT le premier coup reçu, tir de zone excepté
+  // (voir applyDirectHit) : oblige à le viser deux fois plutôt qu'une,
+  // un vrai contre tactique (bien géré par la catapulte, qui touche
+  // plusieurs boucliers d'un coup via son dégât de zone) plutôt qu'une
+  // simple case "plus de PV" de plus.
+  { id: 'shielded',   hpMult: 1,   speedMult: 1,   colorA: '#a3f2e0', colorB: '#3fc3a0', goldReward: 3,  breachDamage: 1, scalesWithWave: false, hasShield: true }, // turquoise, bouclier au premier coup
 ];
 // introduction progressive des types par vague (revu : un type débloqué
 // d'un coup à taux fixe dès le départ donnait un mélange trop tôt et
@@ -1369,9 +1377,21 @@ const ENEMY_TYPES = [
 // pour garder l'écartement d'origine entre les deux introductions.
 const WAVE_TYPE2_START = 9,  WAVE_TYPE2_RAMP_WAVES = 15, TYPE2_MAX_RATE = 0.15; // rapide/fragile
 const WAVE_TYPE3_START = 14, WAVE_TYPE3_RAMP_WAVES = 20, TYPE3_MAX_RATE = 0.15; // rapide/costaud — même écart de 5 vagues qu'avant avec WAVE_TYPE2_START (décalé en bloc, v17.41)
+const WAVE_TYPE4_START = 20, WAVE_TYPE4_RAMP_WAVES = 20, TYPE4_MAX_RATE = 0.15; // bouclier (v17.63) — même écart de 6 vagues après le type 3, même rythme d'introduction que les précédents
 function rampedRate(startWave, rampWaves, maxRate){
   if (wave < startWave) return 0;
   return maxRate * Math.min(1, (wave - startWave) / rampWaves);
+}
+// v17.63 : point d'entrée UNIQUE pour tout coup DIRECT (tour, catapulte,
+// joueur, soldat confondus — tous les tirs passent par la même boucle de
+// projectiles) — l'ennemi "bouclier" absorbe le tout premier sans aucun
+// dégât, puis redevient un ennemi normal pour le reste de sa vie. Renvoie
+// les dégâts réellement infligés (0 si le bouclier vient d'encaisser),
+// pour que l'appelant sache s'il doit compter l'aggro.
+function applyDirectHit(target, dmg){
+  if (target.shieldUp){ target.shieldUp = false; return 0; }
+  target.hp -= dmg;
+  return dmg;
 }
 // le boss était bien trop fréquent (toutes les 5 vagues) pour un ennemi
 // censé être rare/marquant — repoussé à sa première apparition vers la
@@ -1392,9 +1412,11 @@ function pickEnemyType(){
   }
   const rate2 = rampedRate(WAVE_TYPE2_START, WAVE_TYPE2_RAMP_WAVES, TYPE2_MAX_RATE);
   const rate3 = rampedRate(WAVE_TYPE3_START, WAVE_TYPE3_RAMP_WAVES, TYPE3_MAX_RATE);
+  const rate4 = rampedRate(WAVE_TYPE4_START, WAVE_TYPE4_RAMP_WAVES, TYPE4_MAX_RATE);
   const r = Math.random();
   if (r < rate2) return ENEMY_TYPES[1];
   if (r < rate2 + rate3) return ENEMY_TYPES[2];
+  if (r < rate2 + rate3 + rate4) return ENEMY_TYPES[4];
   return ENEMY_TYPES[0];
 }
 
@@ -2371,6 +2393,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.63", text: "Nouveau : l'ennemi \"bouclier\" (turquoise), introduit progressivement à partir de la vague 20 — vitesse et vie normales, mais absorbe TOUT le premier coup reçu (visible à l'anneau autour de lui), qu'il faut donc viser deux fois plutôt qu'une. Son bouclier ne protège jamais des dégâts de zone de la catapulte." },
   { v: "17.62", text: "Nouveau : la catapulte, 2e type de tour (bouton \"Catapulte\", touche C) — cadence plus lente qu'une tour à flèches mais dégâts de zone (les ennemis proches de l'impact encaissent aussi une part des dégâts). Silhouette basse et distincte (bras de tir sur pivot, animé selon la cadence de tir), même économie de renfort que la tour classique." },
   { v: "17.61", text: "Ajouté un escalier d'accès au chemin de ronde, dessiné à partir d'un 3e croquis fourni (mur de pierre avec escalier intégré) — posé une fois près de la porte, sur les thèmes Côte et Neige (la palissade en bois de la carte Forêt garde son propre style)." },
   { v: "17.60", text: "Nouveau 3e thème de carte, \"Neige\" (menu, à côté de Côte/Forêt) : nouvelle tour dessinée à partir de deux croquis fournis (plateforme évasée + toit à glaçons, hampe qui s'étire avec les renforts sans faire bouger la porte ni le toit, même principe que le correctif de porte v17.58)." },
@@ -2624,6 +2647,7 @@ function spawnEnemy(now){
     y: startY, baseX,
     driftPhase, driftAmp, driftFreq,
     hp, maxHp: hp, type,
+    shieldUp: !!type.hasShield, // v17.63 : absorbe le tout premier coup direct de cette vie, voir applyDirectHit
     // vitesse de base fixe (par type), + une variation individuelle
     // organique recalculée chaque frame (voir update()) — pas de plafond
     // qui grimpe avec la vague, juste "certains sont un peu plus pressés"
@@ -2850,8 +2874,9 @@ function update(now){
         if (Math.hypot(e.x-pr.x, e.y-pr.y) < 6){ hitSomeone = e; break; }
       }
       if (hitSomeone){
-        hitSomeone.hp -= pr.dmg; pr.dead = true; sfxHit();
-        if (pr.source === 'player') playerAggroScore += 1;
+        const applied = applyDirectHit(hitSomeone, pr.dmg);
+        pr.dead = true; sfxHit();
+        if (pr.source === 'player' && applied > 0) playerAggroScore += 1;
         continue;
       }
       const dx = pr.destX-pr.x, dy = pr.destY-pr.y, d = Math.hypot(dx, dy);
@@ -2862,11 +2887,14 @@ function update(now){
     if (!enemies.includes(pr.target) || pr.target.hp <= 0){ pr.dead = true; continue; }
     const dx = pr.target.x-pr.x, dy = pr.target.y-pr.y, d = Math.hypot(dx, dy);
     if (d < 6){
-      pr.target.hp -= pr.dmg; pr.dead = true; sfxHit();
-      if (pr.source === 'player') playerAggroScore += 1; // nourrit la décision "faut-il des harceleurs"
+      const applied = applyDirectHit(pr.target, pr.dmg);
+      pr.dead = true; sfxHit();
+      if (pr.source === 'player' && applied > 0) playerAggroScore += 1; // nourrit la décision "faut-il des harceleurs"
       // v17.62 : impact de catapulte — dégât secondaire aux ennemis
       // proches (jamais à la cible principale, déjà comptée en plein
-      // ci-dessus), plus une petite secousse pour sentir le "boum"
+      // ci-dessus), plus une petite secousse pour sentir le "boum" — le
+      // bouclier (v17.63) ne protège JAMAIS de ce dégât de zone, voir
+      // applyDirectHit : seul un coup DIRECT est absorbé
       if (pr.splashRadius){
         for (const e of enemies){
           if (e === pr.target || e.hp <= 0) continue;
@@ -4348,7 +4376,7 @@ function draw(now){
   // référence : 4 cubes de complexité croissante, voir drawEnemyShape) —
   // les types faibles restent lisibles/simples, les forts se voient
   // nettement plus "chargés"
-  const ENEMY_COMPLEXITY = { base: 0, fast_frail: 1, fast_tough: 2, boss: 3, trojan: 3 };
+  const ENEMY_COMPLEXITY = { base: 0, fast_frail: 1, fast_tough: 2, boss: 3, trojan: 3, shielded: 1 };
   for (const e of enemies){
     layers.push({ y: e.y, draw: () => {
       const t = e.type || ENEMY_TYPES[0];
@@ -4356,6 +4384,14 @@ function draw(now){
       if (phosphorMode){
         if (t.id === 'trojan') drawTrojanHorseShape(e.x, e.y-8, rr);
         else drawEnemyShape(e.x, e.y-8, rr*0.85, ENEMY_COMPLEXITY[t.id] ?? 0);
+        // v17.63 : anneau de bouclier — disparaît net dès qu'il encaisse
+        // son premier coup (voir applyDirectHit), pour que "il reste
+        // combien de coups à faire" se lise d'un coup d'œil, pas
+        // seulement au comptage de PV comme le reste
+        if (e.shieldUp){
+          ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.3;
+          ctx.beginPath(); ctx.arc(e.x, e.y-8, rr*0.85+3, 0, Math.PI*2); ctx.stroke();
+        }
         return;
       }
       ctx.beginPath(); ctx.arc(e.x, e.y-8, rr, 0, Math.PI*2);
