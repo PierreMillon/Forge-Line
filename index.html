@@ -2293,6 +2293,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.57", text: "Carte Forêt : palissade en rondins pointus (au lieu du mur de pierre) et tours de guet en bois avec toit pointu, en plus du radeau et des sapins déjà en place. La forge reste identique dans les deux thèmes." },
   { v: "17.56", text: "Cause identifiée pour \"plus personne ne meurt\" (signalé au simulateur) : le funnel vers la porte visait un point unique, créant un couloir trop étroit et trop facile à défendre. Corrigé pour viser la largeur réelle de la porte plutôt qu'un point — garde l'intention (\"passer par la porte\") sans le goulot d'étranglement." },
   { v: "17.55", text: "Mur du château : les créneaux étaient étirés pour tenir sur 10 tranches quelle que soit la largeur d'écran, au lieu de garder leur vraie taille (mesurée sur le croquis) et se répéter jusqu'au bord. Corrigé — le mur est maintenant fait de créneaux à taille fixe, aussi nombreux qu'il en faut. Les 10 brèches restent le repère de défaite totale (mur entièrement rasé), juste répartis sur le nombre réel de créneaux." },
   { v: "17.54", text: "Carte Forêt (phase 1, nouveau) : bascule dans le menu (\"Carte : Côte/Forêt\"), purement visuelle — les bateaux deviennent des radeaux de rondins, des sapins apparaissent sur la rive opposée. Le jeu (ennemis, vagues, économie) reste strictement identique dans les deux thèmes." },
@@ -3415,6 +3416,42 @@ function drawDebugGrid(){
 // pour ne pas changer l'équilibrage du jeu (toujours 10 brèches = mur
 // entièrement rasé, quel que soit l'écran).
 const CASTLE_SLOT = 23;
+// v17.57 (carte forêt) : palissade en rondins pointus, dessin original.
+// Reçoit exactement la géométrie déjà calculée par drawCastle (x,y,slot,
+// segCount,destroyed,gateAfterSeg) pour que la logique de brèches et la
+// position de la porte restent identiques entre les deux thèmes — seul
+// le style change (pieux au lieu de merlons de pierre).
+function drawPalisade(x, y, slot, segCount, destroyed, gateAfterSeg){
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  const postW = slot * 0.4;
+  const tallH = 20, shortH = 15; // alternance de hauteur, silhouette naturelle
+  for (let i = 0; i < segCount; i++){
+    const cx = x + (i+0.5)*slot;
+    if (i === gateAfterSeg || i === gateAfterSeg+1) continue; // ouverture de la porte, pas de pieu
+    const isDown = i < destroyed;
+    const h2 = isDown ? 5 : (i % 2 === 0 ? tallH : shortH);
+    const topY = y - h2;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.moveTo(cx-postW/2, y); ctx.lineTo(cx-postW/2, topY);
+    if (!isDown) ctx.lineTo(cx, topY-6); // pointe taillée, sauf pieu abattu
+    ctx.lineTo(cx+postW/2, topY); ctx.lineTo(cx+postW/2, y);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  // 2 lisses horizontales qui ceinturent les pieux debout, interrompues
+  // devant la porte
+  for (const railY of [y-6, y-12]){
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i <= segCount; i++){
+      const px = x + i*slot;
+      const gapHere = i > gateAfterSeg && i <= gateAfterSeg+2;
+      if (gapHere){ started = false; continue; }
+      if (!started){ ctx.moveTo(px, railY); started = true; } else ctx.lineTo(px, railY);
+    }
+    ctx.stroke();
+  }
+}
 function drawCastle(){
   const { x, y, w, h } = REGEN_ZONE;
   const slot = CASTLE_SLOT;
@@ -3426,6 +3463,15 @@ function drawCastle(){
   ctx.strokeStyle = phosphorMode ? PHOSPHOR_GREEN : '#6b5f45';
   ctx.lineWidth = phosphorMode ? 1.4 : 3;
   ctx.strokeRect(x, y, w, h);
+
+  // v17.57 (carte forêt, "oui, palissade en bois etc.") : version bois
+  // en thème forêt, même x/y/w/h/slot/segCount/destroyed/gate pour
+  // rester cohérente avec la logique de brèches — seul l'habillage
+  // change, dessin original (aucun croquis fourni, comme le radeau)
+  if (phosphorMode && mapTheme === 'forest'){
+    drawPalisade(x, y, slot, segCount, destroyed, Math.floor(segCount/2) - 1);
+    return;
+  }
 
   // créneaux égaux à taille fixe le long du bord haut, répétés jusqu'au
   // bord ; un créneau détruit laisse juste le mur plat à sa place (pas
@@ -3773,7 +3819,33 @@ function draw(now){
       // joueur) remplit chaque face en noir avant le contour, au lieu de
       // laisser voir à travers.
       drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments, true);
-      if (phosphorMode){
+      if (phosphorMode && mapTheme === 'forest'){
+        // v17.57 (carte forêt, "oui... tour de guet en rondins") — même
+        // corps (drawIsoBox déjà appelé ci-dessus, cohérent en taille
+        // avec le thème côte), mais porte + cube de renfort en pierre
+        // remplacés par une porte simple + un toit pointu en bois,
+        // dessin original (aucun croquis fourni pour cette variante,
+        // comme le radeau).
+        const bodyTopY = t.y - sh - 2*TOWER_HH;
+        ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+        const Sy = bodyTopY + 2*TOWER_HH;
+        // porte simple, planches (2 lattes verticales)
+        const dTop = { x: t.x+0.5*TOWER_HW, y: Sy + 0.6*sh }, dBot = { x: t.x+0.5*TOWER_HW, y: Sy + 0.9*sh };
+        ctx.beginPath(); ctx.moveTo(dTop.x-2,dTop.y); ctx.lineTo(dBot.x-2,dBot.y);
+        ctx.moveTo(dTop.x+2,dTop.y); ctx.lineTo(dBot.x+2,dBot.y);
+        ctx.moveTo(dTop.x-2,dTop.y); ctx.lineTo(dTop.x+2,dTop.y); ctx.stroke();
+        // toit pointu en bois (pyramide simple), ancré au sommet du corps
+        const roofHw = TOWER_HW*0.75, roofHh = TOWER_HH*0.75, roofPeakH = TOWER_HW*0.9;
+        const RN={x:t.x,y:bodyTopY}, RE={x:t.x+roofHw,y:bodyTopY+roofHh}, RS={x:t.x,y:bodyTopY+2*roofHh}, RW={x:t.x-roofHw,y:bodyTopY+roofHh};
+        const apex = { x: t.x, y: bodyTopY - roofPeakH };
+        ctx.fillStyle = '#000';
+        for (const [c1,c2] of [[RN,RE],[RE,RS],[RS,RW],[RW,RN]]){
+          ctx.beginPath(); ctx.moveTo(apex.x,apex.y); ctx.lineTo(c1.x,c1.y); ctx.lineTo(c2.x,c2.y); ctx.closePath(); ctx.fill();
+        }
+        ctx.beginPath();
+        for (const corner of [RN,RE,RS,RW]){ ctx.moveTo(apex.x,apex.y); ctx.lineTo(corner.x,corner.y); }
+        ctx.stroke();
+      } else if (phosphorMode){
         // v17.37 : proportions extraites EXACTEMENT du dessin de référence
         // par analyse pixel (détection automatique des sommets marqués sur
         // le croquis + des arêtes qui les relient, sur la grille de points)

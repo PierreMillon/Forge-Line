@@ -2924,3 +2924,37 @@ Vérifié : `node --check`, funnel re-testé (positions x confirmées
 étalées sur la largeur de la porte), simulateur relancé au même
 budget que les runs précédents (45000 frames × 8 essais) pour
 confirmer que l'élargissement seul ne suffit pas.
+
+## v17.57 — Carte Forêt : palissade + tours de guet en bois
+
+Pierre, en réponse directe à la question posée : "oui, palissade en
+bois etc." pour tour/mur/forge en thème forêt.
+
+**Palissade** (`drawPalisade`) : appelée depuis `drawCastle` avec
+exactement la même géométrie déjà calculée (x/y/slot/segCount/
+destroyed/gateAfterSeg) — la logique de brèches et la position de la
+porte restent identiques entre les deux thèmes, seul l'affichage
+change. Pieux pointus en alternance haut/bas (silhouette naturelle,
+pas une rangée uniforme), 2 lisses horizontales qui les ceinturent
+(interrompues devant la porte), pieux "abattus" (courts, sans pointe)
+sur la portion détruite par les brèches au lieu des dents plates du
+mur de pierre.
+
+**Tours de guet** : même corps (`drawIsoBox`, donc même taille/
+niveau/renfort que le thème côte), mais porte simple (2 planches) et
+toit pointu en bois à la place de la porte à 4 points + cube de
+renfort en pierre.
+
+**Forge : laissée identique dans les deux thèmes** — déjà une
+structure en bois/pierre assez neutre question terrain (cheminée,
+toit en pavillon), une vraie refonte n'apportait pas grand-chose par
+rapport à tour/mur qui, eux, changent clairement de matériau
+(pierre → bois).
+
+Comme le radeau : **dessins originaux**, aucun croquis de référence
+fourni pour ces variantes — à ajuster si Pierre en dessine un.
+
+Vérifié : `node --check`, rendu zoomé palissade (brèches 0 et 5),
+scène complète en thème forêt (2 tours + palissade + radeau + sapins
++ forge, rien de cassé), thème "coast" par défaut revérifié sans
+régression.
