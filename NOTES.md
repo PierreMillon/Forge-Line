@@ -2717,3 +2717,53 @@ l'air correct, que de le "corriger" à l'aveugle. Si Pierre signale un
 souci sur le cheval de Troie spécifiquement, il faudra soit qu'il
 redonne un point de repère pixel↔local, soit repartir du contour
 validé en le comparant œil pour œil avec lui en direct.
+
+## v17.53 — Chariot de la caravane repris ENTIÈREMENT depuis zéro
+
+Pierre, après le correctif v17.52 (rayon de silhouette) : "redessine
+le cheval avec chariot des marchands depuis le début, c'est pas bon
+le résultat." Plutôt qu'un 3e rapiéçage, tout repris à zéro sur
+l'image source.
+
+**Réextraction complète** de `caravane-marchands.jpg` (méthode Hough,
+mêmes réglages que d'habitude) : 54 segments au total, complétude
+86,4% (les ~14% manquants sont des doublons/artefacts de croisement,
+déjà vérifiés visuellement sans trait réellement manquant). Séparés
+en 3 composantes connexes automatiquement (pas à l'œil, pour éviter
+l'erreur du round précédent) : caisse (26 segments), roue 1 (4),
+roue 2 (4) — le cheval (20 segments) déjà validé en v17.47/17.52 n'a
+pas bougé.
+
+**Découverte qui corrige une fausse piste du round précédent** : dans
+la revue exhaustive d'avant, j'avais noté un "point mystère" au-dessus
+de la caisse, pensé comme une possible bâche/canopy. En reclassant
+proprement par composantes connexes cette fois (au lieu d'un simple
+seuil sur x), ce point est en fait le coin N (arrière-haut) de la
+caisse elle-même — mal identifié la fois précédente. **La vraie
+découverte** : la caisse n'est pas qu'un simple rebord fin comme codé
+depuis le v17.36 — le croquis montre un **DOUBLE liseré**, l'épaisseur
+visible des parois quand on regarde dans une caisse ouverte depuis le
+dessus (un rebord extérieur + un rebord intérieur légèrement décalé,
+reliés par de courtes arêtes à chaque coin visible). Jamais reproduit
+avant. Confirmé par comparaison directe à un crop haute résolution du
+croquis original.
+
+**Reconstruction** : origine unique choisie pour toute la fonction —
+le coin S (avant-bas) de la caisse, à la même échelle k=12 que le
+cheval (donc plus besoin de convertir entre deux repères différents
+comme avant). Caisse (26 segments) + 2 roues (4 chacune) recopiés en
+coordonnées locales exactes. Silhouette de la caisse recalculée avec
+le MÊME rayon exact que le cheval (16/12, cap/join ronds, leçon du
+v17.52 appliquée dès le départ cette fois) — 30 points après
+simplification. Point d'attelage du cheval (`A`) repositionné : son
+décalage exact par rapport à la nouvelle origine a été mesuré
+directement sur les pixels (17.32, -0.05) plutôt que réestimé —
+cheval et harnais inchangés sinon (déjà corrects).
+
+Vérifié à chaque étape avant d'intégrer (pas seulement à la fin,
+contrairement aux rounds précédents) : rendu Python autonome de la
+caisse seule comparé au crop original (identique), rendu Playwright
+isolé du chariot complet (caisse+roues+cheval) après intégration,
+capture de la scène complète en jeu. Tout correspond visuellement au
+croquis — double liseré visible, roues non remplies (comme prévu),
+cheval avec crinière fine et corps plein.

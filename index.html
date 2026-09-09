@@ -2233,6 +2233,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.53", text: "Chariot de la caravane redessiné entièrement depuis zéro (caisse + roues, en plus du cheval déjà refait) : le croquis montrait en fait un double liseré (l'épaisseur des parois de la caisse ouverte, jamais reproduit) — coordonnées exactes recopiées, silhouette pleine ajoutée à la caisse comme le reste." },
   { v: "17.52", text: "Cheval de la caravane : la silhouette utilisait un rayon de \"corde tendue\" trop épais, qui soudait la crinière en un bloc plein avec le corps au lieu de rester un fin contour comme sur le rendu validé. Recalculée avec le même rayon que l'outil de référence — le corps et la patte avant restent pleins, le reste redevient un tracé fin." },
   { v: "17.51", text: "Forge redessinée avec les coordonnées exactes du croquis (l'ancienne version avait dérivé loin de l'original — toit énorme, corps écrasé). Passagers du bateau : fini la grille de dés bien rangée, ils forment maintenant un vrai amas serré et organique (même principe élastique que la collision au sol), qui reste dense en se vidant. Mur et tour revérifiés contre les croquis, fidèles." },
   { v: "17.50", text: "Silhouette pleine (fond noir bloquant ce qu'il y a derrière) appliquée à la tour, la forge, le mur du château et le cheval de Troie, comme le bateau et le cheval de la caravane. Correctif : une vraie défaite finale (château tombé / cheval de Troie non détruit) remet maintenant la sauvegarde locale à zéro tout de suite, l'or accumulé ne se retrouve plus \"transféré\" à la partie suivante en rechargeant la page avant d'avoir cliqué Recommencer." },
@@ -3110,32 +3111,56 @@ function drawTrojanHorseShape(cx, cy, size){
 // caisse ouverte sur roues, tirée par un cheval attelé devant
 function drawCaravanCart(x, y){
   ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-  // v17.36 (correctif demandé : suivre le dessin à la lettre) : une
-  // caisse OUVERTE (juste le rebord du dessus + les chutes verticales,
-  // pas de face pleine ni dessus ni côtés — le croquis montre un
-  // contour, pas un pavé plein), plus large que profonde
-  const hw = 11, hh = 4, sh = 6;
-  const cyTop = y - sh - 2*hh;
-  const N={x,y:cyTop}, E={x:x+hw,y:cyTop+hh}, S={x,y:cyTop+2*hh}, W={x:x-hw,y:cyTop+hh};
-  const Sb={x:S.x,y:S.y+sh}, Wb={x:W.x,y:W.y+sh}, Eb={x:E.x,y:E.y+sh};
-  ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(Wb.x,Wb.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(Sb.x,Sb.y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(E.x,E.y); ctx.lineTo(Eb.x,Eb.y); ctx.stroke();
+  // v17.53 (Pierre, après 2 correctifs jugés insuffisants : "redessine
+  // le cheval avec chariot des marchands depuis le début") — repris
+  // entièrement à zéro plutôt que rapiécé une 3e fois. Réextrait
+  // caravane-marchands.jpg au complet (méthode Hough, voir tools/) :
+  // 34 segments caisse+roues (en plus des 20 déjà validés du cheval),
+  // reclassés par composantes connexes (caisse = 26 segments, chaque
+  // roue = 4). Découverte au passage : la caisse n'est PAS qu'un simple
+  // rebord ouvert — le croquis montre un DOUBLE liseré (l'épaisseur des
+  // parois, visible en regardant dans la caisse ouverte depuis le
+  // dessus), jamais reproduit avant. `x,y` = coin S (avant-bas) de la
+  // caisse, choisi comme origine unique de TOUTE la fonction (caisse +
+  // roues + cheval), à l'échelle k=12 comme le cheval (déjà validé,
+  // inchangé ci-dessous).
+  const L = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(x+x1,y+y1); ctx.lineTo(x+x2,y+y2); ctx.stroke(); };
+  // silhouette pleine de la caisse (mêmes 26 segments, buffer 16/12 —
+  // le même rayon exact que l'outil de référence, voir le cheval plus
+  // bas pour le détail de cette leçon), simplifiée à 30 points
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.moveTo(x+0.59,y-31.07);
+  ctx.lineTo(x-0.04,y-31.23); ctx.lineTo(x-0.67,y-31.07); ctx.lineTo(x-17.99,y-21.08);
+  ctx.lineTo(x-18.32,y-20.80); ctx.lineTo(x-18.57,y-20.39); ctx.lineTo(x-18.65,y-19.96);
+  ctx.lineTo(x-18.61,y-9.71); ctx.lineTo(x-18.41,y-9.23); ctx.lineTo(x-17.96,y-8.81);
+  ctx.lineTo(x+8.02,y+6.10); ctx.lineTo(x+8.51,y+6.26); ctx.lineTo(x+8.98,y+6.24);
+  ctx.lineTo(x+26.62,y-3.88); ctx.lineTo(x+27.02,y-4.22); ctx.lineTo(x+27.29,y-4.94);
+  ctx.lineTo(x+27.26,y-5.33); ctx.lineTo(x+27.04,y-5.81); ctx.lineTo(x+26.66,y-6.16);
+  ctx.lineTo(x+26.30,y-6.32); ctx.lineTo(x+25.78,y-6.35); ctx.lineTo(x+25.41,y-6.25);
+  ctx.lineTo(x+10.01,y+2.63); ctx.lineTo(x+9.99,y-4.25); ctx.lineTo(x+26.64,y-13.86);
+  ctx.lineTo(x+27.15,y-14.44); ctx.lineTo(x+27.27,y-14.90); ctx.lineTo(x+27.24,y-15.29);
+  ctx.lineTo(x+27.02,y-15.76); ctx.lineTo(x+26.60,y-16.14);
+  ctx.closePath(); ctx.fill();
+  L(-17.32,-19.92,8.66,-5.02); L(-17.30,-9.97,8.68,4.94); L(-0.02,-19.94,17.30,-10.00);
+  L(-0.04,-29.89,25.94,-14.99); L(-17.30,-9.97,0.02,-0.03); L(8.62,-24.92,25.94,-14.99);
+  L(-17.32,-19.92,-0.04,-29.89); L(-0.04,-29.89,17.28,-19.95); L(-17.30,-9.97,-17.32,-19.92);
+  L(8.68,4.94,25.96,-5.03); L(8.66,-5.02,25.94,-14.99); L(-8.64,-5.00,8.68,4.94);
+  L(8.66,-5.02,8.68,4.94); L(8.64,-14.97,17.30,-10.00); L(-8.68,-24.91,-0.04,-29.89);
+  L(-0.04,-29.89,-0.02,-19.94); L(-8.66,-14.95,-0.02,-19.94); L(-17.32,-19.92,-8.68,-24.91);
+  L(0.02,-0.03,8.68,4.94); L(-17.30,-9.97,-8.64,-5.00); L(-8.66,-14.95,8.66,-5.02);
+  L(-0.04,-29.89,8.62,-24.92); L(-0.00,-9.98,8.66,-5.02); L(-8.64,-5.00,0.02,-0.03);
+  L(8.66,-5.02,17.30,-10.00); L(-17.32,-19.92,-8.66,-14.95);
   // 2 roues : petits losanges plats, séparés sous la caisse (pas
-  // rattachés par un trait, comme sur le dessin)
-  const wheel = (wx, wy) => {
-    ctx.beginPath(); ctx.moveTo(wx,wy-2.5); ctx.lineTo(wx+3.5,wy); ctx.lineTo(wx,wy+2.5); ctx.lineTo(wx-3.5,wy); ctx.closePath(); ctx.stroke();
-  };
-  wheel(x-7, y+5); wheel(x-1, y+7);
+  // rattachés par un trait, comme sur le dessin) — coordonnées exactes
+  // elles aussi (avant : approximées à l'œil)
+  L(0.06,19.88,8.72,24.85); L(0.04,9.92,8.70,14.89); L(0.06,19.88,0.04,9.92); L(8.70,14.89,8.72,24.85);
+  L(-17.28,-0.01,-8.62,4.96); L(-17.26,9.94,-8.60,14.91); L(-17.26,9.94,-17.28,-0.01); L(-8.62,4.96,-8.60,14.91);
   // cheval attelé devant, relié par un trait d'attelage depuis le coin
-  // avant-droit de la caisse.
-  // v17.45 (même traitement rigoureux que la tour/le mur/le bateau,
-  // demandé par Pierre) : coordonnées exactes recopiées du croquis de
-  // référence par la méthode Hough (voir tools/), 20 segments, au lieu
-  // de l'approximation "réétalée à l'œil" du v17.42.
-  const A = { x: E.x+3, y: E.y };
-  ctx.beginPath(); ctx.moveTo(S.x, S.y-1); ctx.lineTo(A.x, A.y); ctx.stroke();
+  // avant-droit de la caisse (inchangé depuis v17.52 : coordonnées et
+  // rayon de silhouette du cheval déjà corrects, revérifiés).
+  const A = { x: x+17.32, y: y-0.05 };
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(A.x, A.y); ctx.stroke();
   // v17.47 (régression signalée par Pierre : "ça n'a rien à voir avec ce
   // qu'on a fixé") — cause racine #1 (déjà réglée) : les 20 coordonnées
   // étaient exactes, mais le "canton noir en arrière-plan" validé comme
