@@ -3124,3 +3124,50 @@ Vérifié : `node --check`, rendu en jeu réel sur Côte, Neige et Forêt
 (escalier visible et bien positionné sur les deux premiers, palissade
 en bois inchangée et sans escalier sur le troisième — aucune
 régression).
+
+## v17.62 — Catapulte (2e type de tour, "je valide tout")
+
+Dernière des quatre suggestions de conception validées en bloc plus
+tôt dans la session ("un 2e type de tour avec un rôle distinct :
+dégâts de zone").
+
+Choix de conception (aucun n'a été redemandé à Pierre, tous
+tranchés en gardant la cohérence avec ce qui existe déjà) :
+- **Économie** : même coût de renfort et même PV max par niveau que
+  la tour à flèches (`towerMaxHpAtLevel`/`towerUpgradeCost` réutilisés
+  tels quels) — un objet tour porte maintenant un champ `kind`
+  (`'tower'` par défaut ou `'catapult'`), c'est tout ce qui les
+  distingue côté économie.
+- **Rôle distinct, pas juste "tour plus forte"** : cadence FIXE
+  (`CATAPULT_SHOT_INTERVAL_MS=1800ms`, n'accélère jamais avec le
+  niveau, contrairement à `towerShotInterval`), dégâts par tir à
+  0,65x une tour classique, mais tout ennemi dans un rayon de 34px
+  autour de l'impact encaisse 0,6x ces dégâts en plus (jamais la
+  cible principale, déjà comptée en plein) — vraiment utile contre un
+  paquet d'ennemis groupés, moins bon contre une cible isolée que la
+  tour à flèches : un vrai choix tactique, pas un simple palier de
+  puissance.
+- **Construction/renfort** : nouveau bouton dédié ("Catapulte", touche
+  C), qui construit ou renforce selon qu'on est déjà collé à UNE
+  CATAPULTE (pas n'importe quelle tour — nouveau helper
+  `pickNearestTowerOfKind`, sinon appuyer sur "Tour" à côté d'une
+  catapulte l'aurait renforcée par erreur). `tryBuild()` généralisé
+  avec un paramètre `kind` au lieu d'être dupliqué.
+- **Silhouette** : originale (aucun croquis fourni pour celle-ci,
+  comme le radeau/toit forêt) — délibérément BASSE et large plutôt
+  qu'une tour de plus qui grandit en hauteur, pour que le rôle
+  "zone/siège" se voie au premier coup d'œil à côté d'une tour à
+  flèches. Socle en pavé (même style plein que le reste), bras de tir
+  sur pivot en A avec un petit contrepoids, animé par le temps écoulé
+  depuis le dernier tir (`recoilFrac`, dérivé directement de
+  `now - lastShotAt`, aucun état d'animation à gérer en plus) : bras
+  bas juste après un tir, qui remonte doucement pendant la charge.
+  Grandit légèrement avec le niveau (plafonné à 1,5x, même logique que
+  le cube de renfort de la tour de pierre) et rétrécit avec les
+  dégâts comme les autres tours.
+
+Vérifié : `node --check`, rendu en jeu réel (catapultes et tours
+construites côte à côte, silhouettes bien distinctes), une catapulte
+renforcée 5 fois (seule elle grandit, pas les tours voisines — confirme
+que `pickNearestTowerOfKind` cible bien le bon type), 12 secondes de
+jeu réel (vagues, tirs, or gagné) sans erreur console.

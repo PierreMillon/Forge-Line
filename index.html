@@ -231,6 +231,7 @@
     <button id="precision-btn"><span class="b-icon">🔬</span><span data-i18n="b_precision">Précision</span><span class="b-cost" id="precision-cost"></span></button>
     <button id="forge-btn"><span class="b-icon">⚒️</span><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
     <button id="soldier-repair-btn"><span class="b-icon">🔧</span><span id="soldier-repair-label"></span><span class="b-cost" id="soldier-repair-cost"></span></button>
+    <button id="catapult-btn"><span class="b-icon">🪨</span><span id="catapult-label"></span><span class="b-cost" id="catapult-cost"></span></button>
   </div>
 </div>
 
@@ -1867,6 +1868,21 @@ function towerUpgradeCost(t){ return Math.round(TOWER_UPGRADE_COST * Math.pow(UP
 // quel que soit le niveau de Forge
 function towerMaxHpAtLevel(level){ return Math.round((TOWER_BASE_HP + TOWER_HP_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))) * forgeEliteMultiplier()); }
 function towerDamage(t){ const level = t.level || 1; return Math.round((PLAYER_DMG + TOWER_DMG_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))) * forgeEliteMultiplier()); }
+
+// v17.62 (suggestion validée : "je valide tout" — 2e type de tour, rôle
+// distinct de dégâts de zone) : la catapulte. Même économie de PV/coût
+// de renfort que la tour à flèches (towerMaxHpAtLevel/towerUpgradeCost
+// réutilisés tels quels, `kind` sur l'objet tour la distingue) — seuls
+// changent : cadence FIXE (ne s'accélère pas avec le niveau, contraire
+// de la tour à flèches — son rôle, c'est la zone, pas le harcèlement
+// rapide), dégâts par tir réduits (0,65x un tir de tour normale, le
+// dégât de zone compense), et un dégât secondaire aux ennemis proches
+// de l'impact (jamais à la cible principale, déjà comptée en plein).
+const CATAPULT_BUILD_COST = 30;
+const CATAPULT_SHOT_INTERVAL_MS = 1800;
+const CATAPULT_SPLASH_RADIUS_PX = 34;
+const CATAPULT_SPLASH_FACTOR = 0.6;
+function catapultDamage(t){ return Math.round(towerDamage(t) * 0.65); }
 // 4. tir automatique : par défaut le joueur tire MANUELLEMENT (un tap/clic
 //    déclenche un tir, gratuit dès le début, cadence identique à
 //    l'automatique — voir tryManualShoot) ; ce bonus lui évite d'avoir à
@@ -1922,8 +1938,10 @@ function updateGraves(now){
 // de l'appui, marcher le long d'une ligne et construire plusieurs fois
 // pose des tours côte à côte : la grille garantit qu'elles s'alignent sans
 // se chevaucher, et forment une ligne de blocage continue
-function tryBuild(){
-  if (gold < TOWER_BUILD_COST) return;
+function tryBuild(kind){
+  kind = kind || 'tower';
+  const cost = kind === 'catapult' ? CATAPULT_BUILD_COST : TOWER_BUILD_COST;
+  if (gold < cost) return;
   const cell = screenToGridCell(player.x, player.y);
   // dans cette grille en losange, aucun des deux axes seuls (gx ou gy) ne
   // pointe droit vers le haut à l'écran — un pas sur gx seul va en bas à
@@ -1958,9 +1976,9 @@ function tryBuild(){
   // v17.25 : hors construction dans l'eau et sur le sable (jusqu'à la
   // moitié de l'écran) — même logique de silence que "pas de case libre"
   if (chosen.y < noBuildY()) return;
-  gold -= TOWER_BUILD_COST;
+  gold -= cost;
   const startHp = towerMaxHpAtLevel(1); // prend en compte la Forge si déjà achetée
-  towers.push({ x: chosen.x, y: chosen.y, hp: startHp, maxHp: startHp, level: 1, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
+  towers.push({ x: chosen.x, y: chosen.y, hp: startHp, maxHp: startHp, level: 1, kind, lastShotAt: 0, flashUntil: 0, lastHitSoundAt: 0, repairCount: 0 });
   // le joueur se décale tout seul sur le côté le plus court pour laisser
   // la place à la tour tout juste posée (la collision tour/joueur, déjà
   // appliquée chaque frame, s'en charge immédiatement)
@@ -1977,12 +1995,31 @@ function tryUpgradeTower(t){
   t.hp = t.maxHp; // le renfort remet aussi la tour à neuf
   sfxBuild();
 }
+// même principe que pickNearestTower, mais ne considère qu'un type de
+// tour à la fois — sans ça, appuyer sur "Catapulte" alors qu'on est
+// collé à une tour à flèches (ou l'inverse) renforcerait la mauvaise
+// structure au lieu d'en construire une nouvelle du bon type
+function pickNearestTowerOfKind(x, y, kind){
+  let best = null, bestD = Infinity;
+  for (const t of towers){
+    if ((t.kind || 'tower') !== kind) continue;
+    const d = Math.hypot(t.x-x, t.y-y);
+    if (d < bestD){ bestD = d; best = t; }
+  }
+  return best;
+}
 // le bouton "tour" du bandeau : renforce la tour à portée si on est déjà
 // collé à une, sinon en construit une nouvelle — jamais les deux à la fois
 function tryTowerAction(){
-  const near = pickNearestTower(player.x, player.y);
+  const near = pickNearestTowerOfKind(player.x, player.y, 'tower');
   if (near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX) tryUpgradeTower(near);
-  else tryBuild();
+  else tryBuild('tower');
+}
+// même logique, pour la catapulte (v17.62)
+function tryCatapultAction(){
+  const near = pickNearestTowerOfKind(player.x, player.y, 'catapult');
+  if (near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX) tryUpgradeTower(near);
+  else tryBuild('catapult');
 }
 // réparer coûte 1 or, mais une seule fois par "session" : tant qu'on reste
 // collé à la même tour, la réparation continue gratuitement jusqu'à ce
@@ -2105,6 +2142,8 @@ document.getElementById('damage-btn').addEventListener('click', () => {
 });
 document.getElementById('tower-btn').addEventListener('click', tryTowerAction);
 window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'b') tryTowerAction(); });
+document.getElementById('catapult-btn').addEventListener('click', tryCatapultAction);
+window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'c') tryCatapultAction(); });
 // v17.46 : bouton "passer la vague" demandé par Pierre ("comme dans
 // l'autre jeu") — force la fin de la vague en cours (vide les ennemis
 // encore en vie et ce qui restait à faire débarquer) et avance
@@ -2193,7 +2232,7 @@ function refreshBonusbar(){
   dBtn.disabled = disabledAll || gold < dCost;
   document.getElementById('damage-cost').textContent = dCost + t('gold_suffix');
 
-  const near = pickNearestTower(player.x, player.y);
+  const near = pickNearestTowerOfKind(player.x, player.y, 'tower');
   const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
   const tBtn = document.getElementById('tower-btn');
   const tLabel = document.getElementById('tower-label');
@@ -2207,6 +2246,23 @@ function refreshBonusbar(){
     tLabel.textContent = t('btn_build');
     tBtn.disabled = disabledAll || gold < TOWER_BUILD_COST;
     tCost.textContent = TOWER_BUILD_COST + t('gold_suffix');
+  }
+
+  // v17.62 : même logique pour la catapulte, sur son propre bouton
+  const nearCat = pickNearestTowerOfKind(player.x, player.y, 'catapult');
+  const canUpgradeCat = nearCat && Math.hypot(nearCat.x-player.x, nearCat.y-player.y) < CONTACT_RANGE_PX;
+  const catBtn = document.getElementById('catapult-btn');
+  const catLabel = document.getElementById('catapult-label');
+  const catCost = document.getElementById('catapult-cost');
+  if (canUpgradeCat){
+    catLabel.textContent = t('btn_reinforce');
+    const uCost = towerUpgradeCost(nearCat);
+    catBtn.disabled = disabledAll || gold < uCost;
+    catCost.textContent = uCost + t('gold_suffix');
+  } else {
+    catLabel.textContent = t('btn_build');
+    catBtn.disabled = disabledAll || gold < CATAPULT_BUILD_COST;
+    catCost.textContent = CATAPULT_BUILD_COST + t('gold_suffix');
   }
 
   // Forge : système à part, seulement utilisable depuis sa zone (pas à
@@ -2315,6 +2371,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.62", text: "Nouveau : la catapulte, 2e type de tour (bouton \"Catapulte\", touche C) — cadence plus lente qu'une tour à flèches mais dégâts de zone (les ennemis proches de l'impact encaissent aussi une part des dégâts). Silhouette basse et distincte (bras de tir sur pivot, animé selon la cadence de tir), même économie de renfort que la tour classique." },
   { v: "17.61", text: "Ajouté un escalier d'accès au chemin de ronde, dessiné à partir d'un 3e croquis fourni (mur de pierre avec escalier intégré) — posé une fois près de la porte, sur les thèmes Côte et Neige (la palissade en bois de la carte Forêt garde son propre style)." },
   { v: "17.60", text: "Nouveau 3e thème de carte, \"Neige\" (menu, à côté de Côte/Forêt) : nouvelle tour dessinée à partir de deux croquis fournis (plateforme évasée + toit à glaçons, hampe qui s'étire avec les renforts sans faire bouger la porte ni le toit, même principe que le correctif de porte v17.58)." },
   { v: "17.59", text: "Nouveau : une bannière \"Vague X terminée !\" à la fin de chaque vague (repère de rythme), et une légère secousse d'écran sur un gros kill (boss) ou une brèche subie — retour sensoriel sur les moments forts." },
@@ -2746,7 +2803,11 @@ function update(now){
     // rétroactivement (t.hp ne bouge pas ici), juste le plafond.
     t.maxHp = towerMaxHpAtLevel(t.level || 1);
     if (t.lastShotAt === undefined) t.lastShotAt = 0;
-    if (now - t.lastShotAt >= towerShotInterval(t)){
+    // v17.62 : la catapulte tire à cadence FIXE (pas d'accélération avec
+    // le niveau, contrairement à towerShotInterval) — son rôle, c'est la
+    // zone, pas le harcèlement rapide
+    const shotInterval = t.kind === 'catapult' ? CATAPULT_SHOT_INTERVAL_MS : towerShotInterval(t);
+    if (now - t.lastShotAt >= shotInterval){
       let target = null, best = TOWER_RANGE_PX;
       for (const e of enemies){
         const d = Math.hypot(e.x-t.x, e.y-t.y);
@@ -2754,7 +2815,11 @@ function update(now){
       }
       if (target){
         t.lastShotAt = now;
-        projectiles.push({ x: t.x, y: t.y, target, speed: SHOT_SPEED_PX, dmg: towerDamage(t), source: 'tower' });
+        if (t.kind === 'catapult'){
+          projectiles.push({ x: t.x, y: t.y, target, speed: SHOT_SPEED_PX, dmg: catapultDamage(t), source: 'tower', splashRadius: CATAPULT_SPLASH_RADIUS_PX, splashFactor: CATAPULT_SPLASH_FACTOR });
+        } else {
+          projectiles.push({ x: t.x, y: t.y, target, speed: SHOT_SPEED_PX, dmg: towerDamage(t), source: 'tower' });
+        }
         sfxShoot();
       }
     }
@@ -2799,6 +2864,16 @@ function update(now){
     if (d < 6){
       pr.target.hp -= pr.dmg; pr.dead = true; sfxHit();
       if (pr.source === 'player') playerAggroScore += 1; // nourrit la décision "faut-il des harceleurs"
+      // v17.62 : impact de catapulte — dégât secondaire aux ennemis
+      // proches (jamais à la cible principale, déjà comptée en plein
+      // ci-dessus), plus une petite secousse pour sentir le "boum"
+      if (pr.splashRadius){
+        for (const e of enemies){
+          if (e === pr.target || e.hp <= 0) continue;
+          if (Math.hypot(e.x-pr.target.x, e.y-pr.target.y) <= pr.splashRadius) e.hp -= pr.dmg * pr.splashFactor;
+        }
+        triggerShake(3, now);
+      }
     }
     else { pr.x += dx/d*pr.speed; pr.y += dy/d*pr.speed; }
   }
@@ -3224,6 +3299,38 @@ function drawSnowTower(cx, cyBase, growPx){
     const pa = tf(a), pb = tf(b);
     ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
   }
+}
+
+// v17.62 — catapulte (2e type de tour, dégâts de zone). Silhouette
+// originale (aucun croquis fourni, comme le radeau) : volontairement
+// BASSE et large plutôt qu'une tour de plus — un socle en pavé (même
+// style plein que le reste, drawIsoBox) surmonté d'un bras de tir sur
+// pivot en A. `recoilFrac` anime le bras (0 = vient de tirer, bras
+// bas/avant ; 1 = rechargé, bras haut/arrière) — dérivé directement du
+// temps écoulé depuis le dernier tir, sans état supplémentaire à gérer.
+function drawCatapult(cx, cyBase, level, hpFrac, lastShotAt, now){
+  // même esprit que le cube de renfort de la tour de pierre : grandit
+  // doucement avec le niveau, plafonné, jamais sous la taille de base
+  const scale = Math.min(1.5, 1 + (level-1)*0.08) * hpFrac;
+  const baseHw = TOWER_HW * 0.95 * scale, baseHh = TOWER_HH * 0.95 * scale, baseSh = 5 * scale;
+  drawIsoBox(cx, cyBase, baseHw, baseHh, baseSh, null, null, null, undefined, true);
+  const pivotX = cx, pivotY = cyBase - baseSh - 2*baseHh - baseHw*0.8;
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  // cadre en A qui porte le pivot
+  ctx.beginPath();
+  ctx.moveTo(cx - baseHw*0.5, cyBase - baseSh - baseHh); ctx.lineTo(pivotX, pivotY);
+  ctx.moveTo(cx + baseHw*0.5, cyBase - baseSh - baseHh); ctx.lineTo(pivotX, pivotY);
+  ctx.stroke();
+  // bras de tir, anime par le temps écoulé depuis le dernier tir
+  const recoilFrac = Math.min(1, (now - lastShotAt) / CATAPULT_SHOT_INTERVAL_MS);
+  const armLen = baseHw * 1.7;
+  const angFired = -0.5, angLoaded = -2.15;
+  const ang = angFired + (angLoaded - angFired) * recoilFrac;
+  const tipX = pivotX + Math.cos(ang)*armLen, tipY = pivotY + Math.sin(ang)*armLen;
+  ctx.beginPath(); ctx.moveTo(pivotX, pivotY); ctx.lineTo(tipX, tipY); ctx.stroke();
+  // contrepoids à l'arrière du pivot (petite masse ronde)
+  const backX = pivotX - Math.cos(ang)*armLen*0.32, backY = pivotY - Math.sin(ang)*armLen*0.32;
+  ctx.beginPath(); ctx.arc(backX, backY, 3*scale, 0, Math.PI*2); ctx.fillStyle = '#000'; ctx.fill(); ctx.stroke();
 }
 
 // Mode Phosphore — formes d'ennemis par complexité (v17.32, redessiné à
@@ -4097,6 +4204,14 @@ function draw(now){
         ctx.restore();
       }
       if (flashing) ctx.globalAlpha = 0.45;
+      if (t.kind === 'catapult'){
+        // v17.62 — silhouette originale (aucun croquis fourni, comme le
+        // radeau/toit forêt) : bas profil de guerre de siège, PAS la
+        // tour classique — c'est le point de la suggestion validée
+        // ("rôle distinct"), donc une forme visuellement distincte, pas
+        // une variante de plus de drawIsoBox en hauteur.
+        drawCatapult(t.x, t.y, level, Math.max(0, t.hp/t.maxHp), t.lastShotAt || 0, now);
+      } else {
       // v17.60 (carte neige, croquis fourni : "snow tower short/long") —
       // forme entièrement différente d'un pavé (plateforme évasée + toit
       // à glaçons) : pas de drawIsoBox du tout ici, toute la géométrie
@@ -4192,6 +4307,7 @@ function draw(now){
         const capHw = 0.333*TOWER_HW*capScale, capHh = 0.19*TOWER_HW*capScale, capSh = 0.379*TOWER_HW*capScale;
         const capCyBase = bodyTopY + 0.757*TOWER_HW*capScale;
         drawIsoBox(t.x, capCyBase, capHw, capHh, capSh, null, null, null, undefined, true);
+      }
       }
       if (flashing) ctx.globalAlpha = 1;
     }});
