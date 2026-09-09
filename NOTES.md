@@ -3018,3 +3018,67 @@ sans régression.
 **Restent à faire (suggestions plus grosses, en cours)** : 2e type de
 tour (catapulte, dégâts de zone) et ennemi "bouclier" (immunisé au
 premier tir).
+
+## v17.60 — Nouvelle tour "Neige" (croquis fournis par Pierre via Drive)
+
+Pierre a déposé deux fichiers SVG dans un dossier Drive "Forge Line"
+("isometric snow tower short.svg" / "...long.svg") avec la consigne
+"teste le rendu et montre-moi" — première fois qu'une référence
+arrive comme export vectoriel plutôt qu'une photo/JPG d'un croquis
+papier. Format découvert en l'ouvrant : exactement la méthode de
+grille magnétique isométrique déjà recommandée à Pierre plus tôt dans
+la session (des `<circle>` formant la grille de points + des `<line>`
+accrochées dessus) — donc AUCUNE extraction Hough nécessaire cette
+fois, les coordonnées de chaque sommet sont exactes dans le fichier
+lui-même, juste à décoder.
+
+Méthode (voir `tools/gen_snow_tower.py`, réutilisable pour toute
+future référence dans ce format) :
+1. Parser les `<circle>`/`<line>` du SVG, retrouver le pas de grille
+   (confirmé : vraie grille isométrique 30°, `dy/(dx/2) = tan(30°)`
+   exactement — DIFFÉRENT du style 2:1 utilisé partout ailleurs dans
+   le jeu, `GRID_TH/GRID_TW = 0.5`). Convertir chaque point en indices
+   entiers (u,v) de la grille (pas en pixels bruts) — ce sont ces
+   indices qui portent l'information, pas les pixels d'origine.
+2. Reprojeter (u,v) → écran avec le ratio 2:1 du jeu au lieu du 30°
+   d'origine (juste un changement d'unité, la topologie ne bouge pas)
+   — rendu comparé visuellement à l'original pour confirmer que
+   changer les unités des axes ne déforme rien (fidèle, juste plus
+   trapu).
+3. Remplissage plein (silhouette noire, style "v17.50" du reste du
+   jeu) calculé avec `shapely.polygonize()` sur l'ensemble des arêtes
+   projetées — trouve automatiquement les 19 faces fermées de la
+   grille planaire, sans la moindre interprétation manuelle (donc zéro
+   risque de refaire l'erreur de rayon de silhouette du cheval de la
+   caravane, où le rayon avait été estimé au lieu d'être repris
+   exactement de l'outil).
+
+Comparaison des deux fichiers (short = tour niveau 1, long = tour
+plus renforcée) : le module haut (plateforme évasée + toit à glaçons)
+est BIT-EXACTEMENT identique entre les deux, seule la hampe change de
+longueur (4 unités de grille dans short, 7 dans long) — Pierre a donc
+fourni deux points de calibration du même bâtiment à deux hauteurs,
+pas deux tours différentes. Utilisé pour bâtir un modèle paramétrique
+fidèle : chaque sommet du SVG "short" porte un indicateur `up`
+(1 = fait partie du module haut fixe, translaté vers le haut de
+`growPx` quand la tour est renforcée ; 0 = fait partie de la
+hampe/porte, ancré au sol, jamais affecté par le niveau — même
+principe que le correctif de porte v17.58, appliqué ici dès le
+départ plutôt qu'en correctif après coup). `growPx` dérive de la même
+formule `sh` que la tour de pierre (`TOWER_MAX_SH * visualLevel *
+hpFactor`), moins la valeur de référence au niveau 1, pour rester
+cohérent avec la progression déjà en place.
+
+Intégré comme 3e thème de carte, "Neige" (`mapTheme`, menu cyclique
+Côte → Forêt → Neige → Côte, persisté comme les deux autres). Pour
+l'instant seule la tour change dans ce thème (mur/forge restent ceux
+de la pierre) — le mur avec escalier (autre référence déposée par
+Pierre juste après, "isometric wall with stairs.svg") reste à faire.
+
+Vérifié : `node --check`, rendu autonome (SVG) comparé pixel à pixel
+au croquis original aux deux hauteurs de référence, rendu en jeu réel
+(4 tours neige construites côte à côte, une renforcée 8 fois pour
+confirmer que seule la hampe s'étire et que le toit/plateforme ne
+bougent pas de taille), aucune régression sur les thèmes Côte/Forêt
+existants (capture de contrôle : mur, forge, tours de pierre
+identiques à avant).

@@ -249,7 +249,7 @@ const stage = document.getElementById('stage');
 // au quotidien) — décision de scope assumée, pas un oubli.
 const I18N = {
   fr: {
-    menu_theme_coast: "Carte : Côte", menu_theme_forest: "Carte : Forêt",
+    menu_theme_coast: "Carte : Côte", menu_theme_forest: "Carte : Forêt", menu_theme_snow: "Carte : Neige",
     menu_grid_show: "Afficher la grille (debug)", menu_grid_hide: "Cacher la grille (debug)",
     menu_astuces: "Astuces", menu_lang: "Langue : Français",
     menu_music: "🎵 Musique", menu_sfx: "🔊 Bruitages",
@@ -298,7 +298,7 @@ const I18N = {
     btn_bonus_code: "🎁 Code bonus : recommencer avec 100 or",
   },
   en: {
-    menu_theme_coast: "Map: Coast", menu_theme_forest: "Map: Forest",
+    menu_theme_coast: "Map: Coast", menu_theme_forest: "Map: Forest", menu_theme_snow: "Map: Snow",
     menu_grid_show: "Show grid (debug)", menu_grid_hide: "Hide grid (debug)",
     menu_astuces: "Tips", menu_lang: "Language: English",
     menu_music: "🎵 Music", menu_sfx: "🔊 Sound effects",
@@ -360,8 +360,10 @@ try { const saved = localStorage.getItem('fl_lang'); if (saved === 'fr' || saved
 // identique dans les deux thèmes, seul l'habillage change (radeau au
 // lieu de bateau, sapins en fond au lieu de rien). 'coast' reste le
 // thème par défaut/historique.
-let mapTheme = 'coast'; // 'coast' | 'forest'
-try { const savedTheme = localStorage.getItem('fl_mapTheme'); if (savedTheme === 'coast' || savedTheme === 'forest') mapTheme = savedTheme; } catch (e) { /* ignore */ }
+let mapTheme = 'coast'; // 'coast' | 'forest' | 'snow'
+const MAP_THEMES = ['coast', 'forest', 'snow'];
+try { const savedTheme = localStorage.getItem('fl_mapTheme'); if (MAP_THEMES.includes(savedTheme)) mapTheme = savedTheme; } catch (e) { /* ignore */ }
+function mapThemeLabel(theme){ return theme === 'forest' ? t('menu_theme_forest') : theme === 'snow' ? t('menu_theme_snow') : t('menu_theme_coast'); }
 function t(key){ const d = I18N[currentLang] || I18N.en; return (key in d) ? d[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key); }
 function applyLanguage(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n')); });
@@ -370,7 +372,7 @@ function applyLanguage(){
   const gridToggleEl = document.getElementById('grid-toggle');
   if (gridToggleEl) gridToggleEl.textContent = (typeof showGrid !== 'undefined' && showGrid) ? t('menu_grid_hide') : t('menu_grid_show');
   const themeToggleEl = document.getElementById('theme-toggle');
-  if (themeToggleEl) themeToggleEl.textContent = (typeof mapTheme !== 'undefined' && mapTheme === 'forest') ? t('menu_theme_forest') : t('menu_theme_coast');
+  if (themeToggleEl) themeToggleEl.textContent = mapThemeLabel(mapTheme);
   if (typeof refreshBonusbar === 'function') refreshBonusbar();
 }
 
@@ -2276,9 +2278,9 @@ document.getElementById('grid-toggle').addEventListener('click', e => {
 // (gold/wave/towers/etc.), juste l'habillage au prochain rendu
 document.getElementById('theme-toggle').addEventListener('click', e => {
   e.preventDefault();
-  mapTheme = mapTheme === 'forest' ? 'coast' : 'forest';
+  mapTheme = MAP_THEMES[(MAP_THEMES.indexOf(mapTheme) + 1) % MAP_THEMES.length];
   try { localStorage.setItem('fl_mapTheme', mapTheme); } catch (err) { /* ignore */ }
-  e.target.textContent = mapTheme === 'forest' ? t('menu_theme_forest') : t('menu_theme_coast');
+  e.target.textContent = mapThemeLabel(mapTheme);
 });
 // v17.41 : mode phosphore permanent, plus de bascule — voir la
 // constante phosphorMode plus haut.
@@ -2313,6 +2315,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.60", text: "Nouveau 3e thème de carte, \"Neige\" (menu, à côté de Côte/Forêt) : nouvelle tour dessinée à partir de deux croquis fournis (plateforme évasée + toit à glaçons, hampe qui s'étire avec les renforts sans faire bouger la porte ni le toit, même principe que le correctif de porte v17.58)." },
   { v: "17.59", text: "Nouveau : une bannière \"Vague X terminée !\" à la fin de chaque vague (repère de rythme), et une légère secousse d'écran sur un gros kill (boss) ou une brèche subie — retour sensoriel sur les moments forts." },
   { v: "17.58", text: "Retiré le carré de zone (redondant) autour du mur et de la forge — la structure dessinée suffit déjà à montrer la limite. Corrigé un vrai bug : la porte de la tour montait avec les renforts au lieu de rester à sa hauteur d'origine — elle reste maintenant à la même place quel que soit le niveau de la tour." },
   { v: "17.57", text: "Carte Forêt : palissade en rondins pointus (au lieu du mur de pierre) et tours de guet en bois avec toit pointu, en plus du radeau et des sapins déjà en place. La forge reste identique dans les deux thèmes." },
@@ -3115,6 +3118,113 @@ function drawIsoBox(cx, cyBase, hw, hh, sh, colTop, colLeft, colRight, stacked, 
   }
 }
 
+// v17.60 — tour "neige" (thème Neige), à partir des deux croquis fournis
+// par Pierre sur la grille magnétique isométrique (Drive, dossier "Forge
+// Line" : "isometric snow tower short/long.svg"). Contrairement aux
+// autres bâtiments, PAS un simple drawIsoBox : plateforme évasée + toit
+// à glaçons au sommet, hampe droite en dessous avec une porte. Données
+// générées au pixel près par tools/gen_snow_tower.py (parse les <line>/
+// <circle> du SVG, retrouve la grille isométrique vraie [30°] du
+// croquis, reprojette en 2:1 comme le reste du jeu, et calcule les
+// polygones de remplissage pleins via shapely.polygonize — aucune
+// interprétation à la main, donc aucun risque de la faute de rayon de
+// silhouette qui s'était produite sur le cheval de la caravane).
+// SNOW_TOWER_FLARE_Y : le module haut (plateforme+toit, FIXE, extrait du
+// croquis "short" = niveau 1) commence à cette hauteur au-dessus du sol.
+// Chaque point porte `up` : 1 = appartient au module haut (translaté
+// vers le haut de `growPx` quand la tour est renforcée), 0 = appartient
+// à la hampe/porte (fixe au sol, même principe que le correctif de
+// porte v17.58 — jamais de dérive avec le niveau).
+const SNOW_TOWER_FLARE_Y = -30.0;
+const SNOW_TOWER_EDGES = [
+  [{x:-7.5,y:-78.75,up:1}, {x:-22.5,y:-71.25,up:1}],
+  [{x:-7.5,y:-78.75,up:1}, {x:7.5,y:-78.75,up:1}],
+  [{x:-22.5,y:-71.25,up:1}, {x:-22.5,y:-56.25,up:1}],
+  [{x:7.5,y:-78.75,up:1}, {x:22.5,y:-71.25,up:1}],
+  [{x:0.0,y:-75.0,up:1}, {x:-7.5,y:-63.75,up:1}],
+  [{x:0.0,y:-75.0,up:1}, {x:7.5,y:-63.75,up:1}],
+  [{x:0.0,y:-75.0,up:1}, {x:0.0,y:-60.0,up:1}],
+  [{x:-7.5,y:-71.25,up:1}, {x:-15.0,y:-67.5,up:1}],
+  [{x:7.5,y:-71.25,up:1}, {x:15.0,y:-67.5,up:1}],
+  [{x:-7.5,y:-63.75,up:1}, {x:0.0,y:-60.0,up:1}],
+  [{x:-15.0,y:-60.0,up:1}, {x:-7.5,y:-56.25,up:1}],
+  [{x:-22.5,y:-56.25,up:1}, {x:-30.0,y:-52.5,up:1}],
+  [{x:-22.5,y:-56.25,up:1}, {x:-22.5,y:-48.75,up:1}],
+  [{x:-22.5,y:-56.25,up:1}, {x:-7.5,y:-48.75,up:1}],
+  [{x:-30.0,y:-52.5,up:1}, {x:-22.5,y:-48.75,up:1}],
+  [{x:-30.0,y:-52.5,up:1}, {x:-15.0,y:-37.5,up:1}],
+  [{x:22.5,y:-71.25,up:1}, {x:22.5,y:-63.75,up:1}],
+  [{x:0.0,y:-60.0,up:1}, {x:7.5,y:-63.75,up:1}],
+  [{x:-22.5,y:-48.75,up:1}, {x:-7.5,y:-41.25,up:1}],
+  [{x:-22.5,y:-48.75,up:1}, {x:-15.0,y:-37.5,up:1}],
+  [{x:7.5,y:-56.25,up:1}, {x:15.0,y:-60.0,up:1}],
+  [{x:-7.5,y:-48.75,up:1}, {x:-7.5,y:-41.25,up:1}],
+  [{x:22.5,y:-56.25,up:1}, {x:22.5,y:-63.75,up:1}],
+  [{x:22.5,y:-56.25,up:1}, {x:22.5,y:-48.75,up:1}],
+  [{x:7.5,y:-48.75,up:1}, {x:-7.5,y:-48.75,up:1}],
+  [{x:7.5,y:-48.75,up:1}, {x:22.5,y:-56.25,up:1}],
+  [{x:7.5,y:-48.75,up:1}, {x:7.5,y:-41.25,up:1}],
+  [{x:-7.5,y:-41.25,up:1}, {x:7.5,y:-41.25,up:1}],
+  [{x:-7.5,y:-41.25,up:1}, {x:0.0,y:-37.5,up:1}],
+  [{x:-7.5,y:-41.25,up:1}, {x:-7.5,y:-33.75,up:1}],
+  [{x:-15.0,y:-37.5,up:1}, {x:-7.5,y:-33.75,up:1}],
+  [{x:-15.0,y:-37.5,up:1}, {x:-15.0,y:-7.5,up:0}],
+  [{x:30.0,y:-52.5,up:1}, {x:22.5,y:-56.25,up:1}],
+  [{x:30.0,y:-52.5,up:1}, {x:15.0,y:-37.5,up:1}],
+  [{x:22.5,y:-48.75,up:1}, {x:30.0,y:-52.5,up:1}],
+  [{x:22.5,y:-48.75,up:1}, {x:15.0,y:-37.5,up:1}],
+  [{x:7.5,y:-41.25,up:1}, {x:22.5,y:-48.75,up:1}],
+  [{x:7.5,y:-41.25,up:1}, {x:7.5,y:-33.75,up:1}],
+  [{x:0.0,y:-37.5,up:1}, {x:7.5,y:-41.25,up:1}],
+  [{x:0.0,y:-37.5,up:1}, {x:0.0,y:-30.0,up:1}],
+  [{x:-7.5,y:-33.75,up:1}, {x:0.0,y:-30.0,up:1}],
+  [{x:15.0,y:-37.5,up:1}, {x:15.0,y:-7.5,up:0}],
+  [{x:7.5,y:-33.75,up:1}, {x:15.0,y:-37.5,up:1}],
+  [{x:0.0,y:-30.0,up:1}, {x:7.5,y:-33.75,up:1}],
+  [{x:-15.0,y:-22.5,up:0}, {x:-7.5,y:-18.75,up:0}],
+  [{x:-7.5,y:-18.75,up:0}, {x:-7.5,y:-3.75,up:0}],
+  [{x:-15.0,y:-7.5,up:0}, {x:-7.5,y:-11.25,up:0}],
+  [{x:-15.0,y:-7.5,up:0}, {x:0.0,y:0.0,up:0}],
+  [{x:0.0,y:0.0,up:0}, {x:0.0,y:-30.0,up:1}],
+  [{x:0.0,y:0.0,up:0}, {x:15.0,y:-7.5,up:0}],
+];
+const SNOW_TOWER_FACES = [
+  [{x:-7.5,y:-78.75,up:1}, {x:-22.5,y:-71.25,up:1}, {x:-22.5,y:-56.25,up:1}, {x:-7.5,y:-48.75,up:1}, {x:7.5,y:-48.75,up:1}, {x:22.5,y:-56.25,up:1}, {x:22.5,y:-63.75,up:1}, {x:22.5,y:-71.25,up:1}, {x:7.5,y:-78.75,up:1}],
+  [{x:0.0,y:-75.0,up:1}, {x:-7.5,y:-63.75,up:1}, {x:0.0,y:-60.0,up:1}],
+  [{x:7.5,y:-63.75,up:1}, {x:0.0,y:-75.0,up:1}, {x:0.0,y:-60.0,up:1}],
+  [{x:-22.5,y:-56.25,up:1}, {x:-30.0,y:-52.5,up:1}, {x:-22.5,y:-48.75,up:1}],
+  [{x:-22.5,y:-56.25,up:1}, {x:-22.5,y:-48.75,up:1}, {x:-7.5,y:-41.25,up:1}, {x:-7.5,y:-48.75,up:1}],
+  [{x:-22.5,y:-48.75,up:1}, {x:-30.0,y:-52.5,up:1}, {x:-15.0,y:-37.5,up:1}],
+  [{x:-7.5,y:-41.25,up:1}, {x:-22.5,y:-48.75,up:1}, {x:-15.0,y:-37.5,up:1}, {x:-7.5,y:-33.75,up:1}],
+  [{x:-7.5,y:-48.75,up:1}, {x:-7.5,y:-41.25,up:1}, {x:7.5,y:-41.25,up:1}, {x:7.5,y:-48.75,up:1}],
+  [{x:22.5,y:-56.25,up:1}, {x:22.5,y:-48.75,up:1}, {x:30.0,y:-52.5,up:1}],
+  [{x:22.5,y:-48.75,up:1}, {x:22.5,y:-56.25,up:1}, {x:7.5,y:-48.75,up:1}, {x:7.5,y:-41.25,up:1}],
+  [{x:7.5,y:-41.25,up:1}, {x:-7.5,y:-41.25,up:1}, {x:0.0,y:-37.5,up:1}],
+  [{x:0.0,y:-37.5,up:1}, {x:-7.5,y:-41.25,up:1}, {x:-7.5,y:-33.75,up:1}, {x:0.0,y:-30.0,up:1}],
+  [{x:-7.5,y:-33.75,up:1}, {x:-15.0,y:-37.5,up:1}, {x:-15.0,y:-22.5,up:0}, {x:-7.5,y:-18.75,up:0}, {x:-7.5,y:-11.25,up:0}, {x:-7.5,y:-3.75,up:0}, {x:0.0,y:0.0,up:0}, {x:0.0,y:-30.0,up:1}],
+  [{x:-15.0,y:-22.5,up:0}, {x:-15.0,y:-7.5,up:0}, {x:-7.5,y:-11.25,up:0}, {x:-7.5,y:-18.75,up:0}],
+  [{x:15.0,y:-37.5,up:1}, {x:30.0,y:-52.5,up:1}, {x:22.5,y:-48.75,up:1}],
+  [{x:15.0,y:-37.5,up:1}, {x:22.5,y:-48.75,up:1}, {x:7.5,y:-41.25,up:1}, {x:7.5,y:-33.75,up:1}],
+  [{x:7.5,y:-33.75,up:1}, {x:7.5,y:-41.25,up:1}, {x:0.0,y:-37.5,up:1}, {x:0.0,y:-30.0,up:1}],
+  [{x:15.0,y:-7.5,up:0}, {x:15.0,y:-37.5,up:1}, {x:7.5,y:-33.75,up:1}, {x:0.0,y:-30.0,up:1}, {x:0.0,y:0.0,up:0}],
+  [{x:-7.5,y:-3.75,up:0}, {x:-7.5,y:-11.25,up:0}, {x:-15.0,y:-7.5,up:0}],
+];
+function drawSnowTower(cx, cyBase, growPx){
+  const tf = p => ({ x: cx + p.x, y: cyBase + (p.up ? p.y - growPx : p.y) });
+  ctx.fillStyle = '#000';
+  for (const face of SNOW_TOWER_FACES){
+    ctx.beginPath();
+    face.forEach((p, i) => { const q = tf(p); if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y); });
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  for (const [a, b] of SNOW_TOWER_EDGES){
+    const pa = tf(a), pb = tf(b);
+    ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+  }
+}
+
 // Mode Phosphore — formes d'ennemis par complexité (v17.32, redessiné à
 // partir du dessin de référence retrouvé : 4 cubes distincts, pas 3
 // comme la première interprétation approximative). Mapping 1:1 avec les
@@ -3862,11 +3972,25 @@ function draw(now){
         ctx.restore();
       }
       if (flashing) ctx.globalAlpha = 0.45;
-      // v17.50 (silhouette pleine, comme le bateau/le cheval de caravane)
-      // : `opaque` (déjà prévu dans drawIsoBox, jusqu'ici réservé au
-      // joueur) remplit chaque face en noir avant le contour, au lieu de
-      // laisser voir à travers.
-      drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments, true);
+      // v17.60 (carte neige, croquis fourni : "snow tower short/long") —
+      // forme entièrement différente d'un pavé (plateforme évasée + toit
+      // à glaçons) : pas de drawIsoBox du tout ici, toute la géométrie
+      // vient de SNOW_TOWER_EDGES/FACES (extraits au pixel près de la
+      // grille magnétique du croquis, cf tools/README + gen_tower_js.py).
+      // Le module haut (plateforme+toit) est fixe et bit-exact au croquis
+      // niveau 1 ; seule la hampe s'étire avec le niveau, même principe
+      // que le correctif de porte v17.58 (référence figée, pas de dérive
+      // avec le niveau).
+      if (phosphorMode && mapTheme === 'snow'){
+        const growPx = Math.max(-SNOW_TOWER_FLARE_Y - 6, sh - TOWER_MAX_SH);
+        drawSnowTower(t.x, t.y, growPx);
+      } else {
+        // v17.50 (silhouette pleine, comme le bateau/le cheval de
+        // caravane) : `opaque` (déjà prévu dans drawIsoBox, jusqu'ici
+        // réservé au joueur) remplit chaque face en noir avant le
+        // contour, au lieu de laisser voir à travers.
+        drawIsoBox(t.x, t.y, TOWER_HW, TOWER_HH, sh, '#8fb3e8', '#5b8dd9', '#3f66a8', segments, true);
+      }
       if (phosphorMode && mapTheme === 'forest'){
         // v17.57 (carte forêt, "oui... tour de guet en rondins") — même
         // corps (drawIsoBox déjà appelé ci-dessus, cohérent en taille
@@ -3897,7 +4021,7 @@ function draw(now){
         ctx.beginPath();
         for (const corner of [RN,RE,RS,RW]){ ctx.moveTo(apex.x,apex.y); ctx.lineTo(corner.x,corner.y); }
         ctx.stroke();
-      } else if (phosphorMode){
+      } else if (phosphorMode && mapTheme !== 'snow'){
         // v17.37 : proportions extraites EXACTEMENT du dessin de référence
         // par analyse pixel (détection automatique des sommets marqués sur
         // le croquis + des arêtes qui les relient, sur la grille de points)
