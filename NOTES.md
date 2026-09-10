@@ -3305,3 +3305,104 @@ Vérifié : `node --check`, capture de contrôle vague 1 (pas de
 régression sur le tutoriel/la ruée), annonce testée en jeu réel (texte
 ambre bien affiché sous la bannière verte), deux runs complets du
 simulateur (avant/après) comparés ci-dessus.
+
+## v17.66 — "Corrige tout" : 4 demandes directes (Pierre, avec capture d'écran)
+
+Pierre a enchaîné (dicté, quelques coquilles de reconnaissance vocale
+à décoder — "très" pour "trait", etc.) quatre demandes concrètes en un
+seul message, plus une capture d'écran de son téléphone. Exécutées
+dans l'ordre le plus simple/sûr d'abord, la plus grosse (le mur) en
+dernier — voir v17.67.
+
+**Chemin des marchands en double trait** : "ça doit être un trait
+double, pas juste un trait simple". `drawPath()` traçait une seule
+polyligne ; ajouté `offsetPolyline(points, dist)` — décale chaque
+sommet perpendiculairement à la moyenne des deux segments adjacents
+(propre aux coins, pas juste un décalage de segment isolé) — et trace
+deux fois la même polyligne, décalée de ±3px, comme deux rails
+parallèles.
+
+**Curseur de construction en temps réel** : "un petit curseur très
+discret... qui affiche l'endroit où on peut construire une tour...
+des fois si je bouge juste de quelques pixels l'endroit où je peux
+construire, c'est le même". La logique de placement de `tryBuild()`
+(recherche de case libre) sortie dans `findBuildSpot()` — une seule
+source de vérité, réutilisée par le nouveau `buildPreviewCell()` (même
+recherche, sans construire). Dessiné chaque frame comme un simple
+contour de losange (même géométrie que `drawDebugGrid`), semi-
+transparent, sur la case exacte que `tryBuild()` choisirait.
+
+**Ligne de démarcation sable/terre ferme retirée** : redondante avec
+le curseur ci-dessus, qui disparaît déjà tout seul hors zone
+constructible (`buildPreviewCell()` renvoie `null`).
+
+Vérifié : `node --check`, rendu en jeu (chemin en double trait visible,
+curseur qui suit le joueur et disparaît bien hors zone constructible),
+aucune erreur console.
+
+## v17.67 — "Corrige tout" (suite) : le nouveau mur du château
+
+La plus grosse des quatre demandes, et la plus importante à bien
+comprendre avant d'agir : "l'ancien mur du château doit disparaître,
+c'est le nouveau qu'on doit mettre en place... il y en a deux
+[segments] et ils sont écartés par un vide qui est justement l'espace
+pour la porte". Erreur corrigée : en v17.61, le croquis Drive
+"isometric wall with stairs.svg" avait été mal lu — j'avais pris le
+2e tronçon (nu, sans escalier) pour une simple redondance du premier
+et je l'avais laissé de côté, n'utilisant le tronçon avec escalier que
+comme un AJOUT décoratif posé PAR-DESSUS l'ancien mur procédural
+(CASTLE_SLOT). Pierre a corrigé : les deux tronçons sont les deux
+moitiés du MÊME mur, et le vide entre eux dans le croquis EST la
+porte — pas une coïncidence.
+
+Revérifié en mesurant précisément (même méthode que d'habitude,
+tools/gen_snow_tower.py réutilisé) : le vide entre les deux tronçons
+dans le croquis fait 45px, quasiment identique à `CASTLE_SLOT*2` (46)
+déjà utilisé par le funnel des ennemis — bonne confirmation que
+c'était bien lu.
+
+**Remplacement complet** de l'ancien mur procédural (créneaux
+générés par formule, v17.36/37/55) par la géométrie exacte du
+croquis :
+- Les deux tronçons (`WTILE_STAIRS_*`, `WTILE_PLAIN_*`) font
+  chacun EXACTEMENT 142,5px et se recollent bout à bout sans le
+  moindre décalage vertical — vérifié en pavant 4 copies du tronçon
+  nu : le zigzag des créneaux continue sans la moindre marche,
+  jonction invisible. Un vrai motif répétable, pas un dessin figé à
+  une seule largeur d'écran (le croquis n'en montrait qu'un
+  exemplaire de chaque, mais rien n'empêchait de le paver — vérifié).
+- `WALL_GATE_HALF_W = 22.5` (la moitié du vide mesuré) remplace
+  `CASTLE_SLOT` pour le funnel des ennemis (update()) — à moins d'un
+  pixel l'un de l'autre, mais celui-ci est la vraie mesure de CE mur.
+  La palissade en bois (thème Forêt) garde `CASTLE_SLOT`, inchangée.
+- Nombre de tronçons nécessaires calculé pour couvrir toute la
+  largeur de `REGEN_ZONE` (`Math.ceil`, jamais moins loin que le
+  bord, même principe que l'ancien système) — testé et vérifié sur
+  mobile portrait (420px, 2 tronçons visibles) ET desktop large
+  (1000px, 5 tronçons) : jonctions invisibles aux deux échelles.
+- Destruction (10 brèches = défaite) réimplémentée au niveau du
+  TRONÇON entier (pas du créneau individuel, pas praticable à extraire
+  proprement du dessin vectoriel) : les tronçons NUS les plus proches
+  de la porte cèdent en premier (le flux d'ennemis funnelé y tape en
+  continu), triés par distance réelle à la porte plutôt qu'un ordre
+  arbitraire. Le tronçon avec ESCALIER reste volontairement toujours
+  intact, même à 10/10 brèches — décision assumée (pas dans le
+  message de Pierre, mais raisonnable : une structure d'accès au
+  chemin de ronde a toute raison d'être plus renforcée que le
+  parapet ordinaire) plutôt que de fabriquer une version "détruite"
+  de l'escalier, hors de portée sans nouveau croquis. Vérifié aux 3
+  paliers (0, 6, 10 brèches) : érosion symétrique depuis la porte,
+  escalier intact même à 10/10, un rendu de "mur presque entièrement
+  rasé sauf la structure renforcée" qui reste lisible et cohérent.
+- L'ancien `drawWallStairs` décoratif (v17.61, posé par-dessus
+  l'ancien mur) est supprimé — plus nécessaire, le nouveau mur EST
+  déjà l'escalier à l'endroit voulu.
+
+Vérifié : `node --check`, rendu en jeu sur mobile (420px) et desktop
+(1000px) — jonctions de tronçons invisibles aux deux tailles, porte
+bien centrée sur le chemin des marchands et la cible du funnel —,
+rendu aux 3 paliers de brèches (0/6/10, ce dernier via l'écran de
+défaite qui laisse voir le mur derrière), palissade Forêt revérifiée
+intacte (branche séparée, retour anticipé avant tout le nouveau code),
+20 secondes de jeu réel (vagues, tours construites, funnel actif)
+sans erreur console.

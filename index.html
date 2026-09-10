@@ -2001,10 +2001,14 @@ function updateGraves(now){
 // de l'appui, marcher le long d'une ligne et construire plusieurs fois
 // pose des tours côte à côte : la grille garantit qu'elles s'alignent sans
 // se chevaucher, et forment une ligne de blocage continue
-function tryBuild(kind){
-  kind = kind || 'tower';
-  const cost = kind === 'catapult' ? CATAPULT_BUILD_COST : TOWER_BUILD_COST;
-  if (gold < cost) return;
+// v17.66 : sorti de tryBuild() pour être réutilisé aussi par le curseur
+// de construction (aperçu en temps réel, voir buildPreviewCell) — une
+// seule source de vérité pour "quelle case sera choisie", jamais deux
+// logiques qui pourraient diverger. Renvoie la case CHOISIE (avant le
+// contrôle sable/eau, encore à part — voir buildPreviewCell/tryBuild
+// selon qui a besoin de quoi) ou null si vraiment aucune case libre à
+// proximité.
+function findBuildSpot(){
   const cell = screenToGridCell(player.x, player.y);
   // dans cette grille en losange, aucun des deux axes seuls (gx ou gy) ne
   // pointe droit vers le haut à l'écran — un pas sur gx seul va en bas à
@@ -2028,13 +2032,28 @@ function tryBuild(kind){
     { gx: cell.gx,     gy: cell.gy - 2 },
     { gx: cell.gx - 2, gy: cell.gy     },
   ];
-  let chosen = null;
   for (const c of candidates){
     const p = gridToScreen(c.gx, c.gy);
     const occupied = towers.some(t => Math.hypot(t.x-p.x, t.y-p.y) < 10) ||
                       towerGraves.some(g => Math.hypot(g.x-p.x, g.y-p.y) < 10);
-    if (!occupied){ chosen = p; break; }
+    if (!occupied) return p;
   }
+  return null; // vraiment aucune case libre à proximité (très rare)
+}
+// v17.66 : la case que le curseur de construction doit montrer (voir
+// draw()) — null tant qu'on est hors zone constructible (sable/eau) ou
+// si vraiment aucune case libre à proximité, exactement comme tryBuild
+// refuserait de construire en silence dans ces deux cas.
+function buildPreviewCell(){
+  const p = findBuildSpot();
+  if (!p || p.y < noBuildY()) return null;
+  return p;
+}
+function tryBuild(kind){
+  kind = kind || 'tower';
+  const cost = kind === 'catapult' ? CATAPULT_BUILD_COST : TOWER_BUILD_COST;
+  if (gold < cost) return;
+  const chosen = findBuildSpot();
   if (!chosen) return; // vraiment aucune case libre à proximité (très rare)
   // v17.25 : hors construction dans l'eau et sur le sable (jusqu'à la
   // moitié de l'écran) — même logique de silence que "pas de case libre"
@@ -2434,6 +2453,8 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.67", text: "Le mur du château est remplacé par le nouveau design fourni (les deux tronçons du croquis, séparés par la porte) — l'ancien mur procédural a disparu. Le tronçon avec l'escalier reste toujours intact, même à 10 brèches ; les créneaux les plus proches de la porte cèdent en premier à mesure que les brèches s'accumulent." },
+  { v: "17.66", text: "Chemin des marchands en double trait. Nouveau curseur discret devant le personnage, qui montre en temps réel la case exacte où une tour serait construite — remplace l'ancienne ligne de démarcation sable/terre ferme, désormais inutile." },
   { v: "17.65", text: "Correctif de difficulté important : la cadence d'arrivée des ennemis plafonnait dès la vague ~16 et ne montait plus jamais ensuite, alors que tes dégâts continuent de grimper pour toujours — au-delà, plus aucune vraie pression, quel que soit le niveau de jeu. Le plafond descend maintenant beaucoup plus bas et beaucoup plus tard ; les paquets d'ennemis groupés deviennent aussi un peu plus fréquents avec la vague. Vagues 1 à 15 inchangées." },
   { v: "17.64", text: "Nouveau : une brève annonce (\"Attention : ... en approche !\") à la toute première apparition d'un type d'ennemi plus dangereux — juste ces 3 moments-là, pas à chaque vague." },
   { v: "17.63", text: "Nouveau : l'ennemi \"bouclier\" (turquoise), introduit progressivement à partir de la vague 20 — vitesse et vie normales, mais absorbe TOUT le premier coup reçu (visible à l'anneau autour de lui), qu'il faut donc viser deux fois plutôt qu'une. Son bouclier ne protège jamais des dégâts de zone de la catapulte." },
@@ -3110,7 +3131,11 @@ function update(now){
         // hors de la porte convergent vers son bord le plus proche —
         // garde l'intention ("passer par la porte") sans créer un
         // point de passage unique trivial à camper.
-        const gateHalfW = CASTLE_SLOT;
+        // v17.67 : WALL_GATE_HALF_W (22.5, mesuré sur le nouveau mur)
+        // remplace CASTLE_SLOT (23, encore utilisé par la palissade
+        // forêt) — à moins d'un pixel l'un de l'autre, mais celui-ci
+        // est la vraie largeur de porte de CE mur, pas une coïncidence
+        const gateHalfW = WALL_GATE_HALF_W;
         const target = Math.max(gateX - gateHalfW, Math.min(gateX + gateHalfW, e.x));
         // baseX aussi, sinon driftTowardPreferred écrase ce nudge dès la
         // frame suivante en recalculant e.x depuis baseX + oscillation
@@ -3777,121 +3802,196 @@ function drawPalisade(x, y, slot, segCount, destroyed, gateAfterSeg){
     ctx.stroke();
   }
 }
-// v17.61 — escalier d'accès au chemin de ronde, décoration collée contre
-// la face intérieure du mur (référence Drive "isometric wall with
-// stairs.svg", même méthode/outil que la tour neige : tools/
-// gen_snow_tower.py réutilisé tel quel). Le croquis montrait en fait DEUX
-// choses côte à côte (un tronçon de mur avec escalier intégré, puis un
-// autre tronçon de mur nu à sa suite) — seul le premier (le vrai ajout)
-// est repris ici ; le tronçon nu était juste redondant avec le mur déjà
-// en place. Décoratif pur : ne dépend pas de segCount/breaches, ne
-// bloque aucune case, posé une fois près de la porte.
-const WALL_STAIRS_EDGES = [
-  [{x:16.2,y:-16.2}, {x:21.6,y:-18.9}],
-  [{x:-8.1,y:-17.55}, {x:0.0,y:-21.6}],
-  [{x:8.1,y:-14.85}, {x:10.8,y:-13.5}],
-  [{x:5.4,y:-10.8}, {x:8.1,y:-9.45}],
-  [{x:10.8,y:-13.5}, {x:10.8,y:-10.8}],
-  [{x:10.8,y:-18.9}, {x:10.8,y:-16.2}],
-  [{x:5.4,y:-16.2}, {x:5.4,y:-10.8}],
-  [{x:8.1,y:-12.15}, {x:5.4,y:-10.8}],
-  [{x:10.8,y:-10.8}, {x:8.1,y:-9.45}],
-  [{x:-5.4,y:-2.7}, {x:0.0,y:-5.4}],
-  [{x:0.0,y:-18.9}, {x:5.4,y:-16.2}],
-  [{x:27.0,y:-18.9}, {x:32.4,y:-21.6}],
-  [{x:0.0,y:0.0}, {x:0.0,y:-2.7}],
-  [{x:5.4,y:-16.2}, {x:10.8,y:-18.9}],
-  [{x:35.1,y:-17.55}, {x:37.8,y:-16.2}],
-  [{x:8.1,y:-6.75}, {x:5.4,y:-5.4}],
-  [{x:16.2,y:-16.2}, {x:16.2,y:-2.7}],
-  [{x:13.5,y:-14.85}, {x:13.5,y:-4.05}],
-  [{x:27.0,y:-16.2}, {x:32.4,y:-18.9}],
-  [{x:40.5,y:-17.55}, {x:37.8,y:-16.2}],
-  [{x:0.0,y:-5.4}, {x:2.7,y:-4.05}],
-  [{x:-8.1,y:-4.05}, {x:-5.4,y:-2.7}],
-  [{x:0.0,y:-18.9}, {x:0.0,y:-5.4}],
-  [{x:10.8,y:-16.2}, {x:8.1,y:-14.85}],
-  [{x:37.8,y:-2.7}, {x:43.2,y:-5.4}],
-  [{x:21.6,y:-18.9}, {x:27.0,y:-16.2}],
-  [{x:5.4,y:-5.4}, {x:5.4,y:-2.7}],
-  [{x:8.1,y:-14.85}, {x:8.1,y:-12.15}],
-  [{x:0.0,y:-21.6}, {x:5.4,y:-18.9}],
-  [{x:13.5,y:-4.05}, {x:16.2,y:-2.7}],
-  [{x:32.4,y:-18.9}, {x:35.1,y:-17.55}],
-  [{x:8.1,y:-9.45}, {x:8.1,y:-6.75}],
-  [{x:2.7,y:-4.05}, {x:2.7,y:-6.75}],
-  [{x:27.0,y:-16.2}, {x:27.0,y:-2.7}],
-  [{x:37.8,y:-2.7}, {x:32.4,y:-5.4}],
-  [{x:-8.1,y:-17.55}, {x:-5.4,y:-16.2}],
-  [{x:16.2,y:-18.9}, {x:21.6,y:-21.6}],
-  [{x:37.8,y:-16.2}, {x:37.8,y:-2.7}],
-  [{x:21.6,y:-18.9}, {x:21.6,y:-5.4}],
-  [{x:32.4,y:-21.6}, {x:37.8,y:-18.9}],
-  [{x:5.4,y:-10.8}, {x:5.4,y:-8.1}],
-  [{x:10.8,y:-18.9}, {x:16.2,y:-16.2}],
-  [{x:-5.4,y:-16.2}, {x:0.0,y:-18.9}],
-  [{x:21.6,y:-21.6}, {x:27.0,y:-18.9}],
-  [{x:13.5,y:-4.05}, {x:5.4,y:0.0}],
-  [{x:27.0,y:-2.7}, {x:32.4,y:-5.4}],
-  [{x:10.8,y:-16.2}, {x:13.5,y:-14.85}],
-  [{x:0.0,y:-2.7}, {x:2.7,y:-1.35}],
-  [{x:-5.4,y:-16.2}, {x:-5.4,y:-2.7}],
-  [{x:10.8,y:-21.6}, {x:16.2,y:-18.9}],
-  [{x:37.8,y:-18.9}, {x:40.5,y:-17.55}],
-  [{x:-8.1,y:-17.55}, {x:-8.1,y:-4.05}],
-  [{x:2.7,y:-4.05}, {x:5.4,y:-2.7}],
-  [{x:5.4,y:-8.1}, {x:2.7,y:-6.75}],
-  [{x:2.7,y:1.35}, {x:5.4,y:0.0}],
-  [{x:32.4,y:-5.4}, {x:32.4,y:-18.9}],
-  [{x:2.7,y:-1.35}, {x:2.7,y:1.35}],
-  [{x:5.4,y:-8.1}, {x:8.1,y:-6.75}],
-  [{x:21.6,y:-5.4}, {x:27.0,y:-2.7}],
-  [{x:5.4,y:-2.7}, {x:2.7,y:-1.35}],
-  [{x:40.5,y:-17.55}, {x:43.2,y:-5.4}],
-  [{x:0.0,y:0.0}, {x:2.7,y:1.35}],
-  [{x:16.2,y:-2.7}, {x:21.6,y:-5.4}],
-  [{x:13.5,y:-14.85}, {x:10.8,y:-13.5}],
-  [{x:2.7,y:-6.75}, {x:5.4,y:-5.4}],
-  [{x:5.4,y:-18.9}, {x:10.8,y:-21.6}],
-  [{x:2.7,y:-4.05}, {x:0.0,y:-2.7}],
-  [{x:8.1,y:-12.15}, {x:10.8,y:-10.8}],
+// v17.67 — les deux tronçons du nouveau mur (référence Drive "isometric
+// wall with stairs.svg", même méthode/outil que la tour neige : tools/
+// gen_snow_tower.py réutilisé tel quel). Contrairement à la première
+// lecture (v17.61, corrigée) : le croquis montre bien DEUX tronçons du
+// MÊME mur (l'un avec l'escalier d'accès au chemin de ronde, l'autre
+// nu), séparés par le vide de la porte — pas une redondance. Chaque
+// tronçon fait 142,5px de large et son bord gauche est à x=0 dans son
+// propre repère local (translaté puis pavé par drawCastle, voir plus
+// bas) ; le vide mesuré entre les deux dans le croquis original (45px)
+// est repris exactement comme largeur de porte.
+const WALL_TILE_W = 142.5;
+const WALL_GATE_HALF_W = 22.5;
+const WTILE_STAIRS_EDGES = [
+  [{x:67.5,y:-48.75}, {x:82.5,y:-56.25}],
+  [{x:0.0,y:-52.5}, {x:22.5,y:-63.75}],
+  [{x:45.0,y:-45.0}, {x:52.5,y:-41.25}],
+  [{x:37.5,y:-33.75}, {x:45.0,y:-30.0}],
+  [{x:52.5,y:-41.25}, {x:52.5,y:-33.75}],
+  [{x:52.5,y:-56.25}, {x:52.5,y:-48.75}],
+  [{x:37.5,y:-48.75}, {x:37.5,y:-33.75}],
+  [{x:45.0,y:-37.5}, {x:37.5,y:-33.75}],
+  [{x:52.5,y:-33.75}, {x:45.0,y:-30.0}],
+  [{x:7.5,y:-11.25}, {x:22.5,y:-18.75}],
+  [{x:22.5,y:-56.25}, {x:37.5,y:-48.75}],
+  [{x:97.5,y:-56.25}, {x:112.5,y:-63.75}],
+  [{x:22.5,y:-3.75}, {x:22.5,y:-11.25}],
+  [{x:37.5,y:-48.75}, {x:52.5,y:-56.25}],
+  [{x:120.0,y:-52.5}, {x:127.5,y:-48.75}],
+  [{x:45.0,y:-22.5}, {x:37.5,y:-18.75}],
+  [{x:67.5,y:-48.75}, {x:67.5,y:-11.25}],
+  [{x:60.0,y:-45.0}, {x:60.0,y:-15.0}],
+  [{x:97.5,y:-48.75}, {x:112.5,y:-56.25}],
+  [{x:135.0,y:-52.5}, {x:127.5,y:-48.75}],
+  [{x:22.5,y:-18.75}, {x:30.0,y:-15.0}],
+  [{x:0.0,y:-15.0}, {x:7.5,y:-11.25}],
+  [{x:22.5,y:-56.25}, {x:22.5,y:-18.75}],
+  [{x:52.5,y:-48.75}, {x:45.0,y:-45.0}],
+  [{x:127.5,y:-11.25}, {x:142.5,y:-18.75}],
+  [{x:82.5,y:-56.25}, {x:97.5,y:-48.75}],
+  [{x:37.5,y:-18.75}, {x:37.5,y:-11.25}],
+  [{x:45.0,y:-45.0}, {x:45.0,y:-37.5}],
+  [{x:22.5,y:-63.75}, {x:37.5,y:-56.25}],
+  [{x:60.0,y:-15.0}, {x:67.5,y:-11.25}],
+  [{x:112.5,y:-56.25}, {x:120.0,y:-52.5}],
+  [{x:45.0,y:-30.0}, {x:45.0,y:-22.5}],
+  [{x:30.0,y:-15.0}, {x:30.0,y:-22.5}],
+  [{x:97.5,y:-48.75}, {x:97.5,y:-11.25}],
+  [{x:127.5,y:-11.25}, {x:112.5,y:-18.75}],
+  [{x:0.0,y:-52.5}, {x:7.5,y:-48.75}],
+  [{x:67.5,y:-56.25}, {x:82.5,y:-63.75}],
+  [{x:127.5,y:-48.75}, {x:127.5,y:-11.25}],
+  [{x:82.5,y:-56.25}, {x:82.5,y:-18.75}],
+  [{x:112.5,y:-63.75}, {x:127.5,y:-56.25}],
+  [{x:37.5,y:-33.75}, {x:37.5,y:-26.25}],
+  [{x:52.5,y:-56.25}, {x:67.5,y:-48.75}],
+  [{x:7.5,y:-48.75}, {x:22.5,y:-56.25}],
+  [{x:82.5,y:-63.75}, {x:97.5,y:-56.25}],
+  [{x:60.0,y:-15.0}, {x:37.5,y:-3.75}],
+  [{x:97.5,y:-11.25}, {x:112.5,y:-18.75}],
+  [{x:52.5,y:-48.75}, {x:60.0,y:-45.0}],
+  [{x:22.5,y:-11.25}, {x:30.0,y:-7.5}],
+  [{x:7.5,y:-48.75}, {x:7.5,y:-11.25}],
+  [{x:52.5,y:-63.75}, {x:67.5,y:-56.25}],
+  [{x:127.5,y:-56.25}, {x:135.0,y:-52.5}],
+  [{x:0.0,y:-52.5}, {x:0.0,y:-15.0}],
+  [{x:30.0,y:-15.0}, {x:37.5,y:-11.25}],
+  [{x:37.5,y:-26.25}, {x:30.0,y:-22.5}],
+  [{x:30.0,y:0.0}, {x:37.5,y:-3.75}],
+  [{x:112.5,y:-18.75}, {x:112.5,y:-56.25}],
+  [{x:30.0,y:-7.5}, {x:30.0,y:0.0}],
+  [{x:37.5,y:-26.25}, {x:45.0,y:-22.5}],
+  [{x:82.5,y:-18.75}, {x:97.5,y:-11.25}],
+  [{x:37.5,y:-11.25}, {x:30.0,y:-7.5}],
+  [{x:135.0,y:-52.5}, {x:142.5,y:-18.75}],
+  [{x:22.5,y:-3.75}, {x:30.0,y:0.0}],
+  [{x:67.5,y:-11.25}, {x:82.5,y:-18.75}],
+  [{x:60.0,y:-45.0}, {x:52.5,y:-41.25}],
+  [{x:30.0,y:-22.5}, {x:37.5,y:-18.75}],
+  [{x:37.5,y:-56.25}, {x:52.5,y:-63.75}],
+  [{x:30.0,y:-15.0}, {x:22.5,y:-11.25}],
+  [{x:45.0,y:-37.5}, {x:52.5,y:-33.75}],
 ];
-const WALL_STAIRS_FACES = [
-  [{x:16.2,y:-16.2}, {x:21.6,y:-18.9}, {x:27.0,y:-16.2}, {x:32.4,y:-18.9}, {x:35.1,y:-17.55}, {x:37.8,y:-16.2}, {x:40.5,y:-17.55}, {x:37.8,y:-18.9}, {x:32.4,y:-21.6}, {x:27.0,y:-18.9}, {x:21.6,y:-21.6}, {x:16.2,y:-18.9}, {x:10.8,y:-21.6}, {x:5.4,y:-18.9}, {x:0.0,y:-21.6}, {x:-8.1,y:-17.55}, {x:-5.4,y:-16.2}, {x:0.0,y:-18.9}, {x:5.4,y:-16.2}, {x:10.8,y:-18.9}],
-  [{x:21.6,y:-18.9}, {x:16.2,y:-16.2}, {x:16.2,y:-2.7}, {x:21.6,y:-5.4}],
-  [{x:8.1,y:-14.85}, {x:10.8,y:-13.5}, {x:13.5,y:-14.85}, {x:10.8,y:-16.2}],
-  [{x:10.8,y:-13.5}, {x:8.1,y:-14.85}, {x:8.1,y:-12.15}, {x:10.8,y:-10.8}],
-  [{x:5.4,y:-10.8}, {x:8.1,y:-9.45}, {x:10.8,y:-10.8}, {x:8.1,y:-12.15}],
-  [{x:8.1,y:-9.45}, {x:5.4,y:-10.8}, {x:5.4,y:-8.1}, {x:8.1,y:-6.75}],
-  [{x:10.8,y:-13.5}, {x:10.8,y:-10.8}, {x:8.1,y:-9.45}, {x:8.1,y:-6.75}, {x:5.4,y:-5.4}, {x:5.4,y:-2.7}, {x:2.7,y:-1.35}, {x:2.7,y:1.35}, {x:5.4,y:0.0}, {x:13.5,y:-4.05}, {x:13.5,y:-14.85}],
-  [{x:10.8,y:-18.9}, {x:10.8,y:-16.2}, {x:13.5,y:-14.85}, {x:13.5,y:-4.05}, {x:16.2,y:-2.7}, {x:16.2,y:-16.2}],
-  [{x:10.8,y:-16.2}, {x:10.8,y:-18.9}, {x:5.4,y:-16.2}, {x:5.4,y:-10.8}, {x:8.1,y:-12.15}, {x:8.1,y:-14.85}],
-  [{x:5.4,y:-10.8}, {x:5.4,y:-16.2}, {x:0.0,y:-18.9}, {x:0.0,y:-5.4}, {x:2.7,y:-4.05}, {x:2.7,y:-6.75}, {x:5.4,y:-8.1}],
-  [{x:-5.4,y:-2.7}, {x:0.0,y:-5.4}, {x:0.0,y:-18.9}, {x:-5.4,y:-16.2}],
-  [{x:0.0,y:-2.7}, {x:0.0,y:0.0}, {x:2.7,y:1.35}, {x:2.7,y:-1.35}],
-  [{x:37.8,y:-16.2}, {x:35.1,y:-17.55}, {x:32.4,y:-18.9}, {x:32.4,y:-5.4}, {x:37.8,y:-2.7}],
-  [{x:5.4,y:-5.4}, {x:8.1,y:-6.75}, {x:5.4,y:-8.1}, {x:2.7,y:-6.75}],
-  [{x:32.4,y:-18.9}, {x:27.0,y:-16.2}, {x:27.0,y:-2.7}, {x:32.4,y:-5.4}],
-  [{x:40.5,y:-17.55}, {x:37.8,y:-16.2}, {x:37.8,y:-2.7}, {x:43.2,y:-5.4}],
-  [{x:-8.1,y:-4.05}, {x:-5.4,y:-2.7}, {x:-5.4,y:-16.2}, {x:-8.1,y:-17.55}],
-  [{x:27.0,y:-16.2}, {x:21.6,y:-18.9}, {x:21.6,y:-5.4}, {x:27.0,y:-2.7}],
-  [{x:5.4,y:-2.7}, {x:5.4,y:-5.4}, {x:2.7,y:-6.75}, {x:2.7,y:-4.05}],
-  [{x:0.0,y:-2.7}, {x:2.7,y:-1.35}, {x:5.4,y:-2.7}, {x:2.7,y:-4.05}],
+const WTILE_STAIRS_FACES = [
+  [{x:67.5,y:-48.75}, {x:82.5,y:-56.25}, {x:97.5,y:-48.75}, {x:112.5,y:-56.25}, {x:120.0,y:-52.5}, {x:127.5,y:-48.75}, {x:135.0,y:-52.5}, {x:127.5,y:-56.25}, {x:112.5,y:-63.75}, {x:97.5,y:-56.25}, {x:82.5,y:-63.75}, {x:67.5,y:-56.25}, {x:52.5,y:-63.75}, {x:37.5,y:-56.25}, {x:22.5,y:-63.75}, {x:0.0,y:-52.5}, {x:7.5,y:-48.75}, {x:22.5,y:-56.25}, {x:37.5,y:-48.75}, {x:52.5,y:-56.25}],
+  [{x:82.5,y:-56.25}, {x:67.5,y:-48.75}, {x:67.5,y:-11.25}, {x:82.5,y:-18.75}],
+  [{x:45.0,y:-45.0}, {x:52.5,y:-41.25}, {x:60.0,y:-45.0}, {x:52.5,y:-48.75}],
+  [{x:52.5,y:-41.25}, {x:45.0,y:-45.0}, {x:45.0,y:-37.5}, {x:52.5,y:-33.75}],
+  [{x:37.5,y:-33.75}, {x:45.0,y:-30.0}, {x:52.5,y:-33.75}, {x:45.0,y:-37.5}],
+  [{x:45.0,y:-30.0}, {x:37.5,y:-33.75}, {x:37.5,y:-26.25}, {x:45.0,y:-22.5}],
+  [{x:52.5,y:-41.25}, {x:52.5,y:-33.75}, {x:45.0,y:-30.0}, {x:45.0,y:-22.5}, {x:37.5,y:-18.75}, {x:37.5,y:-11.25}, {x:30.0,y:-7.5}, {x:30.0,y:0.0}, {x:37.5,y:-3.75}, {x:60.0,y:-15.0}, {x:60.0,y:-45.0}],
+  [{x:52.5,y:-56.25}, {x:52.5,y:-48.75}, {x:60.0,y:-45.0}, {x:60.0,y:-15.0}, {x:67.5,y:-11.25}, {x:67.5,y:-48.75}],
+  [{x:52.5,y:-48.75}, {x:52.5,y:-56.25}, {x:37.5,y:-48.75}, {x:37.5,y:-33.75}, {x:45.0,y:-37.5}, {x:45.0,y:-45.0}],
+  [{x:37.5,y:-33.75}, {x:37.5,y:-48.75}, {x:22.5,y:-56.25}, {x:22.5,y:-18.75}, {x:30.0,y:-15.0}, {x:30.0,y:-22.5}, {x:37.5,y:-26.25}],
+  [{x:7.5,y:-11.25}, {x:22.5,y:-18.75}, {x:22.5,y:-56.25}, {x:7.5,y:-48.75}],
+  [{x:22.5,y:-11.25}, {x:22.5,y:-3.75}, {x:30.0,y:0.0}, {x:30.0,y:-7.5}],
+  [{x:127.5,y:-48.75}, {x:120.0,y:-52.5}, {x:112.5,y:-56.25}, {x:112.5,y:-18.75}, {x:127.5,y:-11.25}],
+  [{x:37.5,y:-18.75}, {x:45.0,y:-22.5}, {x:37.5,y:-26.25}, {x:30.0,y:-22.5}],
+  [{x:112.5,y:-56.25}, {x:97.5,y:-48.75}, {x:97.5,y:-11.25}, {x:112.5,y:-18.75}],
+  [{x:135.0,y:-52.5}, {x:127.5,y:-48.75}, {x:127.5,y:-11.25}, {x:142.5,y:-18.75}],
+  [{x:0.0,y:-15.0}, {x:7.5,y:-11.25}, {x:7.5,y:-48.75}, {x:0.0,y:-52.5}],
+  [{x:97.5,y:-48.75}, {x:82.5,y:-56.25}, {x:82.5,y:-18.75}, {x:97.5,y:-11.25}],
+  [{x:37.5,y:-11.25}, {x:37.5,y:-18.75}, {x:30.0,y:-22.5}, {x:30.0,y:-15.0}],
+  [{x:22.5,y:-11.25}, {x:30.0,y:-7.5}, {x:37.5,y:-11.25}, {x:30.0,y:-15.0}],
 ];
-function drawWallStairs(cx, cyBase){
-  ctx.save(); ctx.translate(cx, cyBase);
+// v17.67 — le tronçon nu (répétable, voir gen_snow_tower.py réutilisé) :
+// pavé tel quel autant de fois que nécessaire de chaque côté de la
+// porte (vérifié en pavant 4 copies bout à bout : jonction invisible,
+// le zigzag continue sans la moindre marche).
+const WTILE_PLAIN_EDGES = [
+  [{x:120.0,y:-18.75}, {x:127.5,y:-15.0}],
+  [{x:15.0,y:-11.25}, {x:30.0,y:-18.75}],
+  [{x:120.0,y:-18.75}, {x:105.0,y:-11.25}],
+  [{x:45.0,y:-48.75}, {x:60.0,y:-56.25}],
+  [{x:120.0,y:-63.75}, {x:135.0,y:-56.25}],
+  [{x:30.0,y:-56.25}, {x:45.0,y:-48.75}],
+  [{x:90.0,y:-56.25}, {x:105.0,y:-48.75}],
+  [{x:142.5,y:-52.5}, {x:142.5,y:-15.0}],
+  [{x:60.0,y:-56.25}, {x:75.0,y:-48.75}],
+  [{x:0.0,y:-18.75}, {x:15.0,y:-11.25}],
+  [{x:60.0,y:-63.75}, {x:75.0,y:-56.25}],
+  [{x:15.0,y:-48.75}, {x:30.0,y:-56.25}],
+  [{x:30.0,y:-56.25}, {x:30.0,y:-18.75}],
+  [{x:135.0,y:-48.75}, {x:135.0,y:-11.25}],
+  [{x:60.0,y:-56.25}, {x:60.0,y:-18.75}],
+  [{x:90.0,y:-63.75}, {x:105.0,y:-56.25}],
+  [{x:135.0,y:-56.25}, {x:142.5,y:-52.5}],
+  [{x:120.0,y:-18.75}, {x:120.0,y:-56.25}],
+  [{x:120.0,y:-56.25}, {x:105.0,y:-48.75}],
+  [{x:7.5,y:-52.5}, {x:0.0,y:-18.75}],
+  [{x:142.5,y:-15.0}, {x:135.0,y:-11.25}],
+  [{x:105.0,y:-56.25}, {x:120.0,y:-63.75}],
+  [{x:90.0,y:-18.75}, {x:105.0,y:-11.25}],
+  [{x:75.0,y:-56.25}, {x:90.0,y:-63.75}],
+  [{x:127.5,y:-15.0}, {x:135.0,y:-11.25}],
+  [{x:60.0,y:-18.75}, {x:75.0,y:-11.25}],
+  [{x:135.0,y:-48.75}, {x:142.5,y:-52.5}],
+  [{x:120.0,y:-56.25}, {x:127.5,y:-52.5}],
+  [{x:45.0,y:-11.25}, {x:60.0,y:-18.75}],
+  [{x:127.5,y:-52.5}, {x:135.0,y:-48.75}],
+  [{x:30.0,y:-63.75}, {x:7.5,y:-52.5}],
+  [{x:30.0,y:-63.75}, {x:45.0,y:-56.25}],
+  [{x:90.0,y:-56.25}, {x:90.0,y:-18.75}],
+  [{x:30.0,y:-18.75}, {x:45.0,y:-11.25}],
+  [{x:45.0,y:-56.25}, {x:60.0,y:-63.75}],
+  [{x:45.0,y:-48.75}, {x:45.0,y:-11.25}],
+  [{x:75.0,y:-48.75}, {x:90.0,y:-56.25}],
+  [{x:15.0,y:-11.25}, {x:15.0,y:-48.75}],
+  [{x:7.5,y:-52.5}, {x:15.0,y:-48.75}],
+  [{x:75.0,y:-11.25}, {x:90.0,y:-18.75}],
+  [{x:75.0,y:-48.75}, {x:75.0,y:-11.25}],
+  [{x:105.0,y:-11.25}, {x:105.0,y:-48.75}],
+];
+const WTILE_PLAIN_FACES = [
+  [{x:120.0,y:-18.75}, {x:127.5,y:-15.0}, {x:135.0,y:-11.25}, {x:135.0,y:-48.75}, {x:127.5,y:-52.5}, {x:120.0,y:-56.25}],
+  [{x:15.0,y:-11.25}, {x:30.0,y:-18.75}, {x:30.0,y:-56.25}, {x:15.0,y:-48.75}],
+  [{x:105.0,y:-11.25}, {x:120.0,y:-18.75}, {x:120.0,y:-56.25}, {x:105.0,y:-48.75}],
+  [{x:45.0,y:-48.75}, {x:60.0,y:-56.25}, {x:75.0,y:-48.75}, {x:90.0,y:-56.25}, {x:105.0,y:-48.75}, {x:120.0,y:-56.25}, {x:127.5,y:-52.5}, {x:135.0,y:-48.75}, {x:142.5,y:-52.5}, {x:135.0,y:-56.25}, {x:120.0,y:-63.75}, {x:105.0,y:-56.25}, {x:90.0,y:-63.75}, {x:75.0,y:-56.25}, {x:60.0,y:-63.75}, {x:45.0,y:-56.25}, {x:30.0,y:-63.75}, {x:7.5,y:-52.5}, {x:15.0,y:-48.75}, {x:30.0,y:-56.25}],
+  [{x:60.0,y:-56.25}, {x:45.0,y:-48.75}, {x:45.0,y:-11.25}, {x:60.0,y:-18.75}],
+  [{x:45.0,y:-48.75}, {x:30.0,y:-56.25}, {x:30.0,y:-18.75}, {x:45.0,y:-11.25}],
+  [{x:105.0,y:-48.75}, {x:90.0,y:-56.25}, {x:90.0,y:-18.75}, {x:105.0,y:-11.25}],
+  [{x:142.5,y:-15.0}, {x:142.5,y:-52.5}, {x:135.0,y:-48.75}, {x:135.0,y:-11.25}],
+  [{x:75.0,y:-48.75}, {x:60.0,y:-56.25}, {x:60.0,y:-18.75}, {x:75.0,y:-11.25}],
+  [{x:0.0,y:-18.75}, {x:15.0,y:-11.25}, {x:15.0,y:-48.75}, {x:7.5,y:-52.5}],
+  [{x:90.0,y:-18.75}, {x:90.0,y:-56.25}, {x:75.0,y:-48.75}, {x:75.0,y:-11.25}],
+];
+function drawWallTile(leftX, groundY, EDGES, FACES){
+  ctx.save(); ctx.translate(leftX, groundY);
   ctx.fillStyle = '#000';
-  for (const face of WALL_STAIRS_FACES){
+  for (const face of FACES){
     ctx.beginPath();
     face.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
     ctx.closePath();
     ctx.fill();
   }
   ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-  for (const [a, b] of WALL_STAIRS_EDGES){
+  for (const [a, b] of EDGES){
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
   ctx.restore();
+}
+// une tranche détruite : le mur reste plat (hauteur de "vallée", pas de
+// créneaux), même esprit que l'ancien système ("un créneau détruit
+// laisse juste le mur plat à sa place, pas de trou dans la pierre")
+const WALL_TILE_RUBBLE_TOP_Y = -15;
+function drawWallTileRubble(leftX, groundY){
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(leftX, groundY); ctx.lineTo(leftX, groundY + WALL_TILE_RUBBLE_TOP_Y);
+  ctx.lineTo(leftX + WALL_TILE_W, groundY + WALL_TILE_RUBBLE_TOP_Y); ctx.lineTo(leftX + WALL_TILE_W, groundY);
+  ctx.stroke();
 }
 function drawCastle(){
   const { x, y, w, h } = REGEN_ZONE;
@@ -3932,103 +4032,51 @@ function drawCastle(){
     }
     return;
   }
-  // v17.36 (correctif demandé : suivre le dessin à la lettre) — relu de
-  // près, le mur n'est PAS une suite de dents isolées avec des espaces
-  // entre elles : c'est un RUBAN CONTINU (chaque pic touche la vallée du
-  // suivant), et chaque sommet — pic ET vallée — a sa propre chute
-  // verticale jusqu'à la base (avant : seulement au pic). Et la "porte"
-  // au centre du croquis n'est pas juste un pic plus haut : c'est une
-  // vraie ouverture (deux pics voisins qui convergent vers un sommet
-  // commun, sans mur ni chute verticale entre eux).
-  // v17.37 : ratios mesurés exactement sur le dessin (détection
-  // automatique des sommets par analyse pixel) — la vallée est bien plus
-  // proche du pic que la première estimation à l'œil (0,82 fois la
-  // hauteur du pic, pas 0,4), et le sommet de la porte culmine à 1,585
-  // fois la hauteur d'un pic normal (pas 2,4x)
-  const valleyH = merlonH * 0.82;
-  const gateAfterSeg = Math.floor(segCount/2) - 1; // porte à la jonction centrale (centrée sur le nombre réel de créneaux)
-
-  // v17.50 (silhouette pleine, comme le bateau/la tour/le cheval de
-  // caravane) : un premier passage rejoue exactement la même géométrie
-  // que la boucle de traits ci-dessous (mêmes pics/vallées/porte), mais
-  // se contente d'empiler les points du ruban du haut dans `topPts` au
-  // lieu de tracer — servent ensuite à remplir tout le mur (ruban +
-  // corps jusqu'à la base) en noir plein en UNE seule fois, avant les
-  // traits verts.
-  {
-    const topPts = [];
-    let cx2 = x, cy2 = y - valleyH;
-    topPts.push({ x: cx2, y: cy2 });
-    for (let i = 0; i < segCount; i++){
-      const segEndX = x + (i+1)*slot, peakX = x + (i+0.5)*slot;
-      if (i < destroyed){
-        topPts.push({ x: segEndX, y: cy2 });
-        cx2 = segEndX;
-        continue;
-      }
-      const peakY = y - merlonH;
-      topPts.push({ x: peakX, y: peakY });
-      if (i === gateAfterSeg && i+1 < segCount && i+1 >= destroyed){
-        const nextPeakX = x + (i+1.5)*slot, nextPeakY = y - merlonH;
-        const apex = { x: segEndX, y: y - merlonH*1.585 };
-        topPts.push({ x: apex.x, y: apex.y }, { x: nextPeakX, y: nextPeakY });
-        cx2 = nextPeakX; cy2 = nextPeakY;
-        i++;
-        continue;
-      }
-      const valleyY = y - valleyH;
-      topPts.push({ x: segEndX, y: valleyY });
-      cx2 = segEndX; cy2 = valleyY;
-    }
-    // bord droit du ruban : jusqu'où les créneaux vont réellement
-    // (segCount*slot peut légèrement dépasser w, "jusqu'au bord" plutôt
-    // que pile dessus — imperceptible, jamais moins loin que w)
-    const ribbonRightX = Math.max(x+w, topPts[topPts.length-1].x);
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.moveTo(topPts[0].x, topPts[0].y);
-    for (const p of topPts.slice(1)) ctx.lineTo(p.x, p.y);
-    ctx.lineTo(ribbonRightX, y+h); ctx.lineTo(x, y+h);
-    ctx.closePath();
-    ctx.fill();
+  // v17.67 (demandé explicitement : "l'ancien mur doit disparaître,
+  // c'est le nouveau qu'on doit mettre en place... il y en a deux
+  // [segments] écartés par un vide qui est l'espace pour la porte") —
+  // remplace ENTIÈREMENT l'ancien mur procédural (créneaux CASTLE_SLOT,
+  // v17.36/37/55) par la géométrie exacte du 3e croquis Drive
+  // ("isometric wall with stairs.svg", déjà utilisé une fois en v17.61
+  // pour un simple ajout décoratif — mal compris à l'époque : ce
+  // n'était pas deux exemples redondants, c'est le tronçon gauche ET
+  // le tronçon droit du même mur, avec la porte entre les deux).
+  // Chaque tronçon fait exactement 142,5px et se recolle à l'identique
+  // au suivant (vérifié en pavant 4 copies bout à bout : le zigzag des
+  // créneaux continue sans la moindre marche) — un vrai motif
+  // répétable, pas un dessin figé à une seule largeur d'écran. Le vide
+  // mesuré entre les deux tronçons du croquis (45px) est repris tel
+  // quel comme largeur de porte (WALL_GATE_HALF_W), au lieu de
+  // CASTLE_SLOT (23, encore utilisé par la palissade forêt ci-dessus)
+  // — à moins d'un pixel l'un de l'autre, mais celui-ci est la vraie
+  // mesure de CE mur, pas une coïncidence reprise d'ailleurs.
+  const gateX = x + w/2; // même centre que le funnel des ennemis (voir update())
+  const rightTileCount = Math.max(1, Math.ceil((x+w - (gateX+WALL_GATE_HALF_W)) / WALL_TILE_W));
+  const leftTileCount = Math.max(0, Math.ceil(((gateX-WALL_GATE_HALF_W-WALL_TILE_W) - x) / WALL_TILE_W));
+  const groundY = y + h;
+  // ordre de destruction : les tranches les plus proches de la porte
+  // encaissent en premier (le flux d'ennemis funnelé y tape en
+  // continu), celles plus loin tiennent plus longtemps — l'escalier,
+  // structure renforcée d'accès au chemin de ronde, reste toujours
+  // intact (jamais mis en rubble, même à 10/10 brèches)
+  const plainTiles = [];
+  for (let i = 0; i < rightTileCount; i++){
+    const leftX = gateX + WALL_GATE_HALF_W + i*WALL_TILE_W;
+    plainTiles.push({ leftX, dist: Math.abs((leftX + WALL_TILE_W/2) - gateX) });
   }
-
-  let cursorX = x, cursorTopY = y - valleyH;
-  ctx.beginPath(); ctx.moveTo(cursorX, y); ctx.lineTo(cursorX, cursorTopY); ctx.stroke(); // bord gauche du mur
-  for (let i = 0; i < segCount; i++){
-    const segEndX = x + (i+1)*slot, peakX = x + (i+0.5)*slot;
-    if (i < destroyed){
-      // détruit : le ruban reste plat (à hauteur de vallée) sur toute la
-      // largeur du segment, pas de pic
-      ctx.beginPath(); ctx.moveTo(cursorX, cursorTopY); ctx.lineTo(segEndX, cursorTopY); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(segEndX, cursorTopY); ctx.lineTo(segEndX, y); ctx.stroke();
-      cursorX = segEndX;
-      continue;
-    }
-    const peakY = y - merlonH;
-    ctx.beginPath(); ctx.moveTo(cursorX, cursorTopY); ctx.lineTo(peakX, peakY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(peakX, y); ctx.stroke();
-    if (i === gateAfterSeg && i+1 < segCount && i+1 >= destroyed){
-      const nextPeakX = x + (i+1.5)*slot, nextPeakY = y - merlonH;
-      const apex = { x: segEndX, y: y - merlonH*1.585 }; // ratio mesuré sur le dessin
-      ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(apex.x, apex.y); ctx.lineTo(nextPeakX, nextPeakY); ctx.stroke();
-      cursorX = nextPeakX; cursorTopY = nextPeakY;
-      i++; // le pic suivant est déjà tracé par la porte, on saute sa jonction normale (i++ du for l'avance encore d'un cran)
-      continue;
-    }
-    const valleyY = y - valleyH;
-    ctx.beginPath(); ctx.moveTo(peakX, peakY); ctx.lineTo(segEndX, valleyY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(segEndX, valleyY); ctx.lineTo(segEndX, y); ctx.stroke();
-    cursorX = segEndX; cursorTopY = valleyY;
+  for (let j = 0; j < leftTileCount; j++){
+    const leftX = gateX - WALL_GATE_HALF_W - WALL_TILE_W - j*WALL_TILE_W;
+    plainTiles.push({ leftX, dist: Math.abs((leftX + WALL_TILE_W/2) - gateX) });
   }
+  plainTiles.sort((a,b) => a.dist - b.dist);
+  const destroyedTiles = Math.min(plainTiles.length, Math.round(plainTiles.length * Math.min(CASTLE_SEGMENTS, breaches) / CASTLE_SEGMENTS));
+  const destroyedSet = new Set(plainTiles.slice(0, destroyedTiles).map(t => t.leftX));
 
-  // v17.61 — escalier d'accès au chemin de ronde, collé contre le mur à
-  // quelques créneaux de la porte (jamais dans la brèche elle-même).
-  // Purement décoratif (voir drawWallStairs plus haut) : posé une fois,
-  // ne dépend pas du nombre réel de créneaux au-delà de rester dans les
-  // bornes du mur.
-  const stairsSeg = Math.max(0, Math.min(segCount - 3, gateAfterSeg - 2));
-  drawWallStairs(x + stairsSeg * slot, y + h);
+  drawWallTile(gateX - WALL_GATE_HALF_W - WALL_TILE_W, groundY, WTILE_STAIRS_EDGES, WTILE_STAIRS_FACES);
+  for (const t of plainTiles){
+    if (destroyedSet.has(t.leftX)) drawWallTileRubble(t.leftX, groundY);
+    else drawWallTile(t.leftX, groundY, WTILE_PLAIN_EDGES, WTILE_PLAIN_FACES);
+  }
 }
 
 // la Forge : petit enclos près du château, visible avant même d'être
@@ -4145,6 +4193,24 @@ function drawForge(){
 
 // petit chemin décoratif (voir buildPath) : juste une bande stroke le long
 // des points calculés, aucun effet de jeu
+// v17.66 (demandé : "le chemin des marchands... ça doit être un trait
+// double, pas juste un trait simple") — décale une polyligne
+// perpendiculairement à sa direction locale, de `dist` (signé), pour
+// tracer deux rails parallèles au lieu d'une ligne unique. La normale
+// à chaque sommet est la moyenne des deux segments adjacents (avant/
+// après), pas juste celle d'un seul segment — un décalage qui reste
+// propre aux coins du chemin plutôt qu'un vrai trait unique décalé.
+function offsetPolyline(points, dist){
+  const out = [];
+  for (let i = 0; i < points.length; i++){
+    let dx = 0, dy = 0;
+    if (i > 0){ dx += points[i].x - points[i-1].x; dy += points[i].y - points[i-1].y; }
+    if (i < points.length-1){ dx += points[i+1].x - points[i].x; dy += points[i+1].y - points[i].y; }
+    const len = Math.hypot(dx, dy) || 1;
+    out.push({ x: points[i].x - dy/len*dist, y: points[i].y + dx/len*dist });
+  }
+  return out;
+}
 function drawPath(){
   if (pathScreenPoints.length < 2) return;
   ctx.save();
@@ -4153,10 +4219,14 @@ function drawPath(){
   if (phosphorMode){
     ctx.strokeStyle = PHOSPHOR_GREEN;
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pathScreenPoints[0].x, pathScreenPoints[0].y);
-    for (let i = 1; i < pathScreenPoints.length; i++) ctx.lineTo(pathScreenPoints[i].x, pathScreenPoints[i].y);
-    ctx.stroke();
+    const PATH_TRACK_HALF_W = 3;
+    for (const side of [-1, 1]){
+      const pts = offsetPolyline(pathScreenPoints, side * PATH_TRACK_HALF_W);
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    }
   } else {
     ctx.strokeStyle = '#c9b48f';
     ctx.lineWidth = 10;
@@ -4222,7 +4292,10 @@ function draw(now){
     // de démarcation eau/sable/terrain, pas de remplissage de couleur
     ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, WATER_H); ctx.lineTo(STAGE_W, WATER_H); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, noBuildY()); ctx.lineTo(STAGE_W, noBuildY()); ctx.stroke();
+    // v17.66 (demandé) : la ligne de démarcation sable/terre ferme est
+    // retirée — redondante avec le nouveau curseur de construction
+    // (voir plus bas dans draw()), qui disparaît déjà tout seul dès
+    // qu'on dépasse cette zone.
     if (mapTheme === 'forest') drawForestDecor();
   } else {
     // v17.25 : zone de sable, entre l'eau et la moitié de l'écran — hors
@@ -4247,6 +4320,35 @@ function draw(now){
   if (showGrid) drawDebugGrid();
 
   const layers = [];
+
+  // v17.66 (demandé : "un petit curseur très discret... qui affiche
+  // l'endroit où on peut construire une tour... des fois si je bouge
+  // juste de quelques pixels l'endroit où je peux construire, c'est le
+  // même") — montre en temps réel la case EXACTE que choisirait
+  // findBuildSpot() (même logique que tryBuild, une seule source de
+  // vérité) : juste le contour de la case, fin et semi-transparent,
+  // pour rester discret. Disparaît tout seul hors zone constructible
+  // (sable/eau) — remplace l'ancienne ligne horizontale de démarcation
+  // (retirée plus haut, redondante avec ce curseur).
+  if (phosphorMode){
+    const bp = buildPreviewCell();
+    if (bp){
+      layers.push({ y: bp.y, draw: () => {
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = PHOSPHOR_GREEN;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(bp.x, bp.y);
+        ctx.lineTo(bp.x+GRID_TW/2, bp.y+GRID_TH/2);
+        ctx.lineTo(bp.x, bp.y+GRID_TH);
+        ctx.lineTo(bp.x-GRID_TW/2, bp.y+GRID_TH/2);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }});
+    }
+  }
 
   // quelle tour serait renforcée si on appuie sur le bouton maintenant —
   // affiche un halo doré tout autour pour se positionner précisément
