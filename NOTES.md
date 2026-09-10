@@ -3575,3 +3575,48 @@ joueur — plus aucune bascule, sur toutes les valeurs de x testées
 est la précision inévitable puisque le joueur se déplace en pixels
 continus et la grille est discrète). `node --check` sur le script
 extrait, rendu en jeu revérifié.
+
+## v17.71 — boutons du bas qui débordent sous l'écran (Pierre)
+
+Pierre : "je crois qu'il y a un problème d'affichage des boutons qui
+sont trop bas, il y a un overflow sur le téléphone".
+
+Root cause mesurée directement dans le DOM plutôt que devinée à l'œil
+sur une capture : `--bonusbar-h` (la hauteur du bandeau de 8 boutons,
+2 rangées de 4) était une valeur FIXE calculée en CSS
+(`--bonusbar-row-h:58px` × 2 + 4px de marge = 120px), choisie à vue à
+l'origine (v17.46) sans jamais être revérifiée contre le rendu réel
+d'un bouton (icône 16px + libellé + coût, sur 3 lignes empilées avec
+padding). Mesuré sur un vrai viewport iPhone (390×844, devicePixelRatio
+3) : chaque bouton a en réalité besoin de ~59-60px de hauteur, pas les
+52px que la CSS leur laissait une fois la marge/le padding du bandeau
+retirés de la hauteur totale fixe — 7-8px de manque par rangée. Sur 2
+rangées empilées, ce déficit cumulé poussait le bas de la 2e rangée à
+~853px alors que la fenêtre ne fait que 844px de haut : environ 9px de
+boutons (le texte "30 gold"/"Go to the Forge") invisibles sous le bord
+de l'écran — exactement ce que Pierre a vu.
+
+Corrigé à la racine plutôt qu'en retouchant la valeur fixe (qui ne
+serait restée juste que par coïncidence, sur cet appareil et cette
+langue précis — un futur changement de police, de texte ou de device
+aurait pu recréer le même bug) : `#bonusbar` n'a plus de `height`
+forcée en CSS, sa hauteur suit maintenant son contenu réel. Une
+nouvelle fonction `syncBonusbarHeight()` mesure cette hauteur dans le
+DOM (`getBoundingClientRect()`) et met à jour `--bonusbar-h` en
+conséquence — variable dont dépendent aussi `#stage` et `#joyzone`
+(leur `bottom`), qui se resynchronisent donc automatiquement avec la
+vraie taille du bandeau. Appelée au début de `resizeCanvas()` (avant
+toute lecture de la géométrie de `#stage`, pour que la zone de jeu
+tienne compte de la bonne hauteur dès le premier calcul) et à la fin
+de `applyLanguage()` (un changement de langue peut changer la longueur
+du texte des boutons, donc leur hauteur avec retour à la ligne) —
+jamais à chaque frame (mesurer la géométrie du DOM force un reflow
+synchrone, un coût qu'on ne veut pas payer 60 fois par seconde).
+
+Revalidé par une mesure directe (pas juste visuelle) sur 3
+configurations : iPhone 390×844 (FR et EN) et iPhone SE 375×667 (FR) —
+dans les 3 cas, le bas du bandeau tombe exactement sur le bas de
+l'écran (aucun px de débordement, contre ~9px avant le correctif) ;
+capture d'écran des 2 rangées entièrement visibles avec une marge
+propre en dessous, aux 3 configurations. `node --check` sur le script
+extrait.

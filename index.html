@@ -8,7 +8,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-  :root{ --topbar-h:52px; --bonusbar-row-h:58px; --bonusbar-h:calc(var(--bonusbar-row-h) * 2 + 4px); }
+  /* v17.71 : --bonusbar-h était une hauteur fixe devinée (58px/rangée),
+     trop courte pour le vrai contenu des boutons (icône + libellé +
+     coût sur 3 lignes) une fois rendue sur un vrai téléphone — la 2e
+     rangée débordait sous le bas de l'écran (signalé par Pierre :
+     "il y a un overflow sur le téléphone"). #bonusbar n'a plus de
+     hauteur forcée (voir plus bas) : sa vraie hauteur, mesurée dans
+     le DOM par syncBonusbarHeight(), remplace maintenant cette valeur
+     au chargement — celle-ci n'est qu'un filet de sécurité tant que
+     le JS n'a pas encore tourné. */
+  :root{ --topbar-h:52px; --bonusbar-h:120px; }
   html,body{margin:0;height:100%;background:#e8dfc8;color:#3a3529;font-family:system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
 
   #topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);display:flex;align-items:center;background:#00000012;z-index:20}
@@ -45,8 +54,12 @@
 
   /* bandeau de bonus achetables, tout en bas de l'écran maintenant que
      #bottombar n'existe plus */
-  #bonusbar{position:fixed;bottom:0;left:0;right:0;height:var(--bonusbar-h);display:flex;flex-direction:column;gap:4px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
-  .bonusbar-row{display:flex;align-items:stretch;justify-content:center;gap:8px;flex:1}
+  /* v17.71 : plus de height forcée ici — la hauteur du bandeau suit
+     maintenant son contenu réel (icône + libellé + coût), mesurée en
+     JS (syncBonusbarHeight) pour ajuster --bonusbar-h en conséquence,
+     au lieu d'une valeur en dur trop courte qui coupait la 2e rangée */
+  #bonusbar{position:fixed;bottom:0;left:0;right:0;display:flex;flex-direction:column;gap:4px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
+  .bonusbar-row{display:flex;align-items:stretch;justify-content:center;gap:8px}
   #bonusbar button{flex:1;max-width:100px;padding:4px 3px;border-radius:9px;border:1px solid #00000030;background:#faf6ea;color:#3a3529;font-size:10.5px;line-height:1.3;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
   #bonusbar button:disabled{opacity:.42}
   #bonusbar button .b-icon{font-size:16px}
@@ -388,6 +401,11 @@ function applyLanguage(){
   const themeToggleEl = document.getElementById('theme-toggle');
   if (themeToggleEl) themeToggleEl.textContent = mapThemeLabel(mapTheme);
   if (typeof refreshBonusbar === 'function') refreshBonusbar();
+  // v17.71 : le texte des boutons change de longueur selon la langue
+  // (FR/EN), ce qui peut changer la hauteur réelle du bandeau (retour
+  // à la ligne en plus/en moins) — resizeCanvas() commence par
+  // resynchroniser --bonusbar-h avant de recalculer la zone de jeu
+  if (typeof resizeCanvas === 'function') resizeCanvas();
 }
 
 // tout le jeu vit en pixels écran (CSS px) — joueur, tours, ennemis et
@@ -1209,7 +1227,21 @@ function triggerShake(magnitude, now){
 let playerDead = false;
 let spectating = false;
 
+// v17.71 : hauteur réelle de #bonusbar (icône + libellé + coût peuvent
+// prendre plus de place que prévu selon la langue/le device), mesurée
+// dans le DOM plutôt que devinée — #bonusbar n'a plus de height forcée
+// en CSS, donc getBoundingClientRect() renvoie déjà sa taille naturelle.
+// #stage et #joyzone (bottom:var(--bonusbar-h)) suivent automatiquement.
+// Appelée avant toute lecture de la géométrie de #stage (resizeCanvas),
+// et après tout changement pouvant faire varier la largeur du texte des
+// boutons (changement de langue) — jamais à chaque frame (coût de reflow).
+function syncBonusbarHeight(){
+  const bar = document.getElementById('bonusbar');
+  if (!bar) return;
+  document.documentElement.style.setProperty('--bonusbar-h', bar.getBoundingClientRect().height + 'px');
+}
 function resizeCanvas(){
+  syncBonusbarHeight();
   const dpr = window.devicePixelRatio || 1;
   const rect = stage.getBoundingClientRect();
   STAGE_W = rect.width; STAGE_H = rect.height;
@@ -2472,6 +2504,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.71", text: "Correctif d'affichage : les boutons du bas (2e rangée) pouvaient déborder sous le bas de l'écran sur téléphone — la hauteur du bandeau était une valeur fixe devinée, trop courte pour le vrai contenu des boutons. Elle suit maintenant la vraie hauteur mesurée, quels que soient l'appareil et la langue." },
   { v: "17.70", text: "Le curseur de construction (v17.66) pouvait apparaître sur le côté au lieu de rester exactement au-dessus du joueur — l'arrondi de grille basculait parfois vers la case voisine rien qu'en marchant tout droit vers le haut, sans bouger sur les côtés. Corrigé : le curseur reste maintenant sur la même colonne verticale tant qu'on ne se déplace pas horizontalement." },
   { v: "17.69", text: "Correctif sur le nouveau mur (v17.67) : le croquis fourni montrait déjà la composition ENTIÈRE du mur (escalier + porte + tronçon nu, dans cet ordre) — v17.67 l'avait à tort découpée en deux tuiles à répéter côte à côte. Le mur est maintenant mis à l'échelle EN UN SEUL BLOC pour toucher exactement les deux bords de l'écran, mêmes proportions gardées sur téléphone ; sur grand écran (ordinateur), sa hauteur est plafonnée pour ne pas devenir démesurée." },
   { v: "17.67", text: "Le mur du château est remplacé par le nouveau design fourni (les deux tronçons du croquis, séparés par la porte) — l'ancien mur procédural a disparu. Le tronçon avec l'escalier reste toujours intact, même à 10 brèches ; les créneaux les plus proches de la porte cèdent en premier à mesure que les brèches s'accumulent." },
