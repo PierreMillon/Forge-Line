@@ -197,12 +197,13 @@
     <p data-i18n="p_combat3">Les tours, elles, ont une précision parfaite et une portée fixe de 160px, mais ne bougent pas.</p>
     <h3 data-i18n="h_towers">Tours</h3>
     <p data-i18n="p_towers">Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.</p>
+    <p data-i18n="p_catapult">La catapulte (30 or, même palier de renfort qu'une tour) tire plus lentement mais inflige des dégâts de zone : les ennemis proches de l'impact encaissent aussi une part des dégâts — utile contre un groupe, moins bon contre une cible isolée.</p>
     <h3 data-i18n="h_forge">La Forge</h3>
     <p data-i18n="p_forge">La construire coûte 100 or, seulement si tu es dans sa zone. Une fois bâtie : "Tours d'élite" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. "Réparateurs" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.</p>
     <h3 data-i18n="h_autogold">Revenu automatique</h3>
     <p data-i18n="p_autogold">15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.</p>
     <h3 data-i18n="h_waves">Vagues et ennemis</h3>
-    <p data-i18n="p_waves1">4 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Les types bleu et violet arrivent progressivement à partir des vagues 5 et 10, jusqu'à 15% des ennemis chacun.</p>
+    <p data-i18n="p_waves1">5 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), le turquoise (bouclier : absorbe TOUT ton premier coup, sans dégât — vise-le deux fois), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Bleu, violet et turquoise arrivent progressivement à partir des vagues 9, 14 et 20, jusqu'à 15% des ennemis chacun.</p>
     <p data-i18n="p_waves2">Le nombre d'ennemis grimpe vite les 8 premières vagues (+11/vague), puis se stabilise à +1/vague — la vague 3 est souvent le moment où une première tour devient utile.</p>
     <h3 data-i18n="h_merchants">Marchands (caravane)</h3>
     <p data-i18n="p_merchants">Reste 5 secondes sur le petit chemin près du château, SANS qu'aucun ennemi ne l'ait traversé cette vague-là : une caravane de 1 à 8 marchands apparaît et remonte vers le château. Si le premier marchand jamais touché arrive au bout : toute la caravane devient 4 soldats à ton service, qui réparent aussi tes tours gratuitement.</p>
@@ -260,6 +261,13 @@ const I18N = {
     over_title_castle: "Le château est tombé", over_title_trojan: "Le cheval de Troie a atteint le château",
     over_wave: w => `Tu as tenu jusqu'à la vague ${w}`,
     wave_complete_banner: w => `Vague ${w} terminée !`,
+    // v17.64 : annonce d'un nouveau type d'ennemi à sa toute première
+    // apparition (voir NEW_ENEMY_WAVE) — pas à chaque vague, seulement
+    // les 3 fois où ça compte
+    new_enemy_incoming: name => `Attention : ${name} en approche !`,
+    enemy_name_fast_frail: "ennemis rapides et fragiles",
+    enemy_name_fast_tough: "ennemis rapides et costauds",
+    enemy_name_shielded: "ennemis à bouclier",
     btn_continue_ad: "🎬 Regarder une pub (30s) pour continuer",
     btn_revive_ad: "🎬 Regarder une pub (30s) pour revivre",
     btn_spectate: "Continuer à regarder", btn_restart: "Recommencer au tout début",
@@ -309,6 +317,10 @@ const I18N = {
     over_title_castle: "The castle has fallen", over_title_trojan: "The Trojan Horse reached the castle",
     over_wave: w => `You made it to wave ${w}`,
     wave_complete_banner: w => `Wave ${w} complete!`,
+    new_enemy_incoming: name => `Watch out: ${name} incoming!`,
+    enemy_name_fast_frail: "fast, frail enemies",
+    enemy_name_fast_tough: "fast, tough enemies",
+    enemy_name_shielded: "shielded enemies",
     btn_continue_ad: "🎬 Watch an ad (30s) to continue",
     btn_revive_ad: "🎬 Watch an ad (30s) to revive",
     btn_spectate: "Keep watching", btn_restart: "Restart from the beginning",
@@ -326,12 +338,13 @@ const I18N = {
     p_combat3: "Towers, on the other hand, have perfect accuracy and a fixed 160px range, but they don't move.",
     h_towers: "Towers",
     p_towers: "Building a tower costs 20 gold. Reinforcing it also costs 20 gold at the first tier (the same price as a new tower, on purpose: a reinforcement always stays at least as cost-effective as rebuilding), then 2.7% more each tier after that, with no cap.",
+    p_catapult: "The catapult (30 gold, same reinforcement tiers as a tower) fires slower but deals splash damage: enemies near the impact take some damage too — great against a group, weaker against a lone target.",
     h_forge: "The Forge",
     p_forge: "Building it costs 100 gold, only while you're in its zone. Once built: \"Elite Towers\" (40 gold for the first tier, +2.7%/tier) boosts all your towers at once. \"Repair crew\" (60 gold, one-time purchase) has your soldiers repair your towers for free, continuously.",
     h_autogold: "Auto income",
     p_autogold: "15 gold for the first tier (+2.7%/tier), pays out gold every 2 seconds. The payout per tick grows slowly (×1.05 per tier, rounded) — modest at first, but unlimited if you invest heavily.",
     h_waves: "Waves and enemies",
-    p_waves1: "4 types: red (base, always one hit), light blue (fast, fragile — 2x speed, half the HP), purple (fast AND tough — 2x speed, normal HP), orange (boss, rare, 4x the HP but 2x slower — only appears from wave 200 onward). Blue and purple types phase in gradually starting at waves 5 and 10, up to 15% of enemies each.",
+    p_waves1: "5 types: red (base, always one hit), light blue (fast, fragile — 2x speed, half the HP), purple (fast AND tough — 2x speed, normal HP), turquoise (shielded: absorbs your entire first hit, no damage at all — aim for it twice), orange (boss, rare, 4x the HP but 2x slower — only appears from wave 200 onward). Blue, purple and turquoise phase in gradually starting at waves 9, 14 and 20, up to 15% of enemies each.",
     p_waves2: "The enemy count ramps up fast for the first 8 waves (+11/wave), then settles to +1/wave — wave 3 is often when a first tower becomes worth it.",
     h_merchants: "Merchants (caravan)",
     p_merchants: "Stand on the little path near the castle for 5 seconds, with NO enemy having crossed it that wave: a caravan of 1 to 8 merchants appears and heads up to the castle. If the first never-hit merchant reaches the end, the whole caravan becomes 4 soldiers in your service, who also repair your towers for free.",
@@ -1173,8 +1186,9 @@ let floatingTexts = []; // {x, y, text, createdAt, color}
 // v17.59 (suggestion validée : "conseils étudiant... repère de rythme") —
 // bannière courte affichée à chaque fin de vague, façon Bloons TD/Kingdom
 // Rush. Purement visuel, aucun effet de jeu.
-let waveBanner = null; // { text, createdAt } | null
+let waveBanner = null; // { text, subtext, createdAt } | null
 const WAVE_BANNER_MS = 1600;
+const WAVE_BANNER_WITH_SUBTEXT_MS = 2800; // v17.64 : un peu plus long le temps de lire les rares annonces de nouvel ennemi
 // v17.59 (suggestion validée : "screen-shake léger sur gros kill/
 // brèche") — retour sensoriel ponctuel, décroissant, jamais deux
 // secousses qui s'additionnent (triggerShake ne fait que RALLONGER/
@@ -1244,7 +1258,22 @@ let projectiles = [];
 // fonction est appelée dès le tout début du script, avant que cette
 // constante n'existe encore.
 function pickNextSpawnDelay(){
-  const base = Math.max(18, 65 - wave*3) + Math.random()*55;
+  // v17.65 (amélioration d'expérience de jeu, cause précise retrouvée au
+  // simulateur — voir NOTES.md) : le plancher (18) était atteint dès la
+  // vague ~16, et plus jamais franchi ensuite — la cadence d'arrivée
+  // plafonnait pour toujours, alors que les dégâts du joueur (palier
+  // "dégâts", 1.05^niveau) continuent de grandir de façon EXPONENTIELLE
+  // sans aucun plafond. Résultat mesuré : aucune des 30 parties
+  // simulées (3 profils de joueur, dont un qui ne construit AUCUNE
+  // tour) ne perdait avant la vague 30, TOUTES pour la même raison
+  // (plus de temps simulé, pas une défaite) — la cadence de spawn, pas
+  // le nombre total d'ennemis ni leurs PV, est le vrai levier ici
+  // (cohérent avec la remarque déjà en place plus haut : "la cadence
+  // de spawn... est le vrai levier de pression"). Le plancher descend
+  // maintenant beaucoup plus bas (6 au lieu de 18) et beaucoup plus
+  // tard (vague ~30 au lieu de ~16) — inchangé pour les vagues 1-15
+  // (mêmes chiffres qu'avant, tutoriel/ruée déjà calés par Pierre).
+  const base = Math.max(6, 65 - wave*2) + Math.random()*55;
   return wave <= 8 ? base * 0.5 : base;
 }
 let spawnTimer = 0, spawnInterval = pickNextSpawnDelay(), enemiesThisWave = 2, spawned = 0;
@@ -1378,6 +1407,18 @@ const ENEMY_TYPES = [
 const WAVE_TYPE2_START = 9,  WAVE_TYPE2_RAMP_WAVES = 15, TYPE2_MAX_RATE = 0.15; // rapide/fragile
 const WAVE_TYPE3_START = 14, WAVE_TYPE3_RAMP_WAVES = 20, TYPE3_MAX_RATE = 0.15; // rapide/costaud — même écart de 5 vagues qu'avant avec WAVE_TYPE2_START (décalé en bloc, v17.41)
 const WAVE_TYPE4_START = 20, WAVE_TYPE4_RAMP_WAVES = 20, TYPE4_MAX_RATE = 0.15; // bouclier (v17.63) — même écart de 6 vagues après le type 3, même rythme d'introduction que les précédents
+// v17.64 (amélioration d'expérience de jeu, proposée et tranchée sans
+// attendre) : la seule fois où un joueur a vraiment besoin d'un
+// avertissement AVANT que ça n'arrive, c'est la toute première
+// apparition d'un type d'ennemi plus dangereux — pas à chaque vague
+// (ça noierait le signal), juste ces 3 moments-là. Le boss (vague 200)
+// n'est pas dans cette liste : à cette distance de jeu, son apparition
+// elle-même (rare, spectaculaire) sert déjà d'avertissement suffisant.
+const NEW_ENEMY_WAVE = { [WAVE_TYPE2_START]: 'fast_frail', [WAVE_TYPE3_START]: 'fast_tough', [WAVE_TYPE4_START]: 'shielded' };
+function nextWaveAnnouncement(nextWave){
+  const introduced = NEW_ENEMY_WAVE[nextWave];
+  return introduced ? t('new_enemy_incoming')(t('enemy_name_'+introduced)) : null;
+}
 function rampedRate(startWave, rampWaves, maxRate){
   if (wave < startWave) return 0;
   return maxRate * Math.min(1, (wave - startWave) / rampWaves);
@@ -2178,7 +2219,7 @@ document.getElementById('skip-wave-btn').addEventListener('click', () => {
   gold += bonus;
   floatingTexts.push({ x: player.x, y: player.y-30, text: '+'+bonus, createdAt: performance.now(), color: '#d9a441' });
   enemies.length = 0;
-  waveBanner = { text: t('wave_complete_banner')(wave), createdAt: performance.now() };
+  waveBanner = { text: t('wave_complete_banner')(wave), subtext: nextWaveAnnouncement(wave+1), createdAt: performance.now() };
   wave++;
   spawned = 0;
   enemiesThisWave = enemiesForWave(wave);
@@ -2393,6 +2434,8 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.65", text: "Correctif de difficulté important : la cadence d'arrivée des ennemis plafonnait dès la vague ~16 et ne montait plus jamais ensuite, alors que tes dégâts continuent de grimper pour toujours — au-delà, plus aucune vraie pression, quel que soit le niveau de jeu. Le plafond descend maintenant beaucoup plus bas et beaucoup plus tard ; les paquets d'ennemis groupés deviennent aussi un peu plus fréquents avec la vague. Vagues 1 à 15 inchangées." },
+  { v: "17.64", text: "Nouveau : une brève annonce (\"Attention : ... en approche !\") à la toute première apparition d'un type d'ennemi plus dangereux — juste ces 3 moments-là, pas à chaque vague." },
   { v: "17.63", text: "Nouveau : l'ennemi \"bouclier\" (turquoise), introduit progressivement à partir de la vague 20 — vitesse et vie normales, mais absorbe TOUT le premier coup reçu (visible à l'anneau autour de lui), qu'il faut donc viser deux fois plutôt qu'une. Son bouclier ne protège jamais des dégâts de zone de la catapulte." },
   { v: "17.62", text: "Nouveau : la catapulte, 2e type de tour (bouton \"Catapulte\", touche C) — cadence plus lente qu'une tour à flèches mais dégâts de zone (les ennemis proches de l'impact encaissent aussi une part des dégâts). Silhouette basse et distincte (bras de tir sur pivot, animé selon la cadence de tir), même économie de renfort que la tour classique." },
   { v: "17.61", text: "Ajouté un escalier d'accès au chemin de ronde, dessiné à partir d'un 3e croquis fourni (mur de pierre avec escalier intégré) — posé une fois près de la porte, sur les thèmes Côte et Neige (la palissade en bois de la carte Forêt garde son propre style)." },
@@ -2917,9 +2960,16 @@ function update(now){
       spawnTimer++;
       if (spawnTimer > spawnInterval){
         const remaining = enemiesThisWave - spawned;
+        // v17.65 : les paquets groupés (déjà existants) deviennent un peu
+        // plus fréquents avec la vague — plus d'ennemis à la fois au
+        // contact du joueur/des tours en même temps, pas plus de PV
+        // chacun (même levier "nombre d'ennemis", juste concentré dans
+        // le temps plutôt qu'étalé) — plafonné pour ne jamais devenir
+        // absurde
+        const burstBonus = Math.min(0.35, wave * 0.01);
         let burst = 1;
-        if (remaining > 1 && Math.random() < 0.35) burst = 2;
-        if (remaining > 2 && Math.random() < 0.12) burst = 3;
+        if (remaining > 1 && Math.random() < 0.35 + burstBonus) burst = 2;
+        if (remaining > 2 && Math.random() < 0.12 + burstBonus*0.5) burst = 3;
         burst = Math.min(burst, remaining);
         for (let i = 0; i < burst; i++) spawnEnemy(now);
         spawned += burst;
@@ -2928,7 +2978,7 @@ function update(now){
       }
     }
   } else if (enemies.length === 0){
-    waveBanner = { text: t('wave_complete_banner')(wave), createdAt: now };
+    waveBanner = { text: t('wave_complete_banner')(wave), subtext: nextWaveAnnouncement(wave+1), createdAt: now };
     wave++;
     spawned = 0;
     enemiesThisWave = enemiesForWave(wave);
@@ -4518,10 +4568,11 @@ function draw(now){
   // v17.59 : bannière de fin de vague — monte légèrement puis s'efface,
   // toujours centrée en haut du terrain de jeu (sous le bandeau du haut)
   if (waveBanner){
+    const bannerMs = waveBanner.subtext ? WAVE_BANNER_WITH_SUBTEXT_MS : WAVE_BANNER_MS;
     const age = now - waveBanner.createdAt;
-    if (age > WAVE_BANNER_MS) waveBanner = null;
+    if (age > bannerMs) waveBanner = null;
     else {
-      const p = age / WAVE_BANNER_MS;
+      const p = age / bannerMs;
       // in (15%) -> hold (60%) -> out (25%)
       const alpha = p < 0.15 ? p/0.15 : (p > 0.75 ? Math.max(0, 1-(p-0.75)/0.25) : 1);
       ctx.save();
@@ -4530,6 +4581,14 @@ function draw(now){
       ctx.font = 'bold 20px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(waveBanner.text, STAGE_W/2, 60 - p*10);
+      if (waveBanner.subtext){
+        // v17.64 : couleur d'avertissement distincte (ambre), même en
+        // phosphore — se distingue nettement de la ligne "vague
+        // terminée" au-dessus, purement informatif, jamais bloquant
+        ctx.fillStyle = phosphorMode ? '#ffd76b' : '#c3813f';
+        ctx.font = '14px system-ui, sans-serif';
+        ctx.fillText(waveBanner.subtext, STAGE_W/2, 84 - p*10);
+      }
       ctx.restore();
     }
   }

@@ -3211,3 +3211,97 @@ le fichier livré) — anneaux visibles sur plusieurs ennemis à l'écran,
 vagues complétées normalement avec 4 tours construites (confirme
 qu'ils meurent bien après le 2e coup, pas immortels), aucune erreur
 console sur une session de jeu réelle prolongée.
+
+## v17.64-65 — Amélioration d'expérience de jeu (Pierre : "réfléchis, ordonne, fais en suivant direct")
+
+Backlog des 4 suggestions "je valide tout" terminé (v17.60-63). Pierre
+a ensuite demandé une réflexion ouverte sur l'amélioration de
+l'expérience de jeu, à exécuter directement sans repasser par lui.
+
+**Piste écartée d'entrée** : un compteur numérique de brèches dans le
+HUD (repéré comme un manque en lisant le code — `breaches` n'a aucun
+affichage texte). Vérifié dans NOTES.md avant d'y toucher : c'était en
+fait un choix DÉLIBÉRÉ (v17.12, "château = compteur de brèches
+visuel", décidé explicitement par Pierre pour remplacer un ancien
+texte). Pas réintroduit — la destruction visuelle du mur reste le seul
+retour, comme voulu.
+
+**v17.64 — Annonce du prochain type d'ennemi** : une brève ligne
+d'avertissement ("Attention : ennemis à bouclier en approche !", en
+ambre) accrochée à la bannière de fin de vague, MAIS seulement aux 3
+vagues où un nouveau type d'ennemi apparaît pour la première fois
+(`NEW_ENEMY_WAVE`, dérivé directement de `WAVE_TYPE2/3/4_START` — pas
+de nombre dupliqué à la main). Pas à chaque vague : noierait le signal
+un vrai avertissement doit être rare pour rester repéré. Bannière
+prolongée à 2,8s (au lieu de 1,6s) le temps de lire les deux lignes.
+
+**v17.65 — Correctif de difficulté (le vrai morceau)** : en relisant
+le code pour préparer l'annonce ci-dessus, remarqué que le simulateur
+(déjà construit plus tôt dans la session pour un autre diagnostic)
+n'avait jamais été rejoué depuis — décidé de le refaire tourner avant
+d'aller plus loin sur des idées de "juice". Résultat sans appel :
+**aucune des 30 parties simulées (3 profils de joueur × 10, dont un
+qui ne construit AUCUNE tour) ne perdait avant la vague 30** — toutes
+via `maxFrames` (le temps simulé s'épuise), jamais `breach` ni
+`health`. Le naïf (0 tour, tape au hasard) fait aussi bien que le bon
+joueur : la difficulté n'existait tout simplement plus, pour personne,
+au-delà d'un certain point.
+
+Cause précise retrouvée par lecture directe (pas de nouvelle
+bisection nécessaire, le code parle de lui-même une fois qu'on sait où
+regarder) : `pickNextSpawnDelay()` a un plancher dur
+(`Math.max(18, 65 - wave*3)`) atteint dès la vague ~16 — la cadence
+d'arrivée des ennemis PLAFONNE à cette vague et ne redescend JAMAIS
+plus bas ensuite. Pendant ce temps, `effectivePlayerDmg()` (le palier
+Dégâts) grandit en `1.05^niveau` — EXPONENTIEL, sans aucun plafond,
+pour toujours. Deux courbes : l'une plate à partir de la vague 16,
+l'autre qui explose indéfiniment. Le résultat n'était qu'une question
+de temps, pas de chance.
+
+Fidèle à une contrainte déjà posée explicitement par Pierre ailleurs
+dans le code ("le type de base... reste 1 coup = 1 mort POUR
+TOUJOURS... la difficulté ne doit pas venir de PV qui grimpent... mais
+du NOMBRE d'ennemis") : n'a touché NI les PV des ennemis de base, NI
+la formule de dégâts du joueur, NI l'économie de renfort des tours —
+seulement la CADENCE et la TAILLE DES PAQUETS de spawn (deux leviers
+déjà "nombre d'ennemis", juste répartis différemment dans le temps) :
+- `pickNextSpawnDelay()` : plancher abaissé de 18 à 6, atteint vers la
+  vague ~30 au lieu de ~16 (pente identique avant ce point — vagues
+  1-15 bit-exactes à avant, tutoriel/ruée déjà calés par Pierre).
+- Paquets groupés (déjà existants, probabilités 35%/12%) : un bonus
+  qui grandit avec la vague (jusqu'à +35 points), donc plus d'ennemis
+  au contact EN MÊME TEMPS aux vagues avancées, pas plus coriaces.
+
+Revérifié au simulateur après coup (8 parties × 3 profils,
+maxFrames=90000) : net changement — 2/8 (naïf), 7/8 (correct), 8/8
+(bon) terminent maintenant par une vraie brèche, vagues ~33 à ~64,
+1-15 inchangées (aucune régression sur le tutoriel), % de survie à
+chaque repère nettement plus révélateur (100% à la vague 25, ~50% à
+la vague 50, 0% à la vague 100 — un vrai plafond existe enfin).
+
+**Anomalie repérée, PAS corrigée maintenant** : le profil "bon" (qui
+étale ses tours sur 3 points au lieu de camper un seul endroit) meurt
+en moyenne PLUS TÔT (vague ~43) que le "naïf" qui ne construit jamais
+rien (vague ~57) — inversion inattendue. Hypothèse la plus probable :
+le funnel de la porte (déjà documenté comme concentrant tous les
+ennemis vers un point unique, v17.56) récompense fortement le fait de
+camper CE point précis, et punit le fait de se disperser sur 3
+positions — un défenseur unique planté pile à la porte intercepte
+100% du flux, trois défenseurs dispersés n'en interceptent chacun
+qu'une fraction. Ce serait un problème de CONCEPTION plus profond (le
+funnel lui-même), pas un simple réglage de chiffres, et mérite sa
+propre réflexion à part — pas traité dans cette passe pour rester
+concentré sur le correctif principal (qui, lui, est sans ambiguïté :
+plus personne ne pouvait perdre, maintenant tout le monde peut).
+
+**FAQ mise à jour au passage** (retard pris ce soir même) : la
+catapulte (v17.62) et l'ennemi bouclier (v17.63) n'étaient mentionnés
+nulle part dans le panneau "Astuces" — corrigé (`p_catapult` ajouté,
+`p_waves1` étendu à 5 types avec les vraies vagues de déblocage 9/14/
+20, qui ne correspondaient déjà plus aux anciens chiffres écrits en
+dur "5 et 10").
+
+Vérifié : `node --check`, capture de contrôle vague 1 (pas de
+régression sur le tutoriel/la ruée), annonce testée en jeu réel (texte
+ambre bien affiché sous la bannière verte), deux runs complets du
+simulateur (avant/après) comparés ci-dessus.
