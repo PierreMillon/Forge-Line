@@ -2009,28 +2009,47 @@ function updateGraves(now){
 // selon qui a besoin de quoi) ou null si vraiment aucune case libre à
 // proximité.
 function findBuildSpot(){
-  const cell = screenToGridCell(player.x, player.y);
-  // dans cette grille en losange, aucun des deux axes seuls (gx ou gy) ne
-  // pointe droit vers le haut à l'écran — un pas sur gx seul va en bas à
-  // droite, un pas sur gy seul va en bas à gauche (chacun descend de
-  // GRID_TH/2 et décale de GRID_TW/2). Il faut reculer sur LES DEUX à la
-  // fois (gx-1 ET gy-1) pour que les deux décalages horizontaux
-  // s'annulent : ça ne bouge qu'en vertical, pile au-dessus du joueur —
-  // ce que "gy-1" seul (l'ancien calcul) ne faisait pas (la tour sortait
-  // en bas à droite, pas au-dessus, comme rapporté)
+  // v17.70 (signalé par Pierre : "le curseur est sur les côtés, pas
+  // au-dessus") — le calcul précédent prenait la case de grille la
+  // PLUS PROCHE du joueur par un arrondi 2D unique sur (x,y) combinés
+  // (screenToGridCell), puis reculait d'une case en diagonale (gx-1,
+  // gy-1) pour "annuler" le décalage horizontal. Ça marche pile au
+  // centre d'une case, mais le joueur se déplace en pixels continus,
+  // presque jamais exactement au centre d'une case : l'arrondi 2D
+  // choisit alors la case dont le CENTRE est le plus proche du joueur
+  // au sens large (x et y mélangés), pas celle qui est proche en x —
+  // et rien qu'en marchant tout droit vers le haut (donc x fixe), cet
+  // arrondi peut basculer d'une case à sa voisine, décalant le
+  // curseur sur le côté au lieu de rester au-dessus (mesuré : jusqu'à
+  // ~24px de côté, un cran de grille entier).
   //
+  // Corrigé en calculant la COLONNE (gx-gy, qui fixe le x affiché)
+  // uniquement à partir de player.x, indépendamment de player.y — la
+  // colonne ne change donc plus jamais tant qu'on ne bouge pas
+  // horizontalement, quelle que soit la hauteur à laquelle on marche.
+  const GRID_STEP = GRID_TW / 2; // == GRID_TH dans ce jeu (ratio 2:1), mais on le nomme explicitement pour la colonne
+  const col0 = Math.round(player.x / GRID_STEP); // colonne (gx-gy) la plus proche du joueur, fixe tant qu'on ne bouge pas en x
+  // case à `steps` crans au-dessus du joueur, sur la colonne `col`
+  // (gx+gy doit avoir la même parité que gx-gy pour que gx/gy restent
+  // entiers — au pire décalé d'1/2 case en hauteur, jamais en largeur)
+  function cellAt(col, steps){
+    const sumRaw = (player.y - steps * GRID_TH) / (GRID_TH / 2);
+    let sum = Math.round(sumRaw);
+    if ((sum - col) % 2 !== 0) sum += (sumRaw >= sum) ? 1 : -1;
+    return { gx: (col + sum) / 2, gy: (sum - col) / 2 };
+  }
   // si cette case est déjà prise (typiquement : joueur collé contre une
   // ligne de tours déjà posées), construire ne doit jamais échouer en
   // silence — on cherche la case libre la plus proche, à gauche puis à
   // droite en priorité (le plus court détour), avant d'abandonner
   const candidates = [
-    { gx: cell.gx - 1, gy: cell.gy - 1 }, // au-dessus, l'emplacement voulu par défaut
-    { gx: cell.gx,     gy: cell.gy - 1 }, // un cran à droite
-    { gx: cell.gx - 1, gy: cell.gy     }, // un cran à gauche
-    { gx: cell.gx + 1, gy: cell.gy - 1 }, // deux crans à droite
-    { gx: cell.gx - 1, gy: cell.gy + 1 }, // deux crans à gauche
-    { gx: cell.gx,     gy: cell.gy - 2 },
-    { gx: cell.gx - 2, gy: cell.gy     },
+    cellAt(col0, 1),     // au-dessus, l'emplacement voulu par défaut
+    cellAt(col0 + 1, 1), // une colonne à droite
+    cellAt(col0 - 1, 1), // une colonne à gauche
+    cellAt(col0 + 2, 1),
+    cellAt(col0 - 2, 1),
+    cellAt(col0, 2),     // deux crans plus haut, même colonne
+    cellAt(col0 + 1, 2),
   ];
   for (const c of candidates){
     const p = gridToScreen(c.gx, c.gy);
@@ -2453,6 +2472,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.70", text: "Le curseur de construction (v17.66) pouvait apparaître sur le côté au lieu de rester exactement au-dessus du joueur — l'arrondi de grille basculait parfois vers la case voisine rien qu'en marchant tout droit vers le haut, sans bouger sur les côtés. Corrigé : le curseur reste maintenant sur la même colonne verticale tant qu'on ne se déplace pas horizontalement." },
   { v: "17.69", text: "Correctif sur le nouveau mur (v17.67) : le croquis fourni montrait déjà la composition ENTIÈRE du mur (escalier + porte + tronçon nu, dans cet ordre) — v17.67 l'avait à tort découpée en deux tuiles à répéter côte à côte. Le mur est maintenant mis à l'échelle EN UN SEUL BLOC pour toucher exactement les deux bords de l'écran, mêmes proportions gardées sur téléphone ; sur grand écran (ordinateur), sa hauteur est plafonnée pour ne pas devenir démesurée." },
   { v: "17.67", text: "Le mur du château est remplacé par le nouveau design fourni (les deux tronçons du croquis, séparés par la porte) — l'ancien mur procédural a disparu. Le tronçon avec l'escalier reste toujours intact, même à 10 brèches ; les créneaux les plus proches de la porte cèdent en premier à mesure que les brèches s'accumulent." },
   { v: "17.66", text: "Chemin des marchands en double trait. Nouveau curseur discret devant le personnage, qui montre en temps réel la case exacte où une tour serait construite — remplace l'ancienne ligne de démarcation sable/terre ferme, désormais inutile." },

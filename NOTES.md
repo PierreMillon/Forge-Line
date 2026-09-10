@@ -3531,3 +3531,47 @@ paraître écrasée ni démesurée, mur qui s'enfonce jusqu'à disparaître
 à 10/10 brèches (déclenche bien l'écran de défaite, comportement du
 jeu inchangé). `tools/gen_wall_tiles.py` revérifié par diff exact
 (sortie identique aux données livrées) avant d'être committé.
+
+## v17.70 — curseur de construction : décalé sur le côté (Pierre)
+
+Pierre, après un test réel : "je crois que l'endroit où on crée la
+tour, c'est au-dessus de nous en haut pas sur les côtés, le petit
+curseur là". Le curseur (`findBuildSpot`, v17.66) avait pourtant déjà
+un commentaire affirmant placer la case "pile au-dessus du joueur" —
+vrai seulement quand le joueur est exactement au centre d'une case de
+grille, ce qui n'arrive presque jamais en déplacement continu.
+
+Root cause trouvée en mesurant plutôt qu'en devinant : `findBuildSpot`
+prenait `screenToGridCell(player.x, player.y)` — la case de grille
+dont le CENTRE est le plus proche du joueur par un arrondi 2D unique
+sur (x,y) combinés — puis reculait d'une case en diagonale (gx-1,
+gy-1) pour revenir "au-dessus" de CETTE case. Problème : cet arrondi
+2D mélange x et y, donc rien qu'en marchant tout droit vers le haut
+(x fixe, y qui diminue), il peut basculer vers la case de grille
+voisine sans que le joueur n'ait bougé d'un pixel horizontalement —
+le curseur saute alors d'un cran de grille sur le côté (jusqu'à 24px,
+mesuré par un balayage programmatique : à x=200 fixe, le curseur
+alternait entre dx=+16 et dx=-8 selon la hauteur du joueur, sans
+jamais se stabiliser).
+
+Corrigé en calculant la COLONNE de grille (`gx-gy`, qui fixe le x
+affiché à l'écran) uniquement à partir de `player.x`, indépendamment
+de `player.y` : `col0 = round(player.x / (GRID_TW/2))`. Cette colonne
+ne change donc plus jamais tant que le joueur ne bouge pas en x — se
+déplacer verticalement (s'approcher du mur en ligne droite, le cas le
+plus courant en jeu) ne peut plus jamais faire sauter le curseur sur
+le côté. La case "au-dessus" est ensuite dérivée de cette colonne
+fixe et de `player.y` (`cellAt(col, steps)`), avec un ajustement de
+parité (`gx+gy` doit avoir la même parité que `gx-gy` pour que gx/gy
+restent entiers) qui ne peut décaler que la HAUTEUR d'une demi-case,
+jamais la colonne. Les 6 cases de repli (cases déjà occupées) suivent
+le même principe, décalées en colonne plutôt qu'en position brute.
+
+Revalidé par balayage programmatique (le même test qui avait révélé
+le bug) : à x fixe, le décalage horizontal du curseur (dx) reste
+maintenant parfaitement constant quelle que soit la hauteur du
+joueur — plus aucune bascule, sur toutes les valeurs de x testées
+(200 à 230px, dx borné à ±12px maximum, la moitié d'une case, ce qui
+est la précision inévitable puisque le joueur se déplace en pixels
+continus et la grille est discrète). `node --check` sur le script
+extrait, rendu en jeu revérifié.
