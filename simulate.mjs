@@ -27,13 +27,24 @@
 //                 possible à son point fixe, puis alterne renfort de
 //                 tour / dégâts avec le surplus d'or (reprend
 //                 l'ancienne politique 'towers').
-//   - 'good'    : joueur qui joue bien — étale JUSQU'À 3 tours (se
-//                 déplace entre 3 points de défense au lieu de rester
-//                 figé), et investit dans l'option la moins chère parmi
-//                 renfort de la tour la plus proche / dégâts / revenu
-//                 auto / précision à chaque décision (capital
-//                 quasiment toujours en train de travailler, pas
-//                 d'or qui dort).
+//   - 'good'    : joueur qui joue bien — reste au MÊME point que
+//                 'correct' (la porte, où le funnel concentre tout le
+//                 flux — voir WALL_GATE_HALF_W dans index.html), mais
+//                 diversifie le TYPE de défense (tour à flèches PUIS
+//                 catapulte, toutes deux au même endroit) au lieu de
+//                 disperser sur plusieurs positions (v17.68 : une
+//                 v17.40 dispersait sur 3 points à ±90px, dont deux
+//                 hors du couloir réel des ennemis — quasi inutiles —
+//                 ET diluait le même or sur 3 tours basses au lieu
+//                 d'une poussée à fond, moins bon dans cette économie
+//                 où le coût de renfort grandit plus lentement — 2,7%/
+//                 palier — que la puissance — 5%/palier ; résultat
+//                 mesuré : 'good' perdait PLUS TÔT que 'naive', signal
+//                 que le bot testait une mauvaise heuristique, pas que
+//                 le jeu récompensait mal la défense répartie), puis
+//                 investit dans l'option la moins chère parmi renfort
+//                 (tour ou catapulte) / dégâts / revenu auto /
+//                 précision à chaque décision.
 //
 // --manualIntervalMs : intervalle entre deux tirs manuels du bot. Par
 // défaut MANUAL_TAP_COOLDOWN_MS (50ms = 20 tirs/s) : c'est le plancher
@@ -42,13 +53,13 @@
 // passer quelque chose comme 220-300ms (≈3-4,5 tirs/s), plus proche d'un
 // tap répété soutenu à la main sur mobile.
 //
-// Simplification assumée (déjà présente avant v17.40, conservée) : les
-// bots 'naive'/'correct' ne bougent jamais du point fixe near du
-// château ; 'good' se déplace, mais seulement entre 3 points fixes en
-// ligne, jamais pour esquiver ou réagir à une menace précise — aucun
-// des 3 bots ne relève après une mort (pas de pub/revivre simulée), la
-// partie s'arrête au premier échec (10 brèches ou santé à 0), ce qui
-// donne directement "à quelle vague ça casse".
+// Simplification assumée : aucun des 3 bots ne bouge du point fixe near
+// du château (v17.68 : 'good' aussi, depuis qu'il ne disperse plus sur
+// plusieurs positions — voir plus haut), jamais pour esquiver ou réagir
+// à une menace précise — aucun des 3 bots ne relève après une mort (pas
+// de pub/revivre simulée), la partie s'arrête au premier échec (10
+// brèches ou santé à 0), ce qui donne directement "à quelle vague ça
+// casse".
 
 import { chromium } from 'playwright';
 
@@ -92,10 +103,23 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
     resetGame(0);
     player.x = STAGE_W/2;
     player.y = REGEN_ZONE.y - 30;
-    const goodSpots = [STAGE_W/2, STAGE_W/2 - 90, STAGE_W/2 + 90];
-    let goodIdx = 0;
-    const goodBuilt = [false, false, false];
     let builtTower = false;
+    // v17.68 (anomalie repérée en v17.65 : "good" perdait plus tôt que
+    // "naive" — retrouvé en creusant : les 2e/3e tours de "good"
+    // étaient plantées à ±90px du point de passage réel des ennemis
+    // [le funnel les concentre sur une largeur de ~45px autour de
+    // gateX, voir WALL_GATE_HALF_W dans index.html], donc quasi
+    // inutiles, ET le même total d'or dilué sur 3 tours niveau bas
+    // grimpe moins haut qu'une seule tour poussée à fond (le coût de
+    // renfort ne grandit que 2,7%/palier quand la puissance grandit
+    // 5%/palier — mieux vaut TOUJOURS finir de pousser une tour que
+    // d'en commencer une autre, dans cette économie). Corrigé : "good"
+    // reste concentré AU MÊME ENDROIT (la porte, comme "correct") mais
+    // diversifie le TYPE d'arme plutôt que la position — tour à
+    // flèches PUIS catapulte, toutes deux au même point — un choix qui
+    // a un vrai sens dans ce jeu (dégât de zone contre le flux funnelé
+    // par la porte), pas une dispersion qui affaiblit chaque position.
+    let goodBuiltCatapult = false;
     const start = performance.now();
     let frame = 0, endWave = 1, reason = 'maxFrames';
     let waveAtFrame0 = wave;
@@ -151,27 +175,39 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
               }
             }
           } else if (policy === 'good'){
-            if (!goodBuilt[goodIdx]){
-              const tx = goodSpots[goodIdx];
-              if (Math.abs(player.x - tx) > 4) player.x += Math.sign(tx-player.x) * 3;
-              else if (gold >= TOWER_BUILD_COST){ tryTowerAction(); goodBuilt[goodIdx] = true; }
+            if (!builtTower){
+              if (gold >= TOWER_BUILD_COST){ tryTowerAction(); builtTower = towers.length > 0; }
+            } else if (!goodBuiltCatapult){
+              // 2e défense au MÊME point (la porte), pas ailleurs sur
+              // la carte — voir la note plus haut. Sinon (pas encore
+              // assez d'or), continue de pousser la tour existante avec
+              // le surplus, jamais de l'or qui dort à attendre.
+              if (gold >= CATAPULT_BUILD_COST) { tryCatapultAction(); goodBuiltCatapult = towers.some(t => t.kind === 'catapult'); }
+              else {
+                const near = pickNearestTower(player.x, player.y);
+                const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
+                if (canUpgrade && gold >= towerUpgradeCost(near)) tryTowerAction();
+              }
             } else {
-              const near = pickNearestTower(player.x, player.y);
-              const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
+              const nearTower = pickNearestTowerOfKind(player.x, player.y, 'tower');
+              const nearCatapult = pickNearestTowerOfKind(player.x, player.y, 'catapult');
+              const canUpgradeTower = nearTower && Math.hypot(nearTower.x-player.x, nearTower.y-player.y) < CONTACT_RANGE_PX;
+              const canUpgradeCatapult = nearCatapult && Math.hypot(nearCatapult.x-player.x, nearCatapult.y-player.y) < CONTACT_RANGE_PX;
               const options = [];
-              if (canUpgrade) options.push({ cost: towerUpgradeCost(near), key: 'upgrade' });
+              if (canUpgradeTower) options.push({ cost: towerUpgradeCost(nearTower), key: 'upgradeTower' });
+              if (canUpgradeCatapult) options.push({ cost: towerUpgradeCost(nearCatapult), key: 'upgradeCatapult' });
               options.push({ cost: dmgUpgradeCost(), key: 'damage' });
               options.push({ cost: autoGoldCost(), key: 'autogold' });
               options.push({ cost: precisionCost(), key: 'precision' });
               options.sort((a,b) => a.cost-b.cost);
               const pick = options.find(o => gold >= o.cost);
               if (pick){
-                if (pick.key === 'upgrade') tryTowerAction();
+                if (pick.key === 'upgradeTower') tryTowerAction();
+                else if (pick.key === 'upgradeCatapult') tryCatapultAction();
                 else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
                 else if (pick.key === 'autogold'){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
                 else if (pick.key === 'precision'){ gold -= precisionCost(); precisionLevel++; }
               }
-              if (goodIdx < goodSpots.length-1 && gold >= TOWER_BUILD_COST*1.5) goodIdx++;
             }
           }
         }

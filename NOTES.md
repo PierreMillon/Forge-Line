@@ -3406,3 +3406,128 @@ défaite qui laisse voir le mur derrière), palissade Forêt revérifiée
 intacte (branche séparée, retour anticipé avant tout le nouveau code),
 20 secondes de jeu réel (vagues, tours construites, funnel actif)
 sans erreur console.
+
+## v17.68 — simulate.mjs : anomalie du profil "good" (tâche #18 résolue)
+
+Signalée en v17.65 (validation du correctif de difficulté) et laissée
+ouverte à l'époque : dans une passe de 30 parties simulées, le profil
+"good" (censé être le meilleur des 3 bots du simulateur) mourait
+systématiquement PLUS TÔT que "naive" — un signal fort que soit le
+funnel de la porte avait un vrai défaut de conception, soit
+l'heuristique du bot "good" lui-même était mauvaise.
+
+Racine trouvée en lisant le code du bot, pas en creusant le jeu :
+"good" étalait JUSQU'À 3 tours sur des positions à ±90px du point fixe
+(`STAGE_W/2`), au lieu de rester au même endroit que "correct". Deux
+problèmes cumulés :
+- Le funnel des ennemis (voir `WALL_GATE_HALF_W`/désormais
+  `WALL_NATIVE_GATE_HALF_W` dans `index.html`) concentre tout le flux
+  sur une largeur d'environ 45px autour du centre de la porte — les
+  2e/3e tours à ±90px tombaient hors de ce couloir réel, donc
+  quasiment inutiles la plupart du temps.
+- Même en ignorant ça, diluer le même total d'or sur 3 tours à niveau
+  bas grimpe moins haut qu'une seule tour poussée à fond : le coût de
+  renfort ne grandit que 2,7%/palier (`UPGRADE_COST_GROWTH`) alors que
+  la puissance grandit 5%/palier (`UPGRADE_POWER_GROWTH`) — une
+  propriété délibérée de cette économie (concentrer l'investissement
+  bat toujours le disperser), que "good" allait justement à l'encontre
+  de.
+
+Donc pas un défaut du jeu — une mauvaise heuristique de bot. Corrigé :
+"good" reste maintenant au MÊME point que "correct" (la porte), mais
+diversifie le TYPE de défense au lieu de la position — construit une
+tour à flèches, PUIS une catapulte au même endroit (dégâts de zone
+contre un flux funnelé, un choix qui a un vrai sens dans ce jeu), puis
+alterne renfort (tour ou catapulte, au moindre coût) / dégâts / revenu
+auto / précision, comme avant.
+
+Revalidé sur un nouveau run (10 essais, 90000 frames) : "good"
+meanWave=62, medianWave=63, écart-type=2,72 (le plus régulier des 3),
+100% de survie au repère vague 50 — désormais meilleur ET plus
+régulier que "naive" (moyenne 61,1, 90% à la vague 50) et "correct"
+(moyenne 56, 80% à la vague 50), confirmant que l'anomalie venait bien
+du bot et pas du funnel.
+
+## v17.69 — correctif de Pierre sur le mur (v17.67 mal interprété)
+
+Pierre, en revoyant v17.67 : "c'est le bon mur que t'as pris [...]
+dans le dessin que je t'avais donné y avait déjà les deux bouts de
+mur [...] et le vide au milieu qui sert de porte, ça c'est le mur
+ENTIER, sûr, c'est lui qu'il faut que tu colles à droite et à gauche
+de l'écran [...] tu le mets à l'échelle [...] en gardant les mêmes
+proportions, il faut qu'il touche parfaitement à gauche, parfait à
+droite [...] sur ordinateur c'est un autre problème".
+
+Point important : les coordonnées extraites du croquis n'ont JAMAIS
+été en cause ("c'est le bon mur que t'as pris") — seule l'hypothèse
+de v17.67 sur la façon de les UTILISER était fausse. v17.67 avait vu
+juste sur un point (les deux tronçons ne sont pas redondants, voir
+l'entrée v17.67 ci-dessus) mais avait ensuite supposé, à tort, que
+chacun était un motif RÉPÉTABLE à paver côte à côte jusqu'à couvrir
+l'écran (comme l'ancien système de créneaux à taille fixe, v17.55).
+Ce n'est pas ça : le croquis montrait déjà la composition ENTIÈRE du
+mur — tronçon escalier + vide de la porte + tronçon nu, dans cet
+ordre, dessinée UNE seule fois — à mettre à l'échelle en un seul bloc
+comme une image qu'on redimensionne, pas à répéter.
+
+**Remplacement du système de pavage par un rendu à l'échelle unique** :
+- Les deux tronçons (`WTILE_STAIRS_*`/`WTILE_PLAIN_*`, 2 repères
+  locaux séparés, bord gauche à x=0 chacun) sont fusionnés en un seul
+  repère commun : `WALL_WHOLE_EDGES`/`WALL_WHOLE_FACES` (110 arêtes,
+  31 faces), largeur native 330px, hauteur native 63,75px — la porte
+  tombe naturellement au centre exact (165 = 330/2), sans le moindre
+  ajustement à la main : c'est directement la géométrie du croquis,
+  juste reprojetée entièrement dans le même repère au lieu de deux
+  repères locaux distincts. `tools/gen_wall_tiles.py` réécrit en
+  conséquence (mêmes étapes qu'avant, mais un seul `gen()` sur les
+  deux composantes ensemble) ; sortie revérifiée par diff exact
+  (aucune différence) contre les données livrées dans `index.html`
+  avant de faire confiance au script.
+- Nouvelle fonction `drawWallWhole(leftX, groundY, scaleX, scaleY)` :
+  `ctx.translate` + `ctx.scale(scaleX, scaleY)` puis dessin des faces
+  (remplissage noir) et des arêtes (trait phosphore) dans deux blocs
+  `save`/`restore` séparés — nécessaire pour pouvoir corriger
+  l'épaisseur du trait après le `scale` (`lineWidth = 1 /
+  ((scaleX+scaleY)/2)`), sinon le trait devient plus épais ou plus
+  fin selon l'échelle appliquée. Remplace entièrement `drawWallTile`/
+  `drawWallTileRubble` et les constantes `WALL_TILE_W`/
+  `WALL_GATE_HALF_W` (code mort supprimé).
+- `drawCastle()` : `scaleX = REGEN_ZONE.w / WALL_NATIVE_W` — touche
+  TOUJOURS exactement les deux bords de l'écran, quelle que soit sa
+  largeur (vérifié pixel par pixel sur mobile 420px ET desktop
+  1200px : le merlon le plus à gauche/droite touche exactement x=0
+  et x=largeur d'écran, capture à l'appui).
+- Hauteur (`scaleY`) : suit le même facteur que `scaleX` jusqu'à un
+  plafond (`WALL_MAX_SCALE_Y = 2.35`), au-delà duquel elle
+  n'augmente plus — c'est ma décision pour répondre au "sur
+  ordinateur c'est un autre problème" de Pierre, qui n'a pas précisé
+  la solution exacte : suivre le même facteur sans plafond aurait
+  rendu le mur démesurément haut sur un écran large (330px de large
+  natif contre ~1200px d'écran desktop, soit ×3,6 en hauteur aussi
+  si non plafonné). Sur téléphone, ce plafond n'est jamais atteint
+  (proportions du croquis gardées à l'identique, comme demandé) ;
+  sur desktop, le mur reste proportionnellement plus large que haut
+  au lieu de grandir sans limite — vérifié visuellement à 1200px,
+  rendu jugé raisonnable, mais pas explicitement confirmé par
+  Pierre : à ajuster s'il retoque cette valeur précise.
+- Dégâts (brèches) : `hpFactor = 1 - brèches/10` multiplie `scaleY`
+  seul (jamais `scaleX`, qui doit toujours toucher les deux bords) —
+  le mur "s'enfonce" à mesure qu'il encaisse des brèches, jusqu'à
+  disparaître à raz le sol à 10/10 (même principe que les barres de
+  vie des tours), sans jamais changer sa largeur ni se déformer.
+- Le funnel des ennemis (`update()`) utilisait `WALL_GATE_HALF_W`,
+  une constante fixe en pixels — plus valide maintenant que la porte
+  grandit avec le reste du mur. Remplacé par
+  `WALL_NATIVE_GATE_HALF_W * (REGEN_ZONE.w / WALL_NATIVE_W)`, qui
+  suit le même facteur d'échelle horizontal que le mur lui-même.
+
+Vérifié : `node --check` sur le script extrait ; rendu Playwright sur
+mobile (420px) et desktop (1200px), aux 3 paliers de brèches (0, 5,
+10) — mur qui touche exactement les deux bords aux deux tailles
+d'écran (confirmé par recadrage pixel des coins gauche/droite),
+porte centrée à l'endroit attendu par calcul, hauteur qui suit
+proportionnellement sur mobile et se plafonne sur desktop sans
+paraître écrasée ni démesurée, mur qui s'enfonce jusqu'à disparaître
+à 10/10 brèches (déclenche bien l'écran de défaite, comportement du
+jeu inchangé). `tools/gen_wall_tiles.py` revérifié par diff exact
+(sortie identique aux données livrées) avant d'être committé.

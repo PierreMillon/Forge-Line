@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
-# v17.67 — extrait les deux tronçons du nouveau mur du château depuis
-# references/wall_stairs.svg (grille magnétique isométrique, même
-# méthode que gen_snow_tower.py). Le SVG contient DEUX tronçons de mur
-# (l'un avec un escalier d'accès au chemin de ronde, l'autre nu),
-# séparés par un vide qui est l'emplacement de la porte — pas une
-# redondance (erreur de lecture corrigée en v17.67, voir NOTES.md).
+# v17.69 — extrait le mur ENTIER du château depuis references/wall_stairs.svg
+# (grille magnétique isométrique, même méthode que gen_snow_tower.py).
+#
+# Historique de lecture de ce croquis (voir NOTES.md pour le détail) :
+#   - v17.61 : un seul tronçon (escalier) extrait, collé sur l'ancien mur
+#     procédural — lecture incomplète.
+#   - v17.67 : les deux tronçons (escalier / nu) extraits séparément et
+#     traités comme des TUILES à répéter côte à côte pour paver l'écran
+#     — mauvaise interprétation, corrigée par Pierre : le croquis ne
+#     montrait pas deux motifs répétables, mais bien le mur ENTIER,
+#     dessiné une seule fois (tronçon avec l'escalier d'accès au chemin
+#     de ronde + vide de la porte + tronçon nu, dans cet ordre).
+#   - v17.69 (ce script) : les deux tronçons sont extraits puis fusionnés
+#     en UNE seule composition (mêmes arêtes/faces, pas de séparation),
+#     que index.html met à l'échelle en un seul bloc pour toucher les
+#     deux bords de l'écran (drawWallWhole), au lieu de la paver.
 #
 # Usage : python3 tools/gen_wall_tiles.py
-# Écrit deux fichiers JS (WTILE_STAIRS_*/WTILE_PLAIN_*) prêts à coller
-# dans index.html (juste avant drawWallTile()).
+# Écrit tools/out_wall_whole.js, prêt à coller dans index.html (juste
+# avant drawWallWhole()) sous les noms WALL_WHOLE_EDGES/WALL_WHOLE_FACES.
 #
 # Étapes :
 # 1. Parser les <circle>/<line> du SVG (grille de points + traits
@@ -16,28 +26,27 @@
 #    30° (dy/(dx/2) = tan(30°)) et convertir chaque point en indices
 #    entiers (u,v) de cette grille — les indices portent l'info, pas
 #    les pixels d'origine.
-# 2. Séparer les deux tronçons par analyse en composantes connexes
-#    (union-find sur le graphe d'arêtes) : le SVG ne les distingue pas
-#    explicitement, mais ils ne partagent aucune arête (le vide de la
-#    porte les sépare complètement).
+# 2. Repérer les deux tronçons par analyse en composantes connexes
+#    (union-find sur le graphe d'arêtes) — uniquement pour vérifier
+#    qu'on a bien récupéré tout le mur (2 composantes, pas plus/moins),
+#    PAS pour les séparer : les deux repartent dans le même repère.
 # 3. Reprojeter (u,v) → écran avec le ratio 2:1 du jeu (A=7.5, B=A/2)
 #    au lieu du 30° d'origine — un simple changement d'unité qui ne
 #    déforme rien, juste plus trapu, cohérent avec le reste du jeu.
-# 4. Recentrer chaque tronçon sur son propre bord gauche (x=0) pour
-#    que le pavage dans index.html (drawCastle) n'ait qu'à additionner
-#    des multiples de WALL_TILE_W, aucune arithmétique de décalage à
-#    refaire à la main.
-# 5. Remplissage plein (silhouette noire) calculé avec
+#    Un seul repère pour tout le mur : bord gauche du tronçon escalier
+#    à x=0, sol commun (point le plus bas de tout le mur) à y=0 — donc
+#    la porte (vide entre les deux tronçons) tombe naturellement au
+#    centre de la composition, sans arithmétique de décalage à la main.
+# 4. Remplissage plein (silhouette noire) calculé avec
 #    shapely.polygonize() sur l'ensemble des arêtes projetées — trouve
 #    automatiquement toutes les faces fermées de la grille planaire,
 #    sans la moindre interprétation manuelle.
 #
-# Vérifié (voir NOTES.md v17.67) : les deux tronçons pavés bout à bout
-# (4 copies du tronçon nu) se recollent sans la moindre marche visible
-# — un vrai motif répétable.
+# Vérifié (voir NOTES.md v17.69) : largeur native 330px, hauteur native
+# 63,75px, la porte tombe pile au centre (165 = 330/2) — rendu confirmé
+# par un test Playwright autonome avant intégration dans index.html.
 
 import re
-import json
 from collections import defaultdict
 from shapely.geometry import LineString
 from shapely.ops import polygonize, unary_union
@@ -100,21 +109,20 @@ def connected_components(edges):
     return sorted(comp.items(), key=lambda kv: -len(kv[1]))
 
 
-def gen(edges_uv, name, ground_uv):
-    # ground_uv ancre Y (sol = 0, mur vers le haut = y négatif) — le
-    # MÊME point pour les deux tronçons (le point le plus bas de tout
-    # le mur, calculé une fois sur les deux composantes ensemble), pour
-    # qu'ils partagent la même ligne de sol. X, lui, est local à chaque
-    # tronçon (bord gauche = 0) pour que le pavage dans drawCastle()
-    # n'ait qu'à additionner des multiples de WALL_TILE_W.
+def gen(all_edges_uv, name):
+    # un seul repère pour toute la composition (v17.69, voir en-tête) :
+    # bord gauche = x=0, sol commun (point le plus bas) = y=0 — la même
+    # convention d'ancrage Y que gen_snow_tower.py (v seul, pas u+v)
+    all_pts = {p for e in all_edges_uv for p in e}
+    ground_uv = max(all_pts, key=lambda p: p[1])
     gu, gv = ground_uv
-    xs_proj = [(u - v) * A for u, v in {p for e in edges_uv for p in e}]
+    xs_proj = [(u - v) * A for u, v in all_pts]
     x0 = min(xs_proj)
 
     def proj(u, v):
         return (u - v) * A - x0, (u + v - gu - gv) * B
 
-    edges = [(proj(*a), proj(*b)) for a, b in edges_uv]
+    edges = [(proj(*a), proj(*b)) for a, b in all_edges_uv]
     lines = [LineString([a, b]) for a, b in edges if a != b]
     faces = list(polygonize(unary_union(lines)))
 
@@ -131,7 +139,10 @@ def gen(edges_uv, name, ground_uv):
     out.append("];\n")
     path = f"tools/out_{name}.js"
     open(path, "w").write("".join(out))
+    xs = [p[0] for e in edges for p in e]
+    ys = [p[1] for e in edges for p in e]
     print(f"{name}: {len(edges)} arêtes, {len(faces)} faces -> {path}")
+    print(f"  largeur native: {max(xs) - min(xs)}, hauteur native: {max(ys) - min(ys)}")
 
 
 if __name__ == "__main__":
@@ -147,9 +158,5 @@ if __name__ == "__main__":
 
     comps = connected_components(edges_uv)
     print("composantes connexes:", [(len(es)) for _, es in comps])
-    all_pts = {p for _, es in comps for e in es for p in e}
-    ground_uv = max(all_pts, key=lambda p: p[1])  # même clé que gen_snow_tower.py (v seul, pas u+v)
-    # la plus grande (escalier) et la 2e (nue) — vérifié une fois
-    # visuellement (voir NOTES.md), stable tant que le SVG ne change pas
-    gen(comps[0][1], "wtile_stairs", ground_uv)
-    gen(comps[1][1], "wtile_plain", ground_uv)
+    assert len(comps) == 2, "le mur doit avoir exactement 2 tronçons (escalier + nu)"
+    gen(edges_uv, "wall_whole")

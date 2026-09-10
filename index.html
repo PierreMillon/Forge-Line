@@ -2453,6 +2453,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.69", text: "Correctif sur le nouveau mur (v17.67) : le croquis fourni montrait déjà la composition ENTIÈRE du mur (escalier + porte + tronçon nu, dans cet ordre) — v17.67 l'avait à tort découpée en deux tuiles à répéter côte à côte. Le mur est maintenant mis à l'échelle EN UN SEUL BLOC pour toucher exactement les deux bords de l'écran, mêmes proportions gardées sur téléphone ; sur grand écran (ordinateur), sa hauteur est plafonnée pour ne pas devenir démesurée." },
   { v: "17.67", text: "Le mur du château est remplacé par le nouveau design fourni (les deux tronçons du croquis, séparés par la porte) — l'ancien mur procédural a disparu. Le tronçon avec l'escalier reste toujours intact, même à 10 brèches ; les créneaux les plus proches de la porte cèdent en premier à mesure que les brèches s'accumulent." },
   { v: "17.66", text: "Chemin des marchands en double trait. Nouveau curseur discret devant le personnage, qui montre en temps réel la case exacte où une tour serait construite — remplace l'ancienne ligne de démarcation sable/terre ferme, désormais inutile." },
   { v: "17.65", text: "Correctif de difficulté important : la cadence d'arrivée des ennemis plafonnait dès la vague ~16 et ne montait plus jamais ensuite, alors que tes dégâts continuent de grimper pour toujours — au-delà, plus aucune vraie pression, quel que soit le niveau de jeu. Le plafond descend maintenant beaucoup plus bas et beaucoup plus tard ; les paquets d'ennemis groupés deviennent aussi un peu plus fréquents avec la vague. Vagues 1 à 15 inchangées." },
@@ -3131,11 +3132,13 @@ function update(now){
         // hors de la porte convergent vers son bord le plus proche —
         // garde l'intention ("passer par la porte") sans créer un
         // point de passage unique trivial à camper.
-        // v17.67 : WALL_GATE_HALF_W (22.5, mesuré sur le nouveau mur)
-        // remplace CASTLE_SLOT (23, encore utilisé par la palissade
-        // forêt) — à moins d'un pixel l'un de l'autre, mais celui-ci
-        // est la vraie largeur de porte de CE mur, pas une coïncidence
-        const gateHalfW = WALL_GATE_HALF_W;
+        // v17.69 : le mur n'est plus pavé à l'échelle native (v17.67),
+        // il est étiré en un seul bloc pour toucher les deux bords
+        // (drawCastle/drawWallWhole) — la porte grandit avec lui, donc
+        // sa demi-largeur doit suivre le même facteur d'échelle
+        // horizontal que le mur (REGEN_ZONE.w / WALL_NATIVE_W), pas
+        // rester une constante en pixels comme avant
+        const gateHalfW = WALL_NATIVE_GATE_HALF_W * (REGEN_ZONE.w / WALL_NATIVE_W);
         const target = Math.max(gateX - gateHalfW, Math.min(gateX + gateHalfW, e.x));
         // baseX aussi, sinon driftTowardPreferred écrase ce nudge dès la
         // frame suivante en recalculant e.x depuis baseX + oscillation
@@ -3802,102 +3805,160 @@ function drawPalisade(x, y, slot, segCount, destroyed, gateAfterSeg){
     ctx.stroke();
   }
 }
-// v17.67 — les deux tronçons du nouveau mur (référence Drive "isometric
-// wall with stairs.svg", même méthode/outil que la tour neige : tools/
-// gen_snow_tower.py réutilisé tel quel). Contrairement à la première
-// lecture (v17.61, corrigée) : le croquis montre bien DEUX tronçons du
-// MÊME mur (l'un avec l'escalier d'accès au chemin de ronde, l'autre
-// nu), séparés par le vide de la porte — pas une redondance. Chaque
-// tronçon fait 142,5px de large et son bord gauche est à x=0 dans son
-// propre repère local (translaté puis pavé par drawCastle, voir plus
-// bas) ; le vide mesuré entre les deux dans le croquis original (45px)
-// est repris exactement comme largeur de porte.
-const WALL_TILE_W = 142.5;
-const WALL_GATE_HALF_W = 22.5;
-const WTILE_STAIRS_EDGES = [
+// v17.69 (correctif direct de Pierre sur v17.67 : "dans le dessin que
+// je t'avais donné y avait déjà les deux bouts de mur... et le vide au
+// milieu qui sert de porte, ça c'est le mur ENTIER... c'est lui qu'il
+// faut coller à droite et à gauche de l'écran, tu le mets à l'échelle
+// en gardant les mêmes proportions" — voir NOTES.md). Le croquis
+// (référence Drive "isometric wall with stairs.svg", même méthode/
+// outil que la tour neige : tools/gen_snow_tower.py réutilisé tel
+// quel) montre la composition ENTIÈRE du mur — tronçon avec l'escalier
+// d'accès au chemin de ronde + vide de la porte + tronçon nu, dans cet
+// ordre, une seule fois — pas deux tuiles à répéter (erreur de v17.67,
+// elle-même une correction d'une lecture encore antérieure et fausse
+// en v17.61 : voir historique NOTES.md). Largeur native 330px, hauteur
+// native 63,75px, la porte pile au centre (165 = 330/2). drawCastle()
+// met cette unique composition à l'échelle pour toucher exactement les
+// deux bords de l'écran (voir drawWallWhole ci-dessous).
+const WALL_NATIVE_W = 330;
+const WALL_NATIVE_H = 63.75;
+const WALL_NATIVE_GATE_HALF_W = 22.5;
+const WALL_WHOLE_EDGES = [
   [{x:67.5,y:-48.75}, {x:82.5,y:-56.25}],
   [{x:0.0,y:-52.5}, {x:22.5,y:-63.75}],
   [{x:45.0,y:-45.0}, {x:52.5,y:-41.25}],
   [{x:37.5,y:-33.75}, {x:45.0,y:-30.0}],
+  [{x:307.5,y:-18.75}, {x:315.0,y:-15.0}],
   [{x:52.5,y:-41.25}, {x:52.5,y:-33.75}],
   [{x:52.5,y:-56.25}, {x:52.5,y:-48.75}],
   [{x:37.5,y:-48.75}, {x:37.5,y:-33.75}],
+  [{x:202.5,y:-11.25}, {x:217.5,y:-18.75}],
   [{x:45.0,y:-37.5}, {x:37.5,y:-33.75}],
+  [{x:307.5,y:-18.75}, {x:292.5,y:-11.25}],
+  [{x:232.5,y:-48.75}, {x:247.5,y:-56.25}],
+  [{x:307.5,y:-63.75}, {x:322.5,y:-56.25}],
   [{x:52.5,y:-33.75}, {x:45.0,y:-30.0}],
   [{x:7.5,y:-11.25}, {x:22.5,y:-18.75}],
   [{x:22.5,y:-56.25}, {x:37.5,y:-48.75}],
+  [{x:217.5,y:-56.25}, {x:232.5,y:-48.75}],
   [{x:97.5,y:-56.25}, {x:112.5,y:-63.75}],
+  [{x:277.5,y:-56.25}, {x:292.5,y:-48.75}],
+  [{x:330.0,y:-52.5}, {x:330.0,y:-15.0}],
   [{x:22.5,y:-3.75}, {x:22.5,y:-11.25}],
+  [{x:247.5,y:-56.25}, {x:262.5,y:-48.75}],
   [{x:37.5,y:-48.75}, {x:52.5,y:-56.25}],
   [{x:120.0,y:-52.5}, {x:127.5,y:-48.75}],
+  [{x:187.5,y:-18.75}, {x:202.5,y:-11.25}],
+  [{x:247.5,y:-63.75}, {x:262.5,y:-56.25}],
+  [{x:202.5,y:-48.75}, {x:217.5,y:-56.25}],
   [{x:45.0,y:-22.5}, {x:37.5,y:-18.75}],
   [{x:67.5,y:-48.75}, {x:67.5,y:-11.25}],
   [{x:60.0,y:-45.0}, {x:60.0,y:-15.0}],
   [{x:97.5,y:-48.75}, {x:112.5,y:-56.25}],
+  [{x:217.5,y:-56.25}, {x:217.5,y:-18.75}],
   [{x:135.0,y:-52.5}, {x:127.5,y:-48.75}],
+  [{x:322.5,y:-48.75}, {x:322.5,y:-11.25}],
   [{x:22.5,y:-18.75}, {x:30.0,y:-15.0}],
   [{x:0.0,y:-15.0}, {x:7.5,y:-11.25}],
+  [{x:247.5,y:-56.25}, {x:247.5,y:-18.75}],
+  [{x:277.5,y:-63.75}, {x:292.5,y:-56.25}],
   [{x:22.5,y:-56.25}, {x:22.5,y:-18.75}],
   [{x:52.5,y:-48.75}, {x:45.0,y:-45.0}],
   [{x:127.5,y:-11.25}, {x:142.5,y:-18.75}],
   [{x:82.5,y:-56.25}, {x:97.5,y:-48.75}],
   [{x:37.5,y:-18.75}, {x:37.5,y:-11.25}],
+  [{x:322.5,y:-56.25}, {x:330.0,y:-52.5}],
   [{x:45.0,y:-45.0}, {x:45.0,y:-37.5}],
+  [{x:307.5,y:-18.75}, {x:307.5,y:-56.25}],
   [{x:22.5,y:-63.75}, {x:37.5,y:-56.25}],
+  [{x:307.5,y:-56.25}, {x:292.5,y:-48.75}],
+  [{x:195.0,y:-52.5}, {x:187.5,y:-18.75}],
   [{x:60.0,y:-15.0}, {x:67.5,y:-11.25}],
+  [{x:330.0,y:-15.0}, {x:322.5,y:-11.25}],
+  [{x:292.5,y:-56.25}, {x:307.5,y:-63.75}],
   [{x:112.5,y:-56.25}, {x:120.0,y:-52.5}],
   [{x:45.0,y:-30.0}, {x:45.0,y:-22.5}],
   [{x:30.0,y:-15.0}, {x:30.0,y:-22.5}],
   [{x:97.5,y:-48.75}, {x:97.5,y:-11.25}],
   [{x:127.5,y:-11.25}, {x:112.5,y:-18.75}],
+  [{x:277.5,y:-18.75}, {x:292.5,y:-11.25}],
+  [{x:262.5,y:-56.25}, {x:277.5,y:-63.75}],
   [{x:0.0,y:-52.5}, {x:7.5,y:-48.75}],
   [{x:67.5,y:-56.25}, {x:82.5,y:-63.75}],
   [{x:127.5,y:-48.75}, {x:127.5,y:-11.25}],
   [{x:82.5,y:-56.25}, {x:82.5,y:-18.75}],
+  [{x:315.0,y:-15.0}, {x:322.5,y:-11.25}],
+  [{x:247.5,y:-18.75}, {x:262.5,y:-11.25}],
+  [{x:322.5,y:-48.75}, {x:330.0,y:-52.5}],
   [{x:112.5,y:-63.75}, {x:127.5,y:-56.25}],
+  [{x:307.5,y:-56.25}, {x:315.0,y:-52.5}],
   [{x:37.5,y:-33.75}, {x:37.5,y:-26.25}],
+  [{x:232.5,y:-11.25}, {x:247.5,y:-18.75}],
+  [{x:315.0,y:-52.5}, {x:322.5,y:-48.75}],
   [{x:52.5,y:-56.25}, {x:67.5,y:-48.75}],
   [{x:7.5,y:-48.75}, {x:22.5,y:-56.25}],
+  [{x:217.5,y:-63.75}, {x:195.0,y:-52.5}],
   [{x:82.5,y:-63.75}, {x:97.5,y:-56.25}],
   [{x:60.0,y:-15.0}, {x:37.5,y:-3.75}],
   [{x:97.5,y:-11.25}, {x:112.5,y:-18.75}],
   [{x:52.5,y:-48.75}, {x:60.0,y:-45.0}],
   [{x:22.5,y:-11.25}, {x:30.0,y:-7.5}],
   [{x:7.5,y:-48.75}, {x:7.5,y:-11.25}],
+  [{x:217.5,y:-63.75}, {x:232.5,y:-56.25}],
   [{x:52.5,y:-63.75}, {x:67.5,y:-56.25}],
+  [{x:277.5,y:-56.25}, {x:277.5,y:-18.75}],
   [{x:127.5,y:-56.25}, {x:135.0,y:-52.5}],
   [{x:0.0,y:-52.5}, {x:0.0,y:-15.0}],
   [{x:30.0,y:-15.0}, {x:37.5,y:-11.25}],
   [{x:37.5,y:-26.25}, {x:30.0,y:-22.5}],
+  [{x:217.5,y:-18.75}, {x:232.5,y:-11.25}],
   [{x:30.0,y:0.0}, {x:37.5,y:-3.75}],
+  [{x:232.5,y:-56.25}, {x:247.5,y:-63.75}],
   [{x:112.5,y:-18.75}, {x:112.5,y:-56.25}],
   [{x:30.0,y:-7.5}, {x:30.0,y:0.0}],
   [{x:37.5,y:-26.25}, {x:45.0,y:-22.5}],
+  [{x:232.5,y:-48.75}, {x:232.5,y:-11.25}],
   [{x:82.5,y:-18.75}, {x:97.5,y:-11.25}],
   [{x:37.5,y:-11.25}, {x:30.0,y:-7.5}],
   [{x:135.0,y:-52.5}, {x:142.5,y:-18.75}],
+  [{x:262.5,y:-48.75}, {x:277.5,y:-56.25}],
   [{x:22.5,y:-3.75}, {x:30.0,y:0.0}],
   [{x:67.5,y:-11.25}, {x:82.5,y:-18.75}],
   [{x:60.0,y:-45.0}, {x:52.5,y:-41.25}],
+  [{x:202.5,y:-11.25}, {x:202.5,y:-48.75}],
   [{x:30.0,y:-22.5}, {x:37.5,y:-18.75}],
   [{x:37.5,y:-56.25}, {x:52.5,y:-63.75}],
+  [{x:195.0,y:-52.5}, {x:202.5,y:-48.75}],
   [{x:30.0,y:-15.0}, {x:22.5,y:-11.25}],
+  [{x:262.5,y:-11.25}, {x:277.5,y:-18.75}],
+  [{x:262.5,y:-48.75}, {x:262.5,y:-11.25}],
+  [{x:292.5,y:-11.25}, {x:292.5,y:-48.75}],
   [{x:45.0,y:-37.5}, {x:52.5,y:-33.75}],
 ];
-const WTILE_STAIRS_FACES = [
+const WALL_WHOLE_FACES = [
   [{x:67.5,y:-48.75}, {x:82.5,y:-56.25}, {x:97.5,y:-48.75}, {x:112.5,y:-56.25}, {x:120.0,y:-52.5}, {x:127.5,y:-48.75}, {x:135.0,y:-52.5}, {x:127.5,y:-56.25}, {x:112.5,y:-63.75}, {x:97.5,y:-56.25}, {x:82.5,y:-63.75}, {x:67.5,y:-56.25}, {x:52.5,y:-63.75}, {x:37.5,y:-56.25}, {x:22.5,y:-63.75}, {x:0.0,y:-52.5}, {x:7.5,y:-48.75}, {x:22.5,y:-56.25}, {x:37.5,y:-48.75}, {x:52.5,y:-56.25}],
   [{x:82.5,y:-56.25}, {x:67.5,y:-48.75}, {x:67.5,y:-11.25}, {x:82.5,y:-18.75}],
   [{x:45.0,y:-45.0}, {x:52.5,y:-41.25}, {x:60.0,y:-45.0}, {x:52.5,y:-48.75}],
   [{x:52.5,y:-41.25}, {x:45.0,y:-45.0}, {x:45.0,y:-37.5}, {x:52.5,y:-33.75}],
   [{x:37.5,y:-33.75}, {x:45.0,y:-30.0}, {x:52.5,y:-33.75}, {x:45.0,y:-37.5}],
   [{x:45.0,y:-30.0}, {x:37.5,y:-33.75}, {x:37.5,y:-26.25}, {x:45.0,y:-22.5}],
+  [{x:307.5,y:-18.75}, {x:315.0,y:-15.0}, {x:322.5,y:-11.25}, {x:322.5,y:-48.75}, {x:315.0,y:-52.5}, {x:307.5,y:-56.25}],
   [{x:52.5,y:-41.25}, {x:52.5,y:-33.75}, {x:45.0,y:-30.0}, {x:45.0,y:-22.5}, {x:37.5,y:-18.75}, {x:37.5,y:-11.25}, {x:30.0,y:-7.5}, {x:30.0,y:0.0}, {x:37.5,y:-3.75}, {x:60.0,y:-15.0}, {x:60.0,y:-45.0}],
   [{x:52.5,y:-56.25}, {x:52.5,y:-48.75}, {x:60.0,y:-45.0}, {x:60.0,y:-15.0}, {x:67.5,y:-11.25}, {x:67.5,y:-48.75}],
   [{x:52.5,y:-48.75}, {x:52.5,y:-56.25}, {x:37.5,y:-48.75}, {x:37.5,y:-33.75}, {x:45.0,y:-37.5}, {x:45.0,y:-45.0}],
   [{x:37.5,y:-33.75}, {x:37.5,y:-48.75}, {x:22.5,y:-56.25}, {x:22.5,y:-18.75}, {x:30.0,y:-15.0}, {x:30.0,y:-22.5}, {x:37.5,y:-26.25}],
+  [{x:202.5,y:-11.25}, {x:217.5,y:-18.75}, {x:217.5,y:-56.25}, {x:202.5,y:-48.75}],
+  [{x:292.5,y:-11.25}, {x:307.5,y:-18.75}, {x:307.5,y:-56.25}, {x:292.5,y:-48.75}],
+  [{x:232.5,y:-48.75}, {x:247.5,y:-56.25}, {x:262.5,y:-48.75}, {x:277.5,y:-56.25}, {x:292.5,y:-48.75}, {x:307.5,y:-56.25}, {x:315.0,y:-52.5}, {x:322.5,y:-48.75}, {x:330.0,y:-52.5}, {x:322.5,y:-56.25}, {x:307.5,y:-63.75}, {x:292.5,y:-56.25}, {x:277.5,y:-63.75}, {x:262.5,y:-56.25}, {x:247.5,y:-63.75}, {x:232.5,y:-56.25}, {x:217.5,y:-63.75}, {x:195.0,y:-52.5}, {x:202.5,y:-48.75}, {x:217.5,y:-56.25}],
+  [{x:247.5,y:-56.25}, {x:232.5,y:-48.75}, {x:232.5,y:-11.25}, {x:247.5,y:-18.75}],
   [{x:7.5,y:-11.25}, {x:22.5,y:-18.75}, {x:22.5,y:-56.25}, {x:7.5,y:-48.75}],
+  [{x:232.5,y:-48.75}, {x:217.5,y:-56.25}, {x:217.5,y:-18.75}, {x:232.5,y:-11.25}],
+  [{x:292.5,y:-48.75}, {x:277.5,y:-56.25}, {x:277.5,y:-18.75}, {x:292.5,y:-11.25}],
+  [{x:330.0,y:-15.0}, {x:330.0,y:-52.5}, {x:322.5,y:-48.75}, {x:322.5,y:-11.25}],
   [{x:22.5,y:-11.25}, {x:22.5,y:-3.75}, {x:30.0,y:0.0}, {x:30.0,y:-7.5}],
+  [{x:262.5,y:-48.75}, {x:247.5,y:-56.25}, {x:247.5,y:-18.75}, {x:262.5,y:-11.25}],
   [{x:127.5,y:-48.75}, {x:120.0,y:-52.5}, {x:112.5,y:-56.25}, {x:112.5,y:-18.75}, {x:127.5,y:-11.25}],
+  [{x:187.5,y:-18.75}, {x:202.5,y:-11.25}, {x:202.5,y:-48.75}, {x:195.0,y:-52.5}],
   [{x:37.5,y:-18.75}, {x:45.0,y:-22.5}, {x:37.5,y:-26.25}, {x:30.0,y:-22.5}],
   [{x:112.5,y:-56.25}, {x:97.5,y:-48.75}, {x:97.5,y:-11.25}, {x:112.5,y:-18.75}],
   [{x:135.0,y:-52.5}, {x:127.5,y:-48.75}, {x:127.5,y:-11.25}, {x:142.5,y:-18.75}],
@@ -3905,93 +3966,29 @@ const WTILE_STAIRS_FACES = [
   [{x:97.5,y:-48.75}, {x:82.5,y:-56.25}, {x:82.5,y:-18.75}, {x:97.5,y:-11.25}],
   [{x:37.5,y:-11.25}, {x:37.5,y:-18.75}, {x:30.0,y:-22.5}, {x:30.0,y:-15.0}],
   [{x:22.5,y:-11.25}, {x:30.0,y:-7.5}, {x:37.5,y:-11.25}, {x:30.0,y:-15.0}],
+  [{x:277.5,y:-18.75}, {x:277.5,y:-56.25}, {x:262.5,y:-48.75}, {x:262.5,y:-11.25}],
 ];
-// v17.67 — le tronçon nu (répétable, voir gen_snow_tower.py réutilisé) :
-// pavé tel quel autant de fois que nécessaire de chaque côté de la
-// porte (vérifié en pavant 4 copies bout à bout : jonction invisible,
-// le zigzag continue sans la moindre marche).
-const WTILE_PLAIN_EDGES = [
-  [{x:120.0,y:-18.75}, {x:127.5,y:-15.0}],
-  [{x:15.0,y:-11.25}, {x:30.0,y:-18.75}],
-  [{x:120.0,y:-18.75}, {x:105.0,y:-11.25}],
-  [{x:45.0,y:-48.75}, {x:60.0,y:-56.25}],
-  [{x:120.0,y:-63.75}, {x:135.0,y:-56.25}],
-  [{x:30.0,y:-56.25}, {x:45.0,y:-48.75}],
-  [{x:90.0,y:-56.25}, {x:105.0,y:-48.75}],
-  [{x:142.5,y:-52.5}, {x:142.5,y:-15.0}],
-  [{x:60.0,y:-56.25}, {x:75.0,y:-48.75}],
-  [{x:0.0,y:-18.75}, {x:15.0,y:-11.25}],
-  [{x:60.0,y:-63.75}, {x:75.0,y:-56.25}],
-  [{x:15.0,y:-48.75}, {x:30.0,y:-56.25}],
-  [{x:30.0,y:-56.25}, {x:30.0,y:-18.75}],
-  [{x:135.0,y:-48.75}, {x:135.0,y:-11.25}],
-  [{x:60.0,y:-56.25}, {x:60.0,y:-18.75}],
-  [{x:90.0,y:-63.75}, {x:105.0,y:-56.25}],
-  [{x:135.0,y:-56.25}, {x:142.5,y:-52.5}],
-  [{x:120.0,y:-18.75}, {x:120.0,y:-56.25}],
-  [{x:120.0,y:-56.25}, {x:105.0,y:-48.75}],
-  [{x:7.5,y:-52.5}, {x:0.0,y:-18.75}],
-  [{x:142.5,y:-15.0}, {x:135.0,y:-11.25}],
-  [{x:105.0,y:-56.25}, {x:120.0,y:-63.75}],
-  [{x:90.0,y:-18.75}, {x:105.0,y:-11.25}],
-  [{x:75.0,y:-56.25}, {x:90.0,y:-63.75}],
-  [{x:127.5,y:-15.0}, {x:135.0,y:-11.25}],
-  [{x:60.0,y:-18.75}, {x:75.0,y:-11.25}],
-  [{x:135.0,y:-48.75}, {x:142.5,y:-52.5}],
-  [{x:120.0,y:-56.25}, {x:127.5,y:-52.5}],
-  [{x:45.0,y:-11.25}, {x:60.0,y:-18.75}],
-  [{x:127.5,y:-52.5}, {x:135.0,y:-48.75}],
-  [{x:30.0,y:-63.75}, {x:7.5,y:-52.5}],
-  [{x:30.0,y:-63.75}, {x:45.0,y:-56.25}],
-  [{x:90.0,y:-56.25}, {x:90.0,y:-18.75}],
-  [{x:30.0,y:-18.75}, {x:45.0,y:-11.25}],
-  [{x:45.0,y:-56.25}, {x:60.0,y:-63.75}],
-  [{x:45.0,y:-48.75}, {x:45.0,y:-11.25}],
-  [{x:75.0,y:-48.75}, {x:90.0,y:-56.25}],
-  [{x:15.0,y:-11.25}, {x:15.0,y:-48.75}],
-  [{x:7.5,y:-52.5}, {x:15.0,y:-48.75}],
-  [{x:75.0,y:-11.25}, {x:90.0,y:-18.75}],
-  [{x:75.0,y:-48.75}, {x:75.0,y:-11.25}],
-  [{x:105.0,y:-11.25}, {x:105.0,y:-48.75}],
-];
-const WTILE_PLAIN_FACES = [
-  [{x:120.0,y:-18.75}, {x:127.5,y:-15.0}, {x:135.0,y:-11.25}, {x:135.0,y:-48.75}, {x:127.5,y:-52.5}, {x:120.0,y:-56.25}],
-  [{x:15.0,y:-11.25}, {x:30.0,y:-18.75}, {x:30.0,y:-56.25}, {x:15.0,y:-48.75}],
-  [{x:105.0,y:-11.25}, {x:120.0,y:-18.75}, {x:120.0,y:-56.25}, {x:105.0,y:-48.75}],
-  [{x:45.0,y:-48.75}, {x:60.0,y:-56.25}, {x:75.0,y:-48.75}, {x:90.0,y:-56.25}, {x:105.0,y:-48.75}, {x:120.0,y:-56.25}, {x:127.5,y:-52.5}, {x:135.0,y:-48.75}, {x:142.5,y:-52.5}, {x:135.0,y:-56.25}, {x:120.0,y:-63.75}, {x:105.0,y:-56.25}, {x:90.0,y:-63.75}, {x:75.0,y:-56.25}, {x:60.0,y:-63.75}, {x:45.0,y:-56.25}, {x:30.0,y:-63.75}, {x:7.5,y:-52.5}, {x:15.0,y:-48.75}, {x:30.0,y:-56.25}],
-  [{x:60.0,y:-56.25}, {x:45.0,y:-48.75}, {x:45.0,y:-11.25}, {x:60.0,y:-18.75}],
-  [{x:45.0,y:-48.75}, {x:30.0,y:-56.25}, {x:30.0,y:-18.75}, {x:45.0,y:-11.25}],
-  [{x:105.0,y:-48.75}, {x:90.0,y:-56.25}, {x:90.0,y:-18.75}, {x:105.0,y:-11.25}],
-  [{x:142.5,y:-15.0}, {x:142.5,y:-52.5}, {x:135.0,y:-48.75}, {x:135.0,y:-11.25}],
-  [{x:75.0,y:-48.75}, {x:60.0,y:-56.25}, {x:60.0,y:-18.75}, {x:75.0,y:-11.25}],
-  [{x:0.0,y:-18.75}, {x:15.0,y:-11.25}, {x:15.0,y:-48.75}, {x:7.5,y:-52.5}],
-  [{x:90.0,y:-18.75}, {x:90.0,y:-56.25}, {x:75.0,y:-48.75}, {x:75.0,y:-11.25}],
-];
-function drawWallTile(leftX, groundY, EDGES, FACES){
-  ctx.save(); ctx.translate(leftX, groundY);
+function drawWallWhole(leftX, groundY, scaleX, scaleY){
+  // v17.69 : remplissage et trait dans deux blocs save/scale/restore
+  // séparés pour pouvoir corriger l'épaisseur du trait après le
+  // scale (sinon le trait devient plus épais/fin selon l'échelle) ;
+  // motif déjà validé par un rendu Playwright autonome (voir NOTES.md)
+  ctx.save(); ctx.translate(leftX, groundY); ctx.scale(scaleX, scaleY);
   ctx.fillStyle = '#000';
-  for (const face of FACES){
+  for (const face of WALL_WHOLE_FACES){
     ctx.beginPath();
     face.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
     ctx.closePath();
     ctx.fill();
   }
-  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-  for (const [a, b] of EDGES){
+  ctx.restore();
+  ctx.save(); ctx.translate(leftX, groundY); ctx.scale(scaleX, scaleY);
+  ctx.strokeStyle = PHOSPHOR_GREEN;
+  ctx.lineWidth = 1 / ((scaleX + scaleY) / 2); // trait fin quelle que soit l'échelle
+  for (const [a, b] of WALL_WHOLE_EDGES){
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
   ctx.restore();
-}
-// une tranche détruite : le mur reste plat (hauteur de "vallée", pas de
-// créneaux), même esprit que l'ancien système ("un créneau détruit
-// laisse juste le mur plat à sa place, pas de trou dans la pierre")
-const WALL_TILE_RUBBLE_TOP_Y = -15;
-function drawWallTileRubble(leftX, groundY){
-  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(leftX, groundY); ctx.lineTo(leftX, groundY + WALL_TILE_RUBBLE_TOP_Y);
-  ctx.lineTo(leftX + WALL_TILE_W, groundY + WALL_TILE_RUBBLE_TOP_Y); ctx.lineTo(leftX + WALL_TILE_W, groundY);
-  ctx.stroke();
 }
 function drawCastle(){
   const { x, y, w, h } = REGEN_ZONE;
@@ -4032,51 +4029,38 @@ function drawCastle(){
     }
     return;
   }
-  // v17.67 (demandé explicitement : "l'ancien mur doit disparaître,
-  // c'est le nouveau qu'on doit mettre en place... il y en a deux
-  // [segments] écartés par un vide qui est l'espace pour la porte") —
-  // remplace ENTIÈREMENT l'ancien mur procédural (créneaux CASTLE_SLOT,
-  // v17.36/37/55) par la géométrie exacte du 3e croquis Drive
-  // ("isometric wall with stairs.svg", déjà utilisé une fois en v17.61
-  // pour un simple ajout décoratif — mal compris à l'époque : ce
-  // n'était pas deux exemples redondants, c'est le tronçon gauche ET
-  // le tronçon droit du même mur, avec la porte entre les deux).
-  // Chaque tronçon fait exactement 142,5px et se recolle à l'identique
-  // au suivant (vérifié en pavant 4 copies bout à bout : le zigzag des
-  // créneaux continue sans la moindre marche) — un vrai motif
-  // répétable, pas un dessin figé à une seule largeur d'écran. Le vide
-  // mesuré entre les deux tronçons du croquis (45px) est repris tel
-  // quel comme largeur de porte (WALL_GATE_HALF_W), au lieu de
-  // CASTLE_SLOT (23, encore utilisé par la palissade forêt ci-dessus)
-  // — à moins d'un pixel l'un de l'autre, mais celui-ci est la vraie
-  // mesure de CE mur, pas une coïncidence reprise d'ailleurs.
+  // v17.69 (correctif direct de Pierre sur v17.67 : "dans le dessin
+  // que je t'avais donné y avait déjà les deux bouts de mur... et le
+  // vide au milieu qui sert de porte, ça c'est le mur ENTIER... c'est
+  // lui qu'il faut coller à droite et à gauche de l'écran, tu le mets
+  // à l'échelle... en gardant les mêmes proportions, il faut qu'il
+  // touche parfaitement à gauche, parfait à droite") — v17.67 avait
+  // mal interprété les deux tronçons comme des TUILES à répéter
+  // (pavage). Ce n'est pas ça : le croquis montrait déjà la composition
+  // ENTIÈRE (tronçon escalier + porte + tronçon nu, dans cet ordre,
+  // une seule fois) — il faut la mettre à l'échelle EN UN SEUL BLOC,
+  // pas la répéter. WALL_WHOLE_EDGES/FACES (voir tools/gen_wall_tiles.py,
+  // adapté) = exactement cette composition, largeur native 330,
+  // hauteur native 63,75, la porte pile au centre (165 = 330/2).
   const gateX = x + w/2; // même centre que le funnel des ennemis (voir update())
-  const rightTileCount = Math.max(1, Math.ceil((x+w - (gateX+WALL_GATE_HALF_W)) / WALL_TILE_W));
-  const leftTileCount = Math.max(0, Math.ceil(((gateX-WALL_GATE_HALF_W-WALL_TILE_W) - x) / WALL_TILE_W));
   const groundY = y + h;
-  // ordre de destruction : les tranches les plus proches de la porte
-  // encaissent en premier (le flux d'ennemis funnelé y tape en
-  // continu), celles plus loin tiennent plus longtemps — l'escalier,
-  // structure renforcée d'accès au chemin de ronde, reste toujours
-  // intact (jamais mis en rubble, même à 10/10 brèches)
-  const plainTiles = [];
-  for (let i = 0; i < rightTileCount; i++){
-    const leftX = gateX + WALL_GATE_HALF_W + i*WALL_TILE_W;
-    plainTiles.push({ leftX, dist: Math.abs((leftX + WALL_TILE_W/2) - gateX) });
-  }
-  for (let j = 0; j < leftTileCount; j++){
-    const leftX = gateX - WALL_GATE_HALF_W - WALL_TILE_W - j*WALL_TILE_W;
-    plainTiles.push({ leftX, dist: Math.abs((leftX + WALL_TILE_W/2) - gateX) });
-  }
-  plainTiles.sort((a,b) => a.dist - b.dist);
-  const destroyedTiles = Math.min(plainTiles.length, Math.round(plainTiles.length * Math.min(CASTLE_SEGMENTS, breaches) / CASTLE_SEGMENTS));
-  const destroyedSet = new Set(plainTiles.slice(0, destroyedTiles).map(t => t.leftX));
-
-  drawWallTile(gateX - WALL_GATE_HALF_W - WALL_TILE_W, groundY, WTILE_STAIRS_EDGES, WTILE_STAIRS_FACES);
-  for (const t of plainTiles){
-    if (destroyedSet.has(t.leftX)) drawWallTileRubble(t.leftX, groundY);
-    else drawWallTile(t.leftX, groundY, WTILE_PLAIN_EDGES, WTILE_PLAIN_FACES);
-  }
+  const scaleX = w / WALL_NATIVE_W; // touche parfaitement les deux bords, quelle que soit la largeur d'écran
+  // v17.69 : sur un très grand écran (ordinateur), suivre le MÊME
+  // facteur en hauteur donnerait un mur démesurément haut ("un autre
+  // problème" sur ordinateur, signalé par Pierre) — la hauteur suit
+  // le même facteur que la largeur jusqu'à ce plafond, puis
+  // n'augmente plus : le mur devient proportionnellement plus large
+  // que haut sur un écran large, au lieu de grandir sans limite.
+  // Gardé identique (mêmes proportions que le croquis) sur téléphone,
+  // où ce plafond n'est de toute façon jamais atteint.
+  const WALL_MAX_SCALE_Y = 2.35;
+  // le mur "s'enfonce" avec les brèches (même principe que les tours
+  // endommagées, hp/maxHp) — descend jusqu'à raz le sol à 10/10
+  // brèches ("mur entièrement rasé"), sans jamais changer sa largeur
+  // (qui doit toujours toucher les deux bords)
+  const hpFactor = Math.max(0, 1 - Math.min(CASTLE_SEGMENTS, breaches) / CASTLE_SEGMENTS);
+  const scaleY = Math.min(scaleX, WALL_MAX_SCALE_Y) * hpFactor;
+  drawWallWhole(x, groundY, scaleX, scaleY);
 }
 
 // la Forge : petit enclos près du château, visible avant même d'être
