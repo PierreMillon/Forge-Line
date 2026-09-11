@@ -3893,3 +3893,68 @@ Un vrai risque est de retour, à un niveau qui distingue nettement
 la difficulté des vagues normales (1-29 inchangées dans les deux
 parties, le reste de la partie continue de se jouer comme avant
 jusqu'à la vague 40).
+
+## v17.75 — cheval de Troie redessiné depuis la référence
+
+Pierre, juste après la v17.74 : "remontre-moi le dessin du cheval de
+Troie, parce que j'ai un doute là". Rendu isolé et agrandi : il avait
+raison, ça ne ressemblait pas à un cheval — quelques traits épars sur
+une tache noire. Sa réponse : "c'est bien ce que j'imaginais... avec
+les nouveaux outils qu'on a mis en place, il faut que tu le
+redessines par rapport à la référence que je t'avais donnée".
+
+**Pourquoi c'était faux** : `drawTrojanHorseShape` (v17.42) avait des
+coordonnées tapées à la main — 14 points aux valeurs rondes (0, 15,
+3, -5, 9,5, 20, 30, 40…), 7 polylignes — visiblement estimées à
+l'œil. Ça passait à peu près à ~20px de large, mais le dessin réel de
+`references/cheval-de-troie.png` a bien plus de structure. Or ce
+croquis est sur GRILLE AIMANTÉE, comme le mur et la tour neige : il
+n'y avait aucune raison d'approximer (cf. tools/README.md, "zéro
+approximation"). C'est exactement le cas de figure que l'outillage
+existant est fait pour traiter — il n'avait juste jamais été
+repassé sur ce dessin-là.
+
+**Méthode** (nouveau script versionné `tools/gen_trojan_horse.py`) :
+1. Recadrage de l'image pour enlever l'interface de l'appli de dessin
+   (barre d'état, icônes, boutons PNG/SVG) — sinon Hough prend les
+   icônes pour des traits.
+2. `extract_hough.py` tel quel : grille isométrique 30° retrouvée par
+   moindres carrés sur tous les points, segments par transformée de
+   Hough, extrémités recalées sur les nœuds, auto-contrôle contre
+   l'image d'origine. Résultat : **43 arêtes gardées, 7 rejetées**
+   (couverture 0,10-0,22 : des inventions entre sommets, correctement
+   écartées) et surtout **complétude 100%** — aucun trait du croquis
+   manqué.
+3. **Dédoublonnage (43 -> 29)** : Hough renvoie souvent une ligne
+   entière ET ses moitiés. Sur une image opaque ça ne se verrait pas,
+   mais le trait du jeu est semi-transparent (PHOSPHOR_GREEN, alpha
+   0,92) — deux traits superposés rendent donc plus lumineux que les
+   autres. Ne garde que les segments maximaux.
+4. Reprojection (i,j) -> 2:1 dimétrique du jeu (A=7,5 / B=A/2), même
+   convention que `gen_snow_tower.py` et `gen_wall_tiles.py`.
+5. Normalisation : centré en x, pieds à y=0 — le cheval se pose donc
+   SUR le point passé, comme `drawEnemyShape` pour les autres ennemis
+   (l'ancienne version ancrait sur la pointe de l'oreille, ce qui le
+   décalait).
+6. Silhouette pleine par la méthode "corde tendue" validée (buffer +
+   union shapely, 2 morceaux). Indispensable ici : `polygonize` seul
+   ne trouve que 2 faces fermées, les pattes étant des traits ouverts.
+
+**Taille** : le paramètre de `drawTrojanHorseShape` devient une
+DEMI-largeur (comme le `hw` de `drawEnemyShape`) au lieu d'une
+envergure totale, et l'appel passe `rr*1.3`. Purement visuel — la
+collision garde `rr` (`enemyRadius`, 18, inchangé). Justification
+mesurée : rendu comparé à `rr` tout juste (36px de large) et à
+`rr*1.3`, le premier retasse le dessin au point de redevenir
+difficile à lire, c'est-à-dire le défaut même qu'on corrige. Et
+depuis la v17.74 le cheval arrive tout seul en fin de partie : c'est
+la menace la plus grave du jeu (défaite immédiate), elle doit se
+repérer au premier coup d'œil.
+
+Vérifié : `node --check` ; rendu en jeu à 3 tailles au-dessus d'une
+grille de points (la silhouette masque bien le fond, aucune erreur
+console) ; comparaison côte à côte croquis / rendu envoyée à Pierre —
+tête, oreille, museau, encolure, patte avant, dos en zigzag, pattes
+arrière et queue correspondent un pour un (le rendu est simplement
+plus trapu, effet attendu de la reprojection 2:1 partagée par tous
+les éléments du jeu).

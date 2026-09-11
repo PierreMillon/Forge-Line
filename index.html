@@ -2576,6 +2576,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.75", text: "Le cheval de Troie est redessiné à partir de ton croquis d'origine, cette fois recopié exactement (méthode automatique, aucune coordonnée à la main) : l'ancienne version était approximée et ne ressemblait plus au dessin dès qu'on la regardait en grand. Il est aussi affiché un peu plus grand — c'est la menace la plus grave du jeu, elle doit se repérer au premier coup d'œil." },
   { v: "17.74", text: "Correctif de difficulté (suite) : au-delà de la vague 30, les ennemis qui montaient déjà en PV avec la vague grandissent maintenant en exponentielle (comme tes dégâts), pas en ligne droite pour toujours. Nouveau : à partir de la vague 40, le cheval de Troie revient tout seul, sans qu'il faille traîner dans l'eau — le laisser passer reste une défaite immédiate, donc une vraie course contre la montre, même très loin dans la partie." },
   { v: "17.71", text: "Correctif d'affichage : les boutons du bas (2e rangée) pouvaient déborder sous le bas de l'écran sur téléphone — la hauteur du bandeau était une valeur fixe devinée, trop courte pour le vrai contenu des boutons. Elle suit maintenant la vraie hauteur mesurée, quels que soient l'appareil et la langue." },
   { v: "17.70", text: "Le curseur de construction (v17.66) pouvait apparaître sur le côté au lieu de rester exactement au-dessus du joueur — l'arrondi de grille basculait parfois vers la case voisine rien qu'en marchant tout droit vers le haut, sans bouger sur les côtés. Corrigé : le curseur reste maintenant sur la même colonne verticale tant qu'on ne se déplace pas horizontalement." },
@@ -3628,38 +3629,82 @@ function drawEnemyShape(cx, cy, hw, complexity){
 // long du corps. Repointé directement sur le dessin (coordonnées
 // mesurées en pixels sur l'image de référence, converties en unités
 // relatives à `size`) plutôt que reconstruit "à la forme" comme avant.
-function drawTrojanHorseShape(cx, cy, size){
-  const s = size / 40; // échelle relative à l'envergure totale mesurée sur le dessin
-  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.3;
-  const P = (dx, dy) => ({ x: cx + dx*s, y: cy + dy*s });
-  const earTip = P(0, 0), nose = P(15, 3), headBack = P(-1, 6), headBend = P(-5, 9),
-    mane1 = P(5, 9.5), mane2 = P(20, 6), mane3 = P(30, 6), tailTip = P(40, 11.5),
-    chest = P(-5, 15),
-    leg1bot = P(-1, 24), legAbot = P(14, 27), legBbot = P(30, 30), legCtop = P(35, 15), legCbot = P(40, 24);
-  const path = (...pts) => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke(); };
-  // v17.50 (silhouette pleine, comme le bateau/la tour/le mur/le cheval
-  // de caravane) : contour calculé une fois par shapely (buffer 2.5 +
-  // union) à partir des mêmes segments dessinés juste en dessous, dans
-  // les unités (dx,dy) non mises à l'échelle — se redimensionne donc
-  // automatiquement avec `size` comme le reste, via P(). Deux polygones
-  // séparés (le corps+3 pattes reliées, et la 4e patte isolée près de la
-  // queue) car ce segment ne touche aucun autre trait.
-  const fillSil = (pts) => {
-    ctx.beginPath();
-    ctx.moveTo(P(pts[0][0],pts[0][1]).x, P(pts[0][0],pts[0][1]).y);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(P(pts[i][0],pts[i][1]).x, P(pts[i][0],pts[i][1]).y);
-    ctx.closePath(); ctx.fill();
-  };
+// v17.75 (Pierre : "remontre-moi le dessin du cheval de Troie, parce que
+// j'ai un doute là" — puis, après l'avoir vu en grand : "il faut que tu le
+// redessines par rapport à la référence que je t'avais donnée"). Il avait
+// raison : la version précédente (v17.42) avait des coordonnées tapées à
+// la main — 14 points aux valeurs rondes, 7 polylignes — qui passaient à
+// peu près à 20px de large mais ne ressemblaient plus du tout au croquis
+// une fois agrandies. Or le croquis est sur grille aimantée : aucune
+// raison d'approximer (cf. tools/README.md, "zéro approximation").
+//
+// Tout ce bloc est AUTO-GÉNÉRÉ par tools/gen_trojan_horse.py depuis
+// references/cheval-de-troie.png — ne pas modifier à la main, relancer le
+// script. Extraction vérifiée : 43 arêtes gardées / 7 rejetées par
+// l'auto-contrôle, complétude 100% (aucun trait du croquis manqué), puis
+// dédoublonnage des segments maximaux (43 -> 29 : Hough renvoie une ligne
+// entière ET ses moitiés, et deux traits phosphore superposés rendraient
+// plus lumineux que les autres).
+//
+// Repère : centré horizontalement, pieds à y=0 — donc le cheval se pose
+// SUR le point passé à drawTrojanHorseShape, comme drawEnemyShape.
+// references/cheval-de-troie.png — ne pas modifier à la main.
+const TROJAN_NATIVE_W = 67.5;
+const TROJAN_NATIVE_H = 56.25;
+const TROJAN_EDGES = [
+  [{x:-26.25,y:-41.25}, {x:-26.25,y:-26.25}],
+  [{x:-3.75,y:-22.5}, {x:-11.25,y:-3.75}],
+  [{x:11.25,y:-37.5}, {x:11.25,y:-15.0}],
+  [{x:18.75,y:-41.25}, {x:18.75,y:-18.75}],
+  [{x:-18.75,y:-22.5}, {x:-26.25,y:-3.75}],
+  [{x:26.25,y:-45.0}, {x:26.25,y:-30.0}],
+  [{x:3.75,y:-48.75}, {x:-11.25,y:-41.25}],
+  [{x:3.75,y:-48.75}, {x:18.75,y:-41.25}],
+  [{x:-11.25,y:-3.75}, {x:-18.75,y:0.0}],
+  [{x:-18.75,y:-52.5}, {x:-11.25,y:-41.25}],
+  [{x:18.75,y:-48.75}, {x:33.75,y:-41.25}],
+  [{x:11.25,y:-37.5}, {x:-11.25,y:-26.25}],
+  [{x:-18.75,y:-37.5}, {x:-26.25,y:-26.25}],
+  [{x:26.25,y:-37.5}, {x:33.75,y:-33.75}],
+  [{x:-33.75,y:-45.0}, {x:-33.75,y:-30.0}],
+  [{x:-26.25,y:-56.25}, {x:-26.25,y:-48.75}],
+  [{x:26.25,y:-30.0}, {x:33.75,y:-26.25}],
+  [{x:3.75,y:-26.25}, {x:3.75,y:-18.75}],
+  [{x:18.75,y:-18.75}, {x:11.25,y:-15.0}],
+  [{x:-18.75,y:-30.0}, {x:-18.75,y:-22.5}],
+  [{x:-18.75,y:-45.0}, {x:-3.75,y:-37.5}],
+  [{x:18.75,y:-48.75}, {x:11.25,y:-45.0}],
+  [{x:3.75,y:-18.75}, {x:11.25,y:-15.0}],
+  [{x:-26.25,y:-56.25}, {x:-18.75,y:-52.5}],
+  [{x:-33.75,y:-30.0}, {x:-26.25,y:-26.25}],
+  [{x:-26.25,y:-3.75}, {x:-18.75,y:0.0}],
+  [{x:-18.75,y:-45.0}, {x:-26.25,y:-41.25}],
+  [{x:-26.25,y:-48.75}, {x:-33.75,y:-45.0}],
+  [{x:-33.75,y:-45.0}, {x:-26.25,y:-41.25}],
+];
+const TROJAN_SILHOUETTE = [
+  [{x:-28.45,y:-56.25}, {x:-28.45,y:-50.11}, {x:-34.73,y:-46.97}, {x:-33.75,y:-45.0}, {x:-35.95,y:-45.0}, {x:-35.95,y:-30.0}, {x:-33.75,y:-30.0}, {x:-34.73,y:-28.03}, {x:-27.23,y:-24.28}, {x:-26.25,y:-26.25}, {x:-24.42,y:-25.03}, {x:-16.92,y:-36.28}, {x:-20.58,y:-38.72}, {x:-24.05,y:-33.52}, {x:-24.05,y:-39.89}, {x:-18.75,y:-42.54}, {x:-4.73,y:-35.53}, {x:-2.77,y:-39.47}, {x:-6.33,y:-41.25}, {x:3.75,y:-46.29}, {x:16.55,y:-39.89}, {x:16.55,y:-20.11}, {x:13.45,y:-18.56}, {x:13.45,y:-37.5}, {x:11.25,y:-37.5}, {x:10.27,y:-39.47}, {x:-12.23,y:-28.22}, {x:-10.27,y:-24.28}, {x:9.05,y:-33.94}, {x:9.05,y:-18.56}, {x:5.95,y:-20.11}, {x:5.95,y:-26.25}, {x:1.55,y:-26.25}, {x:1.55,y:-18.75}, {x:3.75,y:-18.75}, {x:2.77,y:-16.78}, {x:10.27,y:-13.03}, {x:11.25,y:-15.0}, {x:12.23,y:-13.03}, {x:19.73,y:-16.78}, {x:18.75,y:-18.75}, {x:20.95,y:-18.75}, {x:20.95,y:-41.25}, {x:18.75,y:-41.25}, {x:19.73,y:-43.22}, {x:16.17,y:-45.0}, {x:18.75,y:-46.29}, {x:24.05,y:-43.64}, {x:24.05,y:-30.0}, {x:26.25,y:-30.0}, {x:25.27,y:-28.03}, {x:32.77,y:-24.28}, {x:34.73,y:-28.22}, {x:28.45,y:-31.36}, {x:28.45,y:-33.94}, {x:32.77,y:-31.78}, {x:34.73,y:-35.72}, {x:28.45,y:-38.86}, {x:28.45,y:-41.44}, {x:32.77,y:-39.28}, {x:34.73,y:-43.22}, {x:19.73,y:-50.72}, {x:18.75,y:-48.75}, {x:17.77,y:-50.72}, {x:11.25,y:-47.46}, {x:4.73,y:-50.72}, {x:3.75,y:-48.75}, {x:2.77,y:-50.72}, {x:-10.5,y:-44.09}, {x:-16.92,y:-53.72}, {x:-18.75,y:-52.5}, {x:-17.77,y:-54.47}, {x:-25.27,y:-58.22}, {x:-26.25,y:-56.25}],
+  [{x:-28.29,y:-4.57}, {x:-26.25,y:-3.75}, {x:-27.23,y:-1.78}, {x:-19.73,y:1.97}, {x:-18.75,y:0.0}, {x:-17.77,y:1.97}, {x:-10.27,y:-1.78}, {x:-11.25,y:-3.75}, {x:-9.21,y:-2.93}, {x:-1.71,y:-21.68}, {x:-5.79,y:-23.32}, {x:-12.98,y:-5.34}, {x:-18.75,y:-2.46}, {x:-23.46,y:-4.81}, {x:-16.71,y:-21.68}, {x:-18.75,y:-22.5}, {x:-16.55,y:-22.5}, {x:-16.55,y:-30.0}, {x:-20.95,y:-30.0}, {x:-20.95,y:-22.92}],
+];
+function drawTrojanHorseShape(cx, cy, halfWidth){
+  const s = halfWidth * 2 / TROJAN_NATIVE_W;
+  const P = (p) => ({ x: cx + p.x*s, y: cy + p.y*s });
+  // silhouette pleine d'abord (elle bloque ce qu'il y a derrière, comme le
+  // bateau/la tour/le mur), puis les traits par-dessus
   ctx.fillStyle = '#000';
-  fillSil([[0.00,0.00],[-2.47,-0.41],[-3.30,4.60],[-6.50,7.00],[-5.00,9.00],[-7.50,9.00],[-7.50,15.00],[-3.50,15.00],[-3.50,24.00],[1.50,24.00],[1.50,11.83],[4.88,12.00],[5.00,9.50],[5.57,11.93],[16.43,9.40],[11.60,26.31],[16.40,27.69],[21.89,8.50],[27.50,8.50],[27.50,30.00],[32.50,30.00],[32.50,10.23],[38.80,13.69],[41.20,9.31],[31.20,3.81],[30.00,6.00],[30.00,3.50],[20.00,3.50],[20.00,6.00],[19.43,3.57],[14.66,4.68],[15.49,0.55],[0.49,-2.45]]);
-  fillSil([[37.81,25.21],[42.19,22.79],[37.19,13.79],[32.81,16.21]]);
-  path(earTip, nose); // museau/mâchoire, pointe vers l'avant
-  path(earTip, headBack, headBend, mane1, mane2, mane3, tailTip); // dos en zigzag, de l'oreille à la queue
-  path(headBend, chest); // avant de l'encolure
-  path(headBack, leg1bot); // patte avant
-  path(mane2, legAbot);
-  path(mane3, legBbot);
-  path(legCtop, legCbot); // patte arrière, près de la queue
+  for (const poly of TROJAN_SILHOUETTE){
+    ctx.beginPath();
+    poly.forEach((p, i) => { const q = P(p); if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y); });
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  for (const [a, b] of TROJAN_EDGES){
+    const p = P(a), q = P(b);
+    ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
+  }
+  ctx.stroke();
 }
 
 // v17.32 (dessin de référence retrouvé : "un cheval tire un chariot") —
@@ -4643,7 +4688,15 @@ function draw(now){
       const t = e.type || ENEMY_TYPES[0];
       const rr = enemyRadius(e); // même rayon que la collision (v17.31) — le cheval de Troie se voit nettement, le boss un peu plus gros
       if (phosphorMode){
-        if (t.id === 'trojan') drawTrojanHorseShape(e.x, e.y-8, rr);
+        // v17.75 : le paramètre est maintenant une DEMI-LARGEUR (comme le
+        // `hw` de drawEnemyShape), plus une envergure totale comme avant.
+        // ×1.3 : purement visuel, la collision garde `rr` (voir
+        // enemyRadius) — le cheval de Troie est la menace la plus grave du
+        // jeu (défaite immédiate) et, depuis v17.74, arrive tout seul en
+        // fin de partie : il doit se repérer au premier coup d'œil. Vérifié
+        // au rendu : à `rr` tout juste, le dessin se tasse et redevient
+        // difficile à lire, le défaut même qu'on corrige ici.
+        if (t.id === 'trojan') drawTrojanHorseShape(e.x, e.y-8, rr*1.3);
         else drawEnemyShape(e.x, e.y-8, rr*0.85, ENEMY_COMPLEXITY[t.id] ?? 0);
         // v17.63 : anneau de bouclier — disparaît net dès qu'il encaisse
         // son premier coup (voir applyDirectHit), pour que "il reste
