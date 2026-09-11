@@ -3617,18 +3617,12 @@ function drawEnemyShape(cx, cy, hw, complexity){
   lattice(N,E,S,W); lattice(W,S,Sb,Wb); lattice(S,E,Eb,Sb);
 }
 
-// Mode Phosphore — silhouette du cheval de Troie (dessin de référence)
-// v17.42 (correctif majeur demandé : "les formes ne correspondent pas
-// du tout") — l'ancienne version (torse en pavé isométrique + 4 pattes
-// courtes à deux segments) ne ressemblait pas du tout au croquis. Le
-// dessin de référence montre en réalité une silhouette ANGULEUSE ET
-// ALLONGÉE (cheval vu de côté, presque au galop) : pas un cube du tout —
-// une tête avec une oreille dressée à gauche, un dos en zigzag avec
-// plusieurs bosses qui s'étire loin vers la droite jusqu'à une pointe de
-// queue, et des pattes anguleuses qui pendent à différents points le
-// long du corps. Repointé directement sur le dessin (coordonnées
-// mesurées en pixels sur l'image de référence, converties en unités
-// relatives à `size`) plutôt que reconstruit "à la forme" comme avant.
+// Mode Phosphore — le cheval de Troie (dessin de référence)
+// Historique : v17.42 avait déjà refait ce dessin une fois (l'ancienne
+// version, un torse en pavé + 4 pattes courtes, ne ressemblait à rien),
+// mais en repointant les coordonnées à la main sur l'image — d'où le
+// correctif v17.75 ci-dessous, qui les remplace par une extraction
+// automatique.
 // v17.75 (Pierre : "remontre-moi le dessin du cheval de Troie, parce que
 // j'ai un doute là" — puis, après l'avoir vu en grand : "il faut que tu le
 // redessines par rapport à la référence que je t'avais donnée"). Il avait
@@ -3648,7 +3642,6 @@ function drawEnemyShape(cx, cy, hw, complexity){
 //
 // Repère : centré horizontalement, pieds à y=0 — donc le cheval se pose
 // SUR le point passé à drawTrojanHorseShape, comme drawEnemyShape.
-// references/cheval-de-troie.png — ne pas modifier à la main.
 const TROJAN_NATIVE_W = 67.5;
 const TROJAN_NATIVE_H = 56.25;
 const TROJAN_EDGES = [
