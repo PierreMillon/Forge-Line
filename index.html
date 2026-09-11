@@ -1334,6 +1334,36 @@ const BASE_ENEMY_HP = 12;
 // (voir enemiesForWave ci-dessous), qui rejoint ensuite le rythme de
 // croisière d'origine sans à-coup — le long terme n'est pas touché.
 const WAVE_HP_STEP = 6;
+// v17.74 (Pierre, après avoir vu que repousser la cadence de spawn ne
+// suffit pas — voir NOTES.md v17.73 : "ennemis plus résistants avec le
+// temps") — la note ci-dessus ("toujours une croissance LINÉAIRE") a
+// été le bon choix pour les vagues normales (1-29, INCHANGÉES ici),
+// mais un pas linéaire pour toujours ne peut jamais suivre les
+// dégâts du joueur, qui grandissent en EXPONENTIELLE illimitée
+// (UPGRADE_POWER_GROWTH, palier "dégâts") : le rapport dégâts/PV finit
+// TOUJOURS par diverger vers l'infini, quel que soit le pas choisi —
+// c'est exactement ce qui rendait chaque ennemi "mort en un tir" dès
+// la vague ~40-50 (mesuré au simulateur). Au-delà de ce point, un
+// multiplicateur exponentiel prend le relais, au MÊME taux que les
+// dégâts du joueur (même constante, UPGRADE_POWER_GROWTH) — pas un
+// autre taux choisi au hasard : c'est le seul qui empêche le rapport
+// de diverger dans un sens ou dans l'autre indéfiniment.
+// Rappel (v17.24, toujours vrai, PAS touché par ce changement) :
+// l'ennemi de BASE (qui ne scale pas avec la vague, type.scalesWithWave
+// = false) reste 1 coup = 1 mort pour toujours, à n'importe quelle
+// vague — seuls les types qui montaient déjà en PV avec la vague sont
+// concernés ici.
+const ENEMY_HP_EXP_WAVE_START = 30; // même point que le plancher de cadence (v17.65/73) : vagues déjà bien calées avant, on n'y touche pas
+function scaledEnemyHpBase(wave){
+  if (wave < ENEMY_HP_EXP_WAVE_START) return BASE_ENEMY_HP + WAVE_HP_STEP * (wave-1); // formule v17.23, inchangée
+  const atThreshold = BASE_ENEMY_HP + WAVE_HP_STEP * (ENEMY_HP_EXP_WAVE_START-1);
+  return atThreshold * Math.pow(UPGRADE_POWER_GROWTH, wave - ENEMY_HP_EXP_WAVE_START);
+}
+// remplace les deux calculs dupliqués (spawnTrojanSoldiers + l'arrivée
+// normale des ennemis) par une seule source de vérité
+function enemyHpForWave(wave, type){
+  return Math.round((type.scalesWithWave ? scaledEnemyHpBase(wave) : BASE_ENEMY_HP) * type.hpMult);
+}
 const BASE_ENEMY_COUNT = 2;
 const WAVE_ENEMY_COUNT_STEP = 1; // rythme de croisière, identique à avant
 const EARLY_RUSH_WAVES = 8;      // vagues 1 à 8 : période resserrée
@@ -1505,6 +1535,33 @@ function pickEnemyType(){
 const TROJAN_WARNING_MS = 3000, TROJAN_TRIGGER_MS = 6000; // court, avec avertissement (choisi)
 const TROJAN_COOLDOWN_WAVES = 15;
 const TROJAN_SOLDIER_COUNT = 3;
+// v17.74 (Pierre : "un mécanisme de fin de partie séparé") — passé un
+// certain point, plus aucun ennemi normal n'est une vraie menace (les
+// dégâts du joueur grandissent en exponentielle illimitée, voir
+// NOTES.md v17.73) : ACCÉLÉRER LEUR ARRIVÉE ne sert à rien, le joueur
+// les tue de toute façon en un coup. Le cheval de Troie, lui, échappe
+// à ce problème par construction : le laisser passer = défaite
+// IMMÉDIATE (breachDamage:10, voir plus bas), quels que soient les
+// dégâts du joueur — ce n'est pas une course aux PV, c'est une course
+// contre le temps (le détruire avant qu'il n'atteigne le mur). Il
+// existait déjà (v17.24) mais seulement si le JOUEUR CHOISIT de
+// traîner dans l'eau — jamais déclenché par les bots du simulateur,
+// et sans doute rarement par un vrai joueur une fois le risque connu.
+// Réutilisé tel quel (même sprite, même mécanique, même récompense/
+// risque), juste déclenché AUTOMATIQUEMENT en plus, passé cette
+// vague — le déclenchement par l'eau reste inchangé et continue de
+// marcher normalement avant ce point.
+const TROJAN_AUTO_START_WAVE = 40;
+// mesuré au simulateur (voir NOTES.md) : sans ce boost, même une
+// défense minimale (1 tour + 1 catapulte) détruit le cheval ~4,8x
+// plus vite qu'il ne peut atteindre le mur (291 frames pour le tuer
+// contre 1399 pour le trajet, non gêné) — aucun vrai risque, la
+// course était déjà gagnée d'avance. Appliqué SEULEMENT à partir de
+// TROJAN_AUTO_START_WAVE : le déclenchement par l'eau, sur des vagues
+// plus tôt (joueur souvent sans tour/catapulte encore), reste sur le
+// multiplicateur d'origine (v17.24, jamais revu, toujours "un vrai
+// danger" pour un début de partie).
+const TROJAN_LATE_HP_MULT = 20;
 // pas dans ENEMY_TYPES : ne doit jamais être tiré au hasard par pickEnemyType()
 const TROJAN_ENEMY_TYPE = { id: 'trojan', hpMult: 1, speedMult: 0.6, colorA: '#e8dfc8', colorB: '#5c3f26', goldReward: 0, breachDamage: 10, scalesWithWave: false, isTrojan: true };
 let playerInWaterSince = null, trojanWarningShown = false;
@@ -1513,6 +1570,15 @@ let trojanHorse = null; // référence vers l'entité dans `enemies`, tant qu'il
 let trojanCauseOfDefeat = false;
 function updateTrojanWatch(now){
   if (playerDead || spectating || trojanHorse){ playerInWaterSince = null; trojanWarningShown = false; return; }
+  // déclenchement automatique (v17.74) : indépendant de l'eau, mais
+  // respecte le MÊME temps de recharge (trojanCooldownUntilWave) que
+  // le déclenchement par l'eau — un seul à la fois, jamais les deux
+  // qui se chevauchent, pas de logique de recharge séparée à entretenir
+  if (wave >= TROJAN_AUTO_START_WAVE && wave >= trojanCooldownUntilWave){
+    spawnTrojanHorse(now);
+    trojanCooldownUntilWave = wave + TROJAN_COOLDOWN_WAVES;
+    return;
+  }
   const inWater = player.y < WATER_H;
   if (!inWater){ playerInWaterSince = null; trojanWarningShown = false; return; }
   if (wave < trojanCooldownUntilWave) return; // en recharge, l'eau ne fait plus rien pour l'instant
@@ -1528,7 +1594,13 @@ function spawnTrojanHorse(now){
   const e = {
     x: player.x, y: WATER_H - 4, baseX: player.x,
     driftPhase: 0, driftAmp: 0, driftFreq: 0,
-    hp: Math.round(PLAYER_DMG * 6 * (1 + wave*0.02)), type: TROJAN_ENEMY_TYPE,
+    // v17.74 : ancrée sur les dégâts RÉELS actuels du joueur
+    // (effectivePlayerDmg, palier "dégâts" inclus) plutôt que sur la
+    // constante de base figée (PLAYER_DMG) — sinon, comme les ennemis
+    // normaux avant ce correctif, le cheval devient trivial en un
+    // coup dès que le joueur a monté quelques paliers, et ne fait
+    // plus courir aucun risque réel passé les premières vagues.
+    hp: Math.round(effectivePlayerDmg() * 6 * (1 + wave*0.02) * (wave >= TROJAN_AUTO_START_WAVE ? TROJAN_LATE_HP_MULT : 1)), type: TROJAN_ENEMY_TYPE,
     speed: ENEMY_BASE_SPEED * TROJAN_ENEMY_TYPE.speedMult,
     pacePhase: 0, paceRate: 0.0008,
     role: 'rusher', target: null, preferredX: player.x, commitment: 1, nextRerollAt: Infinity,
@@ -1545,7 +1617,7 @@ function spawnTrojanHorse(now){
 function spawnTrojanSoldiers(x, y, now){
   for (let i = 0; i < TROJAN_SOLDIER_COUNT; i++){
     const type = ENEMY_TYPES[2]; // fast_tough : un vrai danger, pas de la chair à canon
-    const hp = Math.round((BASE_ENEMY_HP + WAVE_HP_STEP * (wave-1)) * type.hpMult);
+    const hp = enemyHpForWave(wave, type);
     const ex = x + (Math.random()-0.5) * 40, ey = y + (Math.random()-0.5) * 20;
     const e = {
       x: ex, y: ey, baseX: ex,
@@ -2504,6 +2576,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.74", text: "Correctif de difficulté (suite) : au-delà de la vague 30, les ennemis qui montaient déjà en PV avec la vague grandissent maintenant en exponentielle (comme tes dégâts), pas en ligne droite pour toujours. Nouveau : à partir de la vague 40, le cheval de Troie revient tout seul, sans qu'il faille traîner dans l'eau — le laisser passer reste une défaite immédiate, donc une vraie course contre la montre, même très loin dans la partie." },
   { v: "17.71", text: "Correctif d'affichage : les boutons du bas (2e rangée) pouvaient déborder sous le bas de l'écran sur téléphone — la hauteur du bandeau était une valeur fixe devinée, trop courte pour le vrai contenu des boutons. Elle suit maintenant la vraie hauteur mesurée, quels que soient l'appareil et la langue." },
   { v: "17.70", text: "Le curseur de construction (v17.66) pouvait apparaître sur le côté au lieu de rester exactement au-dessus du joueur — l'arrondi de grille basculait parfois vers la case voisine rien qu'en marchant tout droit vers le haut, sans bouger sur les côtés. Corrigé : le curseur reste maintenant sur la même colonne verticale tant qu'on ne se déplace pas horizontalement." },
   { v: "17.69", text: "Correctif sur le nouveau mur (v17.67) : le croquis fourni montrait déjà la composition ENTIÈRE du mur (escalier + porte + tronçon nu, dans cet ordre) — v17.67 l'avait à tort découpée en deux tuiles à répéter côte à côte. Le mur est maintenant mis à l'échelle EN UN SEUL BLOC pour toucher exactement les deux bords de l'écran, mêmes proportions gardées sur téléphone ; sur grand écran (ordinateur), sa hauteur est plafonnée pour ne pas devenir démesurée." },
@@ -2728,10 +2801,9 @@ function spawnEnemy(now){
   // base, mais du NOMBRE d'ennemis (voir enemiesForWave) puis de
   // l'arrivée progressive de types plus costauds (voir type.scalesWithWave
   // et WAVE_TYPE2/3_START ci-dessus). Seuls ces types plus forts montent
-  // en PV avec la vague.
-  const hp = type.scalesWithWave
-    ? Math.round((BASE_ENEMY_HP + WAVE_HP_STEP * (wave-1)) * type.hpMult)
-    : Math.round(BASE_ENEMY_HP * type.hpMult);
+  // en PV avec la vague (voir enemyHpForWave, v17.74, pour le détail de
+  // cette montée passé la vague 30).
+  const hp = enemyHpForWave(wave, type);
   const boatX = sourceBoat ? sourceBoat.x : STAGE_W/2;
   // v17.48 (demandé par Pierre : "ils descendent du bateau par l'avant
   // du bateau") — avant : réparti symétriquement des deux côtés. Le côté

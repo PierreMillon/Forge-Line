@@ -3793,3 +3793,103 @@ restantes (plafonner la puissance du joueur — la seule qui touche
 directement la cause, la croissance illimitée — ou accepter le
 palier de fin de partie comme légitime) redemandées à Pierre avec
 cette explication, avant d'agir.
+
+## v17.74 — "les deux" : PV exponentiels + cheval de Troie automatique
+
+Reposée en quiz cliquable ("vu que repousser le plancher de cadence
+ne marche pas, on fait quoi ?"). Pierre ne s'est retrouvé dans aucune
+des 3 options proposées, a choisi "Autre piste" puis, reposé plus
+précisément, "Les deux" parmi : PV des ennemis qui grandissent avec
+le temps (exponentiel), et un mécanisme de fin de partie séparé.
+
+### Partie 1 — PV exponentiels des ennemis (au-delà de la vague 30)
+
+Rappel important, PROTÉGÉ depuis v17.24 et non touché ici : l'ennemi
+de BASE reste 1 coup = 1 mort pour toujours, quelle que soit la
+vague — "la difficulté ne doit pas venir de PV qui grimpent sur les
+ennemis de base, mais du NOMBRE d'ennemis". Seuls les types qui
+montaient DÉJÀ en PV avec la vague (fast_frail/fast_tough/boss) sont
+concernés.
+
+Jusqu'ici : `BASE_ENEMY_HP + WAVE_HP_STEP*(vague-1)`, une droite pour
+toujours (choix explicite v17.23 : "toujours une croissance
+LINÉAIRE, pas exponentielle"). Contre des dégâts joueur qui, eux,
+grandissent en exponentielle illimitée (`UPGRADE_POWER_GROWTH`,
+palier "dégâts"), le rapport dégâts/PV finit TOUJOURS par diverger
+vers l'infini — c'est très exactement ce qui rend chaque ennemi
+"mort en un tir" dès la vague ~40-50 (confirmé au simulateur).
+
+Corrigé : jusqu'à la vague 30 (formule v17.23 inchangée, déjà bien
+calée), puis un multiplicateur exponentiel prend le relais, au MÊME
+taux que les dégâts du joueur — pas un autre taux choisi au hasard,
+c'est le seul qui empêche le rapport de diverger indéfiniment dans un
+sens ou dans l'autre. `enemyHpForWave(wave, type)` remplace les deux
+calculs dupliqués qui existaient (spawn normal + soldats du cheval de
+Troie) par une seule source de vérité.
+
+### Partie 2 — cheval de Troie automatique (mécanisme de fin de partie)
+
+Le cheval de Troie existait déjà (v17.24) : easter egg déclenché en
+restant dans l'eau, laisser passer = défaite IMMÉDIATE
+(`breachDamage:10`, un seul coup remplit les 10 brèches). Choix
+DÉLIBÉRÉ pour cette tâche : c'est le seul mécanisme du jeu qui
+échappe par construction au problème de la Partie 1 — ce n'est pas
+une course aux PV (où le joueur gagne toujours dès que ses dégâts
+sont assez hauts), c'est une course contre le temps (le détruire
+avant qu'il n'atteigne le mur), quels que soient les dégâts du
+joueur. Mais tel quel : (a) jamais déclenché par les bots du
+simulateur (ils ne vont jamais dans l'eau), probablement rarement par
+un vrai joueur une fois le risque connu ; (b) ses PV
+(`PLAYER_DMG * 6 * (1+vague*0.02)`) étaient ancrés sur la constante
+de BASE, pas les dégâts réels du joueur — donc, comme les ennemis
+normaux, trivial en un coup dès quelques paliers de dégâts.
+
+Deux correctifs, en réutilisant 100% du mécanisme/sprite existant :
+- Ancré sur `effectivePlayerDmg()` (dégâts réels) au lieu de
+  `PLAYER_DMG` (constante figée) — reste un vrai danger à x'importe
+  quel niveau de dégâts.
+- Déclenchement AUTOMATIQUE ajouté à partir de `TROJAN_AUTO_START_WAVE
+  = 40`, en plus (pas à la place) du déclenchement par l'eau — même
+  temps de recharge (`trojanCooldownUntilWave`, 15 vagues) que
+  l'original, une seule logique de recharge à entretenir. Le
+  déclenchement par l'eau, sur des vagues plus tôt, n'est pas touché.
+
+**Calibrage des PV** (nécessaire pour rendre 40+ une vraie menace, pas
+un détail à deviner à l'œil) : mesuré directement plutôt que
+supposé. Sonde dédiée (joueur seul en défense minimale vs joueur +
+tour + catapulte, vague 45, dmgLevel réaliste ~85) :
+- Temps de trajet du cheval NON gêné jusqu'au mur : 1399 frames
+  (mesuré en désactivant toute défense).
+- Avec le multiplicateur d'origine (×6, celui de l'easter egg de
+  base) : tué en 291 frames (tour+catapulte) — 4,8x plus vite que
+  son trajet, aucun risque réel.
+- ×4 : tué en 707-755 frames (tour+catapulte / joueur seul) — encore
+  ~1,9x de marge, toujours aucun risque.
+- ×7 : tué en 822-831 frames — la relation n'est PAS linéaire avec
+  les PV (un ×1,75 sur le multiplicateur n'a donné qu'un ×1,1 sur le
+  temps de mise à mort, pas ×1,75 comme attendu — signe d'un DPS qui
+  n'est pas parfaitement constant pendant l'engagement, plausiblement
+  lié à `playerAggroScore`). Extrapolation linéaire écartée, mesure
+  directe à chaque palier à la place.
+- ×20 : tué en 1369 frames côté joueur seul (sans tour) — juste sous
+  le temps de trajet (1399), marge de ~2% seulement pour la défense
+  la plus faible. Retenu comme valeur finale
+  (`TROJAN_LATE_HP_MULT = 20`).
+
+**Revalidé au simulateur complet** (15 essais × 90000 frames × 3
+profils) — résultat net, avec une vraie différenciation par niveau de
+jeu (objectif retrouvé) :
+- `naive` (aucune tour construite) : **100% de défaites** (15/15,
+  toutes par brèche), vague moyenne 41 — meurt systématiquement au
+  premier passage du cheval automatique (vague 40).
+- `correct` (une tour, joueur au point fixe) : 14/15 survivent (vague
+  moyenne 67), **1/15 meurt** par brèche.
+- `good` (tour + catapulte) : 13/15 survivent (vague moyenne 66,5),
+  **2/15 meurent** par brèche.
+
+Un vrai risque est de retour, à un niveau qui distingue nettement
+"ne construit rien" (perd toujours) de "construit une vraie défense"
+(survit la plupart du temps, mais pas garanti) — sans avoir touché
+la difficulté des vagues normales (1-29 inchangées dans les deux
+parties, le reste de la partie continue de se jouer comme avant
+jusqu'à la vague 40).
