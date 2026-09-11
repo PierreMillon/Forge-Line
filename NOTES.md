@@ -3958,3 +3958,73 @@ tête, oreille, museau, encolure, patte avant, dos en zigzag, pattes
 arrière et queue correspondent un pour un (le rendu est simplement
 plus trapu, effet attendu de la reprojection 2:1 partagée par tous
 les éléments du jeu).
+
+## v17.76 — audit des dessins + formes d'ennemis réextraites
+
+Suite directe du cheval de Troie (v17.75) : si CE dessin-là était encore
+approximé alors qu'on avait la référence ET l'outil, d'autres pouvaient
+l'être. Audit de toutes les fonctions de dessin adossées à une
+référence :
+
+- `drawBoatHullPhosphor`, `drawForge`, `drawCaravanCart` : données
+  extraites (74/88, 67/108 et 132/177 lignes de coordonnées à 2
+  décimales). Conformes, rien à faire.
+- `drawWallWhole` (v17.69), tour neige (v17.60) : déjà extraits.
+- Tour classique (`drawIsoBox`) : procédurale, mais `references/tour.jpg`
+  EST une boîte isométrique paramétrique (prisme + petit cube dessus +
+  porte). Procédural est ici le bon choix, pas une approximation.
+- Catapulte, palissade forêt : aucun croquis fourni, dessins d'origine
+  assumés.
+- **`drawEnemyShape` : le dernier à être encore entièrement procédural**
+  alors qu'une référence existe. Corrigé ici.
+
+### Ce que contient vraiment `ennemis-complexite.png`
+
+Extraction (133 arêtes gardées / 5 rejetées, complétude 100%) puis
+séparation en composantes connexes : **5 cubes**, soit **4 motifs
+distincts** — cube nu (dessiné 3 fois, à 3 tailles), cube + UNE
+diagonale sur la face du dessus, cube + les DEUX (croix), et le
+treillis dense (50 arêtes maximales).
+
+La lecture faite en v17.42 (4 paliers = nu / une diagonale / croix /
+treillis) était donc **juste**. Seul le TREILLIS était faux : le code le
+fabriquait en subdivisant chaque face en grille régulière 3x3, alors que
+le croquis montre un motif précis en éventails de diagonales, qu'aucune
+formule ne retrouve.
+
+### Erreur commise en chemin (à retenir)
+
+J'ai d'abord annoncé à Pierre que le cube à croix était **inventé** et
+que sa référence ne contenait que 3 motifs. C'était faux. Cause : le
+cube à croix a 10 arêtes, exactement comme celui à une seule diagonale
+— pas 11 comme on l'attendrait. Sa diagonale N-S est alignée au pixel
+près avec l'arête verticale interne du cube (centre -> sommet bas) :
+Hough fusionne les deux en un seul long trait sommet HAUT -> sommet BAS,
+qui ABSORBE l'arête interne au lieu de s'y ajouter. Compter les arêtes
+ne distingue donc pas les deux cubes, et diffé­rencier "par rapport au
+cube nu" échoue aussi (2 différences au lieu d'1). Il faut tester la
+présence de ce long trait vertical — c'est ce que fait le générateur,
+avec le piège documenté dedans. **Leçon : sur ces croquis, deux traits
+colinéaires se fondent en un seul ; ne jamais conclure d'un simple
+comptage d'arêtes sans rendu visuel de contrôle.**
+
+### Épaisseur du trait
+
+Le treillis est bien plus dense que les autres motifs : à 1.1 comme eux,
+il se bouche à la taille réelle du boss (~19px) et devient une tache.
+Premier test trompeur de ma part (rendu à 1 pixel par point) : j'en ai
+conclu que le motif était irrécupérable à cette taille. Pierre : "doit
+juste affiner les traits non ?" — il avait raison. Rendu à 3x, les
+vraies conditions d'un téléphone, le motif se lit très bien dès qu'on
+affine. Comparatif 1.1 / 0.8 / 0.6 / 0.45 soumis à Pierre, qui a choisi
+**0.45** (`ENEMY_LATTICE_LINE_W`). Les 3 autres paliers gardent 1.1.
+
+Normalisation des motifs : largeur 2 (x de -1 à 1), sommet bas à y=0 —
+multiplier par `hw` redonne exactement la géométrie d'avant (même
+largeur, même point d'appui), le cube reprenant au passage la proportion
+isométrique exacte du croquis (sommet haut à -2*hw au lieu de -1.95).
+
+Vérifié : `node --check` ; données livrées identiques à la sortie du
+script ; rendu à 3x des 4 paliers, à la taille réelle du jeu et en x4,
+aucune erreur console — l'escalade se lit clairement et le treillis du
+boss reste lisible à taille réelle.

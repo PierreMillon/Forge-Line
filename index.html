@@ -2576,6 +2576,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.76", text: "Les 4 formes d'ennemis (du cube simple au cube « treillis » du boss) sont maintenant recopiées exactement depuis ton croquis, au lieu d'être fabriquées par formule : le treillis du boss avait un motif inventé en grille régulière, alors que ton dessin montre un motif bien plus travaillé en éventails. Son trait a été affiné pour rester lisible à la taille réelle." },
   { v: "17.75", text: "Le cheval de Troie est redessiné à partir de ton croquis d'origine, cette fois recopié exactement (méthode automatique, aucune coordonnée à la main) : l'ancienne version était approximée et ne ressemblait plus au dessin dès qu'on la regardait en grand. Il est aussi affiché un peu plus grand — c'est la menace la plus grave du jeu, elle doit se repérer au premier coup d'œil." },
   { v: "17.74", text: "Correctif de difficulté (suite) : au-delà de la vague 30, les ennemis qui montaient déjà en PV avec la vague grandissent maintenant en exponentielle (comme tes dégâts), pas en ligne droite pour toujours. Nouveau : à partir de la vague 40, le cheval de Troie revient tout seul, sans qu'il faille traîner dans l'eau — le laisser passer reste une défaite immédiate, donc une vraie course contre la montre, même très loin dans la partie." },
   { v: "17.71", text: "Correctif d'affichage : les boutons du bas (2e rangée) pouvaient déborder sous le bas de l'écran sur téléphone — la hauteur du bandeau était une valeur fixe devinée, trop courte pour le vrai contenu des boutons. Elle suit maintenant la vraie hauteur mesurée, quels que soient l'appareil et la langue." },
@@ -3574,47 +3575,137 @@ function drawCatapult(cx, cyBase, level, hpFrac, lastShotAt, now){
 // 2 = cube + croix sur les 3 faces visibles ("on voit à travers")
 // 3 = cube + treillis dense sur les 3 faces (le plus chargé)
 // Toujours en traits verts, jamais rempli.
+// v17.76 — motifs de cube des ennemis, AUTO-GÉNÉRÉS par
+// tools/gen_enemy_cubes.py depuis references/ennemis-complexite.png.
+// Ne pas modifier à la main, relancer le script.
+//
+// Avant : tout était procédural (cube par formules + treillis fabriqué en
+// grille régulière 3x3). Les 3 premiers paliers tombaient juste, mais le
+// TREILLIS du croquis n'est pas une grille : c'est un motif précis en
+// éventails de diagonales, impossible à retrouver par formule. Repassé à
+// l'extraction (audit qui a suivi le cheval de Troie, v17.75) : 133 arêtes
+// gardées / 5 rejetées, complétude 100%.
+//
+// Les 4 paliers correspondent bien aux 4 motifs du croquis (la lecture
+// v17.42 était juste) : cube nu, + une diagonale sur la face du dessus,
+// + les deux (croix), puis le treillis dense.
+//
+// Normalisation : largeur 2 (x de -1 à 1), sommet BAS à y=0 — multiplier
+// par `hw` redonne donc exactement la géométrie d'avant (même largeur,
+// même point d'appui), à ceci près que le cube reprend la proportion
+// isométrique exacte du croquis (sommet haut à -2*hw au lieu de -1.95).
+// references/ennemis-complexite.png — ne pas modifier à la main.
+// Cubes normalisés : largeur 2 (x de -1 à 1), sommet bas à y=0.
+const ENEMY_CUBE_MOTIFS = {
+  plain: [
+    [{x:1.0,y:-1.5}, {x:0.0,y:-1.0}],
+    [{x:-1.0,y:-1.5}, {x:0.0,y:-1.0}],
+    [{x:-1.0,y:-1.5}, {x:-1.0,y:-0.5}],
+    [{x:0.0,y:-2.0}, {x:-1.0,y:-1.5}],
+    [{x:-1.0,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:1.0,y:-1.5}, {x:1.0,y:-0.5}],
+    [{x:0.0,y:-1.0}, {x:0.0,y:0.0}],
+    [{x:0.0,y:-2.0}, {x:1.0,y:-1.5}],
+    [{x:1.0,y:-0.5}, {x:0.0,y:0.0}],
+  ],
+  diag: [
+    [{x:1.0,y:-1.5}, {x:1.0,y:-0.5}],
+    [{x:0.0,y:-1.0}, {x:0.0,y:0.0}],
+    [{x:-1.0,y:-1.5}, {x:0.0,y:-1.0}],
+    [{x:1.0,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:-1.0,y:-1.5}, {x:-1.0,y:-0.5}],
+    [{x:-1.0,y:-1.5}, {x:1.0,y:-1.5}],
+    [{x:-1.0,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:0.0,y:-2.0}, {x:1.0,y:-1.5}],
+    [{x:0.0,y:-2.0}, {x:-1.0,y:-1.5}],
+    [{x:1.0,y:-1.5}, {x:0.0,y:-1.0}],
+  ],
+  cross: [
+    [{x:-1.0,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:1.0,y:-1.5}, {x:1.0,y:-0.5}],
+    [{x:0.0,y:-2.0}, {x:0.0,y:0.0}],
+    [{x:0.0,y:-2.0}, {x:-1.0,y:-1.5}],
+    [{x:1.0,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:1.0,y:-1.5}, {x:0.0,y:-1.0}],
+    [{x:0.0,y:-2.0}, {x:1.0,y:-1.5}],
+    [{x:-1.0,y:-1.5}, {x:-1.0,y:-0.5}],
+    [{x:-1.0,y:-1.5}, {x:1.0,y:-1.5}],
+    [{x:-1.0,y:-1.5}, {x:0.0,y:-1.0}],
+  ],
+  lattice: [
+    [{x:-0.6667,y:-1.6667}, {x:-0.6667,y:-0.3333}],
+    [{x:0.0,y:-1.0}, {x:0.0,y:0.0}],
+    [{x:0.6667,y:-1.6667}, {x:0.6667,y:-0.3333}],
+    [{x:-0.3333,y:-1.8333}, {x:1.0,y:-1.1667}],
+    [{x:-0.3333,y:-1.8333}, {x:-0.3333,y:-1.5}],
+    [{x:-1.0,y:-1.5}, {x:-1.0,y:-0.5}],
+    [{x:-0.3333,y:-1.1667}, {x:-0.3333,y:-0.1667}],
+    [{x:0.0,y:-2.0}, {x:-1.0,y:-1.5}],
+    [{x:0.3333,y:-1.1667}, {x:0.3333,y:-0.1667}],
+    [{x:0.3333,y:-1.8333}, {x:0.3333,y:-1.5}],
+    [{x:0.3333,y:-1.8333}, {x:-1.0,y:-1.1667}],
+    [{x:1.0,y:-1.5}, {x:1.0,y:-0.5}],
+    [{x:0.0,y:-2.0}, {x:0.0,y:-1.6667}],
+    [{x:0.0,y:-2.0}, {x:1.0,y:-1.5}],
+    [{x:-0.3333,y:-1.1667}, {x:-0.6667,y:-1.0}],
+    [{x:-0.6667,y:-1.3333}, {x:-0.3333,y:-0.1667}],
+    [{x:-1.0,y:-1.5}, {x:0.0,y:-1.0}],
+    [{x:0.6667,y:-1.3333}, {x:0.3333,y:-0.1667}],
+    [{x:0.3333,y:-1.5}, {x:1.0,y:-1.5}],
+    [{x:1.0,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:1.0,y:-1.5}, {x:0.0,y:-1.0}],
+    [{x:-0.6667,y:-1.3333}, {x:-1.0,y:-0.5}],
+    [{x:0.3333,y:-0.8333}, {x:0.6667,y:-0.6667}],
+    [{x:-1.0,y:-0.8333}, {x:-0.6667,y:-0.3333}],
+    [{x:-1.0,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:0.6667,y:-1.3333}, {x:1.0,y:-0.5}],
+    [{x:-1.0,y:-1.1667}, {x:-0.6667,y:-0.6667}],
+    [{x:-0.3333,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:-0.3333,y:-0.8333}, {x:-0.6667,y:-0.6667}],
+    [{x:1.0,y:-1.1667}, {x:0.6667,y:-0.6667}],
+    [{x:0.0,y:-1.0}, {x:0.3333,y:-0.1667}],
+    [{x:0.0,y:-1.0}, {x:-0.3333,y:-0.1667}],
+    [{x:1.0,y:-1.5}, {x:0.6667,y:-1.0}],
+    [{x:0.0,y:-2.0}, {x:-0.3333,y:-1.5}],
+    [{x:0.6667,y:-1.6667}, {x:0.3333,y:-1.5}],
+    [{x:-0.3333,y:-0.8333}, {x:0.0,y:-0.3333}],
+    [{x:0.3333,y:-1.1667}, {x:0.6667,y:-1.0}],
+    [{x:1.0,y:-0.8333}, {x:0.6667,y:-0.3333}],
+    [{x:0.3333,y:-0.5}, {x:0.0,y:0.0}],
+    [{x:-1.0,y:-1.5}, {x:-0.3333,y:-1.5}],
+    [{x:-1.0,y:-1.5}, {x:-0.6667,y:-1.0}],
+    [{x:-0.3333,y:-1.8333}, {x:-0.6667,y:-1.3333}],
+    [{x:0.0,y:-2.0}, {x:0.3333,y:-1.5}],
+    [{x:-0.3333,y:-1.1667}, {x:0.0,y:-0.6667}],
+    [{x:0.3333,y:-1.1667}, {x:0.0,y:-0.6667}],
+    [{x:0.3333,y:-1.8333}, {x:0.6667,y:-1.3333}],
+    [{x:0.3333,y:-0.8333}, {x:0.0,y:-0.3333}],
+    [{x:-0.6667,y:-1.6667}, {x:-0.3333,y:-1.5}],
+    [{x:-0.3333,y:-0.5}, {x:-0.6667,y:-0.3333}],
+    [{x:0.3333,y:-0.5}, {x:0.6667,y:-0.3333}],
+  ],
+};
+// Épaisseurs : le treillis est bien plus dense que les autres motifs — à
+// 1.1 comme eux, il se bouche complètement à la taille réelle du boss
+// (~19px de large) et devient une tache. Mesuré à l'écran dans les vraies
+// conditions (rendu à 3x, comme un téléphone) : 0.45 laisse le motif
+// parfaitement lisible. Valeur choisie par Pierre sur comparatif.
+const ENEMY_LINE_W = 1.1;
+const ENEMY_LATTICE_LINE_W = 0.45;
 function drawEnemyShape(cx, cy, hw, complexity){
-  const hh = hw*0.55, sh = hw*0.85;
-  ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.1;
-  const cyTop = cy - sh - 2*hh;
-  const N={x:cx,y:cyTop}, E={x:cx+hw,y:cyTop+hh}, S={x:cx,y:cyTop+2*hh}, W={x:cx-hw,y:cyTop+hh};
-  const Sb={x:S.x,y:S.y+sh}, Wb={x:W.x,y:W.y+sh}, Eb={x:E.x,y:E.y+sh};
-  ctx.beginPath(); ctx.moveTo(N.x,N.y); ctx.lineTo(E.x,E.y); ctx.lineTo(S.x,S.y); ctx.lineTo(W.x,W.y); ctx.closePath(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(W.x,W.y); ctx.lineTo(S.x,S.y); ctx.lineTo(Sb.x,Sb.y); ctx.lineTo(Wb.x,Wb.y); ctx.closePath(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(S.x,S.y); ctx.lineTo(E.x,E.y); ctx.lineTo(Eb.x,Eb.y); ctx.lineTo(Sb.x,Sb.y); ctx.closePath(); ctx.stroke();
-  if (complexity <= 0) return; // cube tout simple, rien de plus
-  // v17.42 (correctif demandé : "les formes ne correspondent pas du
-  // tout") — re-mesuré sur le dessin de référence (5 cubes) : ce ne sont
-  // PAS 4 paliers avec de plus en plus de faces marquées, mais 4 motifs
-  // distincts, tous sur la face du DESSUS uniquement jusqu'au dernier
-  // palier : un simple trait diagonal (palier 1), puis une croix
-  // complète (palier 2, les deux diagonales), le treillis dense restant
-  // le seul palier à couvrir les 3 faces visibles (palier 3).
-  const diag = (a,c) => { ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(c.x,c.y); ctx.stroke(); };
-  const cross = (a,b,c,d) => { diag(a,c); diag(b,d); };
-  if (complexity === 1){
-    diag(N, S); // un seul trait, du sommet au coin avant — face du dessus seulement
-    return;
+  const m = ENEMY_CUBE_MOTIFS;
+  const motif = complexity >= 3 ? m.lattice
+              : complexity === 2 ? m.cross
+              : complexity === 1 ? m.diag
+              : m.plain;
+  ctx.strokeStyle = PHOSPHOR_GREEN;
+  ctx.lineWidth = complexity >= 3 ? ENEMY_LATTICE_LINE_W : ENEMY_LINE_W;
+  ctx.beginPath();
+  for (const [a, b] of motif){
+    ctx.moveTo(cx + a.x*hw, cy + a.y*hw);
+    ctx.lineTo(cx + b.x*hw, cy + b.y*hw);
   }
-  if (complexity === 2){
-    cross(N,E,S,W); // croix complète (les deux diagonales), face du dessus seulement
-    return;
-  }
-  // treillis : chaque face subdivisée + diagonales croisées, pour la
-  // densité du dessin le plus complexe
-  const lattice = (a,b,c,d) => {
-    const SEGS = 3;
-    for (let i = 1; i < SEGS; i++){
-      const t = i/SEGS;
-      ctx.beginPath();
-      ctx.moveTo(a.x+(b.x-a.x)*t, a.y+(b.y-a.y)*t); ctx.lineTo(d.x+(c.x-d.x)*t, d.y+(c.y-d.y)*t);
-      ctx.moveTo(a.x+(d.x-a.x)*t, a.y+(d.y-a.y)*t); ctx.lineTo(b.x+(c.x-b.x)*t, b.y+(c.y-b.y)*t);
-      ctx.stroke();
-    }
-    cross(a,b,c,d);
-  };
-  lattice(N,E,S,W); lattice(W,S,Sb,Wb); lattice(S,E,Eb,Sb);
+  ctx.stroke();
 }
 
 // Mode Phosphore — le cheval de Troie (dessin de référence)
