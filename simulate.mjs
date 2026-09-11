@@ -96,6 +96,31 @@ await page.goto(URL);
 await page.waitForTimeout(300);
 
 const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWaveTrack }) => {
+  // v17.72 — fuite mémoire trouvée en relançant les tests de difficulté
+  // ("relance tous les tests") : sfxShoot/sfxHit (et tous les autres
+  // bruitages, playTone/playNoiseBurst dans index.html) créent un
+  // nouveau OscillatorNode/AudioBufferSourceNode/GainNode par son. Sur
+  // un vrai appareil, une fois joué (~25-50ms), le nœud atteint l'état
+  // "finished" et devient éligible au ramassage automatique du Web
+  // Audio API — mais dans CE contexte headless (--mute-audio, page
+  // jamais visible, requestAnimationFrame neutralisé), l'horloge audio
+  // ne semble jamais avancer : aucun nœud n'atteint jamais "finished",
+  // donc AUCUN n'est jamais collecté — une vraie fuite qui grandit avec
+  // le nombre de sons joués (donc avec le nombre de frames simulées).
+  // Diagnostiqué par comparaison : identique sur un ancien commit (pas
+  // introduit par les changements récents), confirmé par une fuite
+  // linéaire mesurée même avec gc() forcé entre les essais (donc de
+  // vraies références retenues, pas juste un GC qui traîne), et
+  // ÉLIMINÉE À 100% en coupant sfxVolume/musicVolume avant de lancer
+  // les essais (voir NOTES.md v17.72 pour le détail complet de la
+  // démarche). Sans ce correctif, une session de 90000 frames tourne
+  // la mémoire du renderer Chrome jusqu'à plusieurs Go et se fait tuer
+  // par le limiteur mémoire du conteneur avant la fin — voilà pourquoi
+  // les runs longs du simulateur ne terminaient jamais. Les bots n'ont
+  // de toute façon aucun intérêt à entendre le jeu : ça ne change rien
+  // à la mesure de difficulté, seulement au simulateur, jamais au jeu
+  // livré aux joueurs (le son y est allumé par défaut, comme prévu).
+  sfxVolume = 0; musicVolume = 0;
   const manualInterval = manualIntervalMs != null ? manualIntervalMs : MANUAL_TAP_COOLDOWN_MS;
   const RNG_SPEND_OPTIONS = ['damage', 'autofire', 'precision', 'autogold'];
 

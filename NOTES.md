@@ -3620,3 +3620,89 @@ l'écran (aucun px de débordement, contre ~9px avant le correctif) ;
 capture d'écran des 2 rangées entièrement visibles avec une marge
 propre en dessous, aux 3 configurations. `node --check` sur le script
 extrait.
+
+## v17.72 — fuite mémoire dans simulate.mjs : les runs longs n'aboutissaient jamais
+
+Pierre : "on va relancer tous les tests sur la gestion de la
+difficulté". Un run complet (30 essais, 90000 frames, comme les
+validations précédentes) ne s'est JAMAIS terminé — le processus
+Chrome du simulateur grimpait en mémoire jusqu'à être tué par le
+limiteur du conteneur (~13,8 Go de RSS, confirmé dans les logs
+noyau : `Memory cgroup out of memory: Killed process ... (chrome)
+... anon-rss:13789820kB`), silencieusement, sans le moindre message
+d'erreur — le run relancé une 2e fois a fait exactement la même
+chose. Deux tentatives perdues avant de comprendre qu'il ne s'agissait
+pas d'un aléa d'infrastructure (un redémarrage du conteneur avait
+d'abord brouillé les pistes) mais d'un vrai bug reproductible.
+
+**Démarche de diagnostic** (rigoureuse plutôt que devinée, vu l'enjeu
+— sans ça, plus aucun run long du simulateur n'aboutit jamais) :
+1. Un essai isolé (1 essai, 500 frames) tourne et se termine
+   instantanément → pas un problème de code cassé/boucle infinie.
+2. Une seule partie longue (30000 frames, avec de courtes pauses
+   entre des blocs de 2000 frames pour laisser respirer le GC) :
+   mémoire parfaitement stable (5-18 Mo tout du long) → le JEU
+   lui-même, frame après frame, ne fuit pas.
+3. 200 parties courtes (1000 frames chacune, `resetGame()` entre
+   chaque, AUCUNE pause) dans un seul appel synchrone : la mémoire
+   grimpe de façon parfaitement linéaire, environ 1 Mo par partie →
+   la fuite existe bien, et elle a besoin à la fois d'un reset ET de
+   frames simulées après (`resetGame()` appelé 3000 fois SANS aucune
+   frame ensuite : aucune fuite mesurée, testé séparément).
+4. Le même test avec un `gc()` forcé entre chaque groupe de parties
+   (Chrome lancé avec `--js-flags=--expose-gc`) donne EXACTEMENT la
+   même courbe de croissance → pas un simple retard de ramassage,
+   de vraies références retenues quelque part (un GC forcé ne change
+   rien).
+5. Rejoué le même test contre une version d'`index.html` d'AVANT
+   tous les changements de cette session (commit `7c990f0`, la
+   catapulte) : fuite identique, au même rythme → pas un bug que
+   j'ai introduit cette session, un bug déjà présent, jamais
+   remarqué faute d'avoir jamais poussé un run aussi long jusqu'au
+   bout auparavant.
+6. Toutes les listes d'objets connues (enemies, projectiles, towers,
+   towerGraves, merchants, soldiers, floatingTexts, deathEffects,
+   boats, particles, columnStats, recentSuccesses,
+   pathScreenPoints) mesurées après 150 parties qui avaient fait
+   grimper le tas JS à 159 Mo : toutes petites et normales (0 à 40
+   éléments). La fuite n'est dans AUCUNE structure de jeu suivie.
+7. Repéré `playTone()`/`playNoiseBurst()` (bruitages synthétisés,
+   `index.html`) : chaque son (tir, impact, etc.) crée un NOUVEAU
+   `OscillatorNode`/`AudioBufferSourceNode`/`GainNode`/`BiquadFilterNode`.
+   Sur un vrai appareil, un nœud audio devient automatiquement
+   éligible au ramassage une fois qu'il a fini de jouer (~25-50ms) —
+   mais dans ce contexte headless (`--mute-audio`, page jamais
+   visible, horloge audio qui ne semble jamais avancer), aucun nœud
+   n'atteint jamais l'état "terminé", donc aucun n'est JAMAIS
+   éligible au ramassage : une vraie fuite Web Audio, qui grandit
+   avec le nombre de sons joués (donc avec le nombre de frames
+   simulées — cohérent avec l'observation n°3).
+8. Confirmé de façon définitive : rejoué le test n°3 (200 parties)
+   avec `sfxVolume = 0; musicVolume = 0;` avant de lancer les
+   essais → mémoire parfaitement stable (2,7-3,8 Mo, AUCUNE
+   croissance) sur les 150 000 frames testées. Fuite éliminée à
+   100%.
+
+**Correctif** : `simulate.mjs` coupe maintenant `sfxVolume`/
+`musicVolume` juste avant de lancer les essais (dans le
+`page.evaluate()`, avant `runOne()`). Aucun changement dans
+`index.html` — le jeu livré aux joueurs garde le son allumé par
+défaut comme prévu, ce correctif ne concerne QUE le simulateur (les
+bots n'ont de toute façon aucun intérêt à "entendre" le jeu, ça ne
+change rien à la mesure de difficulté). Pas de piste solide pour
+savoir si ce comportement Web Audio (nœuds jamais "terminés") peut
+aussi arriver en conditions réelles de jeu — a priori non, un vrai
+appareil avec une vraie sortie audio et un contexte débloqué par un
+geste utilisateur voit son horloge audio avancer normalement, donc
+les nœuds finissent et sont ramassés comme prévu ; ça reste un
+signal aussi faible que pratique à vérifier plus tard si jamais un
+usage anormalement long est rapporté (aucun signe actuel que ce soit
+le cas).
+
+Revalidé : un run à pleine échelle (3 essais × 90000 frames, le
+plafond réel, jamais atteint sans crash avant ce correctif) se
+termine proprement, sans erreur, avec des résultats cohérents (`good`
+atteint la vague 68 dans les 3 essais avant d'épuiser les 90000
+frames — aucune défaite, contre les vagues 33-64 mesurées en v17.65
+avec des runs plus courts, cohérent avec plus de frames disponibles
+pour progresser). `node --check` sur le script.
