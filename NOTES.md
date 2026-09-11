@@ -3744,3 +3744,52 @@ information (repousser encore plus loin, plafonner la puissance du
 joueur, accepter un "palier de fin de partie" comme objectif de
 progression légitime, etc.) — remonté tel quel, décision à prendre
 avec lui plutôt que d'agir unilatéralement dessus.
+
+### v17.73 (essai, abandonné) — repousser le plancher de cadence ne marche pas
+
+Question posée à Pierre en quiz cliquable (3 options : repousser
+encore le plancher / plafonner la puissance du joueur / accepter le
+palier tel quel) — il a choisi "repousser encore plus loin".
+
+**1er essai** : plancher dur abaissé de 6 à 3 au-delà de la vague 30,
+avec une décroissance douce (`×0,985/vague`) entre les deux plutôt
+qu'un saut brutal. Revalidé (15 essais × 90000 frames) : effet quasi
+nul, vague moyenne 68→69, dans le bruit. Cause : le sursaut aléatoire
+du délai (`+Math.random()*55`, valeur moyenne 27,5) était resté fixe
+— une fois le plancher déjà bas, c'est LUI qui domine le délai total,
+pas le plancher ; le baisser encore ne change quasiment rien tant que
+ce terme-là reste constant.
+
+**2e essai** : le sursaut aléatoire rétrécit maintenant avec la même
+décroissance que le plancher (jusqu'à un nouveau minimum de 8 au lieu
+de 55). Revalidé : la vague moyenne monte cette fois nettement (69→
+74-75) — la cadence est bien plus rapide, mesurablement. Mais
+**toujours aucune défaite** : `reasonCounts: {maxFrames: 15}` pour
+les 3 profils, 100% de survie aux repères 10/25/50/100.
+
+**Conclusion, importante à comprendre avant de retenter quoi que ce
+soit sur ce levier** : la cadence de spawn ne peut PAS, à elle seule,
+restituer un vrai risque de défaite contre une puissance joueur
+exponentielle et illimitée — et ce n'est pas une histoire de "pas
+assez baissé", c'est structurel. Plus d'ennemis arrivent vite, plus
+le joueur les tue vite, plus il gagne d'or vite, plus il monte de
+palier vite : cadence de spawn et puissance du joueur se renforcent
+l'un l'autre dans cette économie (l'or vient des kills), ils ne sont
+pas des forces opposées. Dès qu'un palier de dégâts suffisant est
+atteint (mesuré : dmgLevel ~80-90 en fin de run, dégâts par tir très
+au-dessus des PV d'un ennemi à ce stade), chaque ennemi meurt en un
+tir — le seul vrai plafond qui reste est la CADENCE DE TIR (cooldown
+du joueur/des tours), pas les dégâts ; accélérer l'arrivée sans
+jamais dépasser ce plafond de tir ne fait qu'avancer plus vite dans
+les vagues, pas perdre. Repoussé deux fois, dans le bon sens à chaque
+fois, sans le moindre signe de perte qui approche — pas une question
+de patience ou de paramètre encore mal calé, une impasse mathéma-
+tique de ce levier précis.
+
+**Changement annulé** (`git checkout -- index.html`) plutôt que
+livré : n'accomplit pas ce qui était demandé, ajoute de la complexité
+pour rien. Retour exact à la formule v17.65. Les deux VRAIES options
+restantes (plafonner la puissance du joueur — la seule qui touche
+directement la cause, la croissance illimitée — ou accepter le
+palier de fin de partie comme légitime) redemandées à Pierre avec
+cette explication, avant d'agir.
