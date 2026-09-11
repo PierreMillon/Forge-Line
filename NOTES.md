@@ -3706,3 +3706,41 @@ atteint la vague 68 dans les 3 essais avant d'épuiser les 90000
 frames — aucune défaite, contre les vagues 33-64 mesurées en v17.65
 avec des runs plus courts, cohérent avec plus de frames disponibles
 pour progresser). `node --check` sur le script.
+
+### Run complet demandé par Pierre ("relance tous les tests") : plus personne ne meurt à 90000 frames
+
+Une fois la fuite corrigée, run complet (30 essais × 90000 frames × 3
+profils, comme demandé) : **les 90 parties tombent TOUTES sur
+`reason: "maxFrames"`, aucune vraie défaite** — naïf/correct/bon
+convergent tous vers la vague ~68-69 (moyennes 68,33 à 68,83, écarts-
+types 0,37-0,47, quasiment identiques entre profils). 100% de survie
+aux repères vague 10/25/50.
+
+Avant de conclure à une régression, comparé contre une version
+BEAUCOUP plus ancienne du jeu (commit `7c990f0`, la catapulte —
+avant même le correctif de difficulté v17.65) avec les mêmes
+paramètres (10 essais × 90000 frames) : **même verdict** — les 30
+parties (10×3 profils) tombent aussi toutes sur `maxFrames`, aucune
+défaite, convergence des 3 profils vers la vague ~58,8. Donc CE
+N'EST PAS un effet des changements de cette session (mur, curseur,
+bandeau du bas) — ce plateau existait déjà avant.
+
+Explication la plus probable, pas encore confirmée avec Pierre :
+conséquence architecturale attendue du fonctionnement même du jeu,
+pas un nouveau bug. La puissance du joueur grandit de façon
+EXPONENTIELLE et illimitée (`UPGRADE_POWER_GROWTH=1.05`, sans
+plafond), alors que la cadence d'ennemis (corrigée en v17.65) a un
+plancher fixe même une fois atteint. Sur une session assez longue,
+la croissance exponentielle finit TOUJOURS par dépasser un plancher
+fixe, quel que soit à quel point ce plancher a été abaissé — v17.65
+avait repoussé ce point de bascule beaucoup plus loin (vague ~16 →
+quelque part au-delà de la vague 68), pas éliminé le phénomène en
+soi, ce qui n'est probablement pas possible sans plafonner la
+croissance de puissance du joueur ou faire grandir la difficulté
+sans limite elle aussi. Pas encore de piste vérifiée sur SI vague 68+
+(25 minutes de jeu simulées) est un point que de vrais joueurs
+atteignent en pratique, ni sur ce que Pierre veut faire de cette
+information (repousser encore plus loin, plafonner la puissance du
+joueur, accepter un "palier de fin de partie" comme objectif de
+progression légitime, etc.) — remonté tel quel, décision à prendre
+avec lui plutôt que d'agir unilatéralement dessus.
