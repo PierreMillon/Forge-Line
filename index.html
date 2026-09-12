@@ -930,6 +930,25 @@ const REGEN_TICK_MS = 500;
 // recalculés au resize (toute la largeur, en bas de l'écran).
 const CASTLE_SEGMENTS = 10;
 const REGEN_ZONE = { x: 0, y: 0, w: 0, h: 46 };
+// Faits géométriques du mur, en unités natives du croquis (voir
+// WALL_WHOLE_EDGES plus bas, auto-généré) — remontés ici en v17.81 parce
+// que buildPath() en a besoin dès resizeCanvas(), avant le bloc du mur :
+const WALL_NATIVE_W = 330;               // largeur de la composition entière
+const WALL_NATIVE_GATE_HALF_W = 22.5;    // la porte : 165 ± 22.5
+// base des deux montants de la porte : les sommets (142.5, -18.75) et
+// (187.5, -18.75) dans WALL_WHOLE_EDGES — PAS le sol (y=0, sommet avant du
+// mur) : en perspective isométrique, la porte est en retrait, sa base est
+// plus haute à l'écran. Mesuré dans les données, pas estimé.
+const WALL_NATIVE_GATE_BASE_Y = -18.75;
+// v17.78 : plafond de hauteur ; la largeur étant bornée à 820/330 ≈ 2.49
+// (--max-w), il n'est jamais atteint — le mur garde ses proportions
+const WALL_MAX_SCALE_Y = 2.6;
+// facteur d'échelle du mur intact (largeur → hauteur, plafonné)
+function wallIntactScaleY(){ return Math.min(REGEN_ZONE.w / WALL_NATIVE_W, WALL_MAX_SCALE_Y); }
+// v17.81 : demi-largeur de la porte du mur À L'ÉCRAN — une seule source
+// de vérité, utilisée par le funnel des ennemis (update) et par le
+// raccord du chemin des marchands (drawPath).
+function castleGateHalfW(){ return WALL_NATIVE_GATE_HALF_W * (REGEN_ZONE.w / WALL_NATIVE_W); }
 function inRegenZone(x, y){
   const pad = 14; // un peu de marge autour du rectangle, plus confortable à atteindre
   return x >= REGEN_ZONE.x - pad && x <= REGEN_ZONE.x + REGEN_ZONE.w + pad &&
@@ -944,11 +963,32 @@ function inRegenZone(x, y){
 // l'easter egg des marchands (voir plus bas) — index 0 = bord du
 // château, dernier index = vers le large.
 let pathScreenPoints = [];
+// v17.81 (Pierre : "la route doit arriver au niveau de la porte... le
+// [trait] à gauche doit arriver en bas du mur à gauche, le [trait] à
+// droite doit arriver en bas du mur à droite, pour comprendre que c'est
+// connecté, comme un tuyau qui serait connecté") — le chemin partait de
+// (0,52·W, REGEN_ZONE.y) : 46 px AU-DESSUS du sol du mur, et à côté de la
+// porte. Il flottait en l'air sans rien toucher. Maintenant :
+//  - index 0 = le point EXACT de la porte, au sol (gateX, groundY) — pas
+//    un nœud de grille, qui pourrait être décalé de 12 px et rater le
+//    centre de la porte ;
+//  - PATH_FLARE_SEGMENTS crans droit vers le haut (x constant), sur
+//    lesquels drawPath évase le double trait de sa largeur normale
+//    jusqu'à la largeur de la porte : les deux rails atterrissent sur
+//    les deux montants ;
+//  - puis le zigzag d'origine sur la grille, inchangé.
+const PATH_FLARE_SEGMENTS = 2;
 function buildPath(){
-  const start = screenToGridCell(STAGE_W*0.52, REGEN_ZONE.y);
+  const gateX = REGEN_ZONE.x + REGEN_ZONE.w/2;
+  // base DESSINÉE des montants de la porte (mur intact), pas le sol :
+  // vérifié au rendu, à groundY les rails passaient ~13 px sous le mur
+  const gateBaseY = REGEN_ZONE.y + REGEN_ZONE.h + WALL_NATIVE_GATE_BASE_Y * wallIntactScaleY();
   pathScreenPoints = [];
+  for (let i = 0; i <= PATH_FLARE_SEGMENTS; i++) pathScreenPoints.push({ x: gateX, y: gateBaseY - i*GRID_TH });
+  // le zigzag reprend sur la grille depuis le haut de l'évasement (petit
+  // raccord ≤ 12 px en x, invisible sous le double trait)
+  const start = screenToGridCell(gateX, gateBaseY - PATH_FLARE_SEGMENTS*GRID_TH);
   let gx = start.gx, gy = start.gy;
-  pathScreenPoints.push(gridToScreen(gx, gy));
   const segments = 16;
   for (let i = 0; i < segments; i++){
     gx -= 1; // gx qui diminue seul = vers le haut-gauche dans cette grille en losange
@@ -2715,6 +2755,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.81", text: "Le chemin des marchands est raccordé au mur comme un tuyau : il arrive au centre de la porte, à la base dessinée des montants (pas 46 px en l'air à côté, comme avant), et son double trait s'évase sur les deux derniers crans pour que le rail gauche atterrisse sur le montant gauche et le rail droit sur le montant droit." },
   { v: "17.80", text: "Les passagers du bateau sont dessinés à leur VRAIE taille (les mêmes cubes qu'au sol), en rangée sur le pont. Quand ils sont trop nombreux pour la largeur du pont, ils sont écrasés horizontalement comme des élastiques — jamais rapetissés : un bateau plein se voit d'un coup d'œil, et chaque débarquement desserre ceux qui restent. L'ennemi qui descend part compressé et reprend sa forme en courant. Correctif au passage : un passager pouvait rester à bord pour toujours si son bateau accostait après les autres." },
   { v: "17.79", text: "Six retours de Pierre en jeu. Le bouton \"vague suivante\" EMPILE maintenant les vagues (trois appuis = trois bateaux en plus, les ennemis en cours restent) au lieu de vider la vague en cours — le bonus d'or a enfin une contrepartie. \"Recommencer\" recommence vraiment (il rechargeait la page avant de remettre à zéro, et l'ancienne sauvegarde revenait). Le viseur de construction est centré sur le point de pose exact. L'angle des tirs ratés est divisé par deux, et un tir perdu touche désormais ce qu'il frôle ou ce qui est derrière. Les soldats issus des marchands tirent à vraie portée (ils n'ouvraient le feu qu'au corps à corps) et les harceleurs peuvent les prendre pour cible. L'horloge d'attente n'a plus de croix : cercle, couronne, une aiguille." },
   { v: "17.78", text: "Le jeu est maintenant borné à une largeur de tablette en portrait (820 px) et centré : sur ordinateur, des bandes noires occupent les côtés au lieu d'étirer une mise en page pensée pour du portrait. Les panneaux (menu, FAQ, versions) et les scanlines suivent la colonne de jeu, plus les bords de l'écran. Le mur garde du coup ses proportions exactes partout : son plafond de hauteur ne peut plus être atteint." },
@@ -3446,7 +3487,7 @@ function update(now){
         // sa demi-largeur doit suivre le même facteur d'échelle
         // horizontal que le mur (REGEN_ZONE.w / WALL_NATIVE_W), pas
         // rester une constante en pixels comme avant
-        const gateHalfW = WALL_NATIVE_GATE_HALF_W * (REGEN_ZONE.w / WALL_NATIVE_W);
+        const gateHalfW = castleGateHalfW();
         const target = Math.max(gateX - gateHalfW, Math.min(gateX + gateHalfW, e.x));
         // baseX aussi, sinon driftTowardPreferred écrase ce nudge dès la
         // frame suivante en recalculant e.x depuis baseX + oscillation
@@ -4260,9 +4301,10 @@ function drawPalisade(x, y, slot, segCount, destroyed, gateAfterSeg){
 // native 63,75px, la porte pile au centre (165 = 330/2). drawCastle()
 // met cette unique composition à l'échelle pour toucher exactement les
 // deux bords de l'écran (voir drawWallWhole ci-dessous).
-const WALL_NATIVE_W = 330;
 const WALL_NATIVE_H = 63.75;
-const WALL_NATIVE_GATE_HALF_W = 22.5;
+// WALL_NATIVE_W / WALL_NATIVE_GATE_HALF_W / WALL_MAX_SCALE_Y : déclarés plus
+// haut, près de REGEN_ZONE (v17.81), parce que buildPath en a besoin dès
+// resizeCanvas(), qui tourne avant ce bloc.
 const WALL_WHOLE_EDGES = [
   [{x:67.5,y:-48.75}, {x:82.5,y:-56.25}],
   [{x:0.0,y:-52.5}, {x:22.5,y:-63.75}],
@@ -4499,13 +4541,13 @@ function drawCastle(){
   // donc le plafond juste au-dessus pour qu'il ne soit JAMAIS atteint dans
   // la plage autorisée. Le mur garde ainsi ses proportions exactes partout,
   // ce que Pierre demandait à l'origine ("en gardant les mêmes proportions").
-  const WALL_MAX_SCALE_Y = 2.6;
+  // (WALL_MAX_SCALE_Y est déclaré près de REGEN_ZONE, v17.81)
   // le mur "s'enfonce" avec les brèches (même principe que les tours
   // endommagées, hp/maxHp) — descend jusqu'à raz le sol à 10/10
   // brèches ("mur entièrement rasé"), sans jamais changer sa largeur
   // (qui doit toujours toucher les deux bords)
   const hpFactor = Math.max(0, 1 - Math.min(CASTLE_SEGMENTS, breaches) / CASTLE_SEGMENTS);
-  const scaleY = Math.min(scaleX, WALL_MAX_SCALE_Y) * hpFactor;
+  const scaleY = wallIntactScaleY() * hpFactor;
   drawWallWhole(x, groundY, scaleX, scaleY);
 }
 
@@ -4630,14 +4672,18 @@ function drawForge(){
 // à chaque sommet est la moyenne des deux segments adjacents (avant/
 // après), pas juste celle d'un seul segment — un décalage qui reste
 // propre aux coins du chemin plutôt qu'un vrai trait unique décalé.
+// dist : nombre, ou fonction (index) -> nombre (v17.81, pour l'évasement
+// du chemin à la porte)
 function offsetPolyline(points, dist){
   const out = [];
+  const distAt = typeof dist === 'function' ? dist : () => dist;
   for (let i = 0; i < points.length; i++){
     let dx = 0, dy = 0;
     if (i > 0){ dx += points[i].x - points[i-1].x; dy += points[i].y - points[i-1].y; }
     if (i < points.length-1){ dx += points[i+1].x - points[i].x; dy += points[i+1].y - points[i].y; }
     const len = Math.hypot(dx, dy) || 1;
-    out.push({ x: points[i].x - dy/len*dist, y: points[i].y + dx/len*dist });
+    const d = distAt(i);
+    out.push({ x: points[i].x - dy/len*d, y: points[i].y + dx/len*d });
   }
   return out;
 }
@@ -4650,8 +4696,14 @@ function drawPath(){
     ctx.strokeStyle = PHOSPHOR_GREEN;
     ctx.lineWidth = 1;
     const PATH_TRACK_HALF_W = 3;
+    // v17.81 : sur les PATH_FLARE_SEGMENTS premiers crans (voir buildPath),
+    // le double trait s'évase de sa demi-largeur normale (3 px) à la
+    // demi-largeur de la porte — les rails finissent pile sur les montants
+    const gateHalfW = castleGateHalfW();
+    const halfW = i => i >= PATH_FLARE_SEGMENTS ? PATH_TRACK_HALF_W
+                     : gateHalfW + (PATH_TRACK_HALF_W - gateHalfW) * (i / PATH_FLARE_SEGMENTS);
     for (const side of [-1, 1]){
-      const pts = offsetPolyline(pathScreenPoints, side * PATH_TRACK_HALF_W);
+      const pts = offsetPolyline(pathScreenPoints, i => side * halfW(i));
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);

@@ -4216,3 +4216,39 @@ formule non clampée (cube de largeur ~1e6 px, invisible), d'où le clamp.
 `packBoatCluster` (spirale v17.51) est retiré : la rangée est ce que
 Pierre demande, et `shift()` en tête de rangée donne gratuitement le
 "ça se desserre" à chaque débarquement.
+
+## v17.81 — la route raccordée à la porte, "comme un tuyau"
+
+Pierre : *"La route doit arriver au niveau de la porte. Le [trait] à gauche
+doit arriver en bas du mur à gauche, le [trait] à droite doit arriver en
+bas du mur à droite, pour comprendre que c'est connecté, comme un tuyau
+qui serait connecté."*
+
+État avant : `buildPath` partait de `(0,52·W, REGEN_ZONE.y)` — 46 px
+au-dessus du sol du mur, à côté de la porte. La route flottait.
+
+Deux mesures qui ont compté :
+
+- **Horizontal** : montants de la porte à `gateX ± castleGateHalfW()`
+  (181,4 / 238,6 sur 420 px). Vérifié au rendu 3× : ce sont bien les arêtes
+  intérieures des deux tronçons dessinés.
+- **Vertical** : la base des montants n'est PAS `groundY` (sommet avant du
+  mur, y natif 0) mais `y natif -18,75` — sommets (142.5, -18.75) et
+  (187.5, -18.75) dans `WALL_WHOLE_EDGES`. En perspective la porte est en
+  retrait. Première version à `groundY` : rails ~13 px sous le mur, vu au
+  rendu. Corrigé avec `WALL_NATIVE_GATE_BASE_Y = -18.75`, lu dans les
+  données, pas estimé.
+
+Refactor forcé : `resizeCanvas()` (l. ~1386) tourne AVANT le bloc du mur
+(l. ~4290), donc `buildPath` ne pouvait pas lire `WALL_NATIVE_*` (TDZ).
+`WALL_NATIVE_W`, `WALL_NATIVE_GATE_HALF_W`, `WALL_MAX_SCALE_Y` remontent
+près de `REGEN_ZONE`, avec `castleGateHalfW()` et `wallIntactScaleY()`
+— une seule source de vérité pour le funnel des ennemis, drawCastle et le
+chemin. (J'ai effacé `WALL_NATIVE_H` au passage ; aucun usage, restaurée
+comme donnée documentaire.)
+
+L'évasement : `offsetPolyline` accepte maintenant une distance par point ;
+sur `PATH_FLARE_SEGMENTS = 2` crans (48 px) la demi-largeur va de 28,6 à
+3 px. Ça donne un V assez ouvert. C'est littéralement la demande ; si
+Pierre le trouve trop "entonnoir", passer à 1 cran (collier court) ou 3
+(élargissement doux) est un seul nombre à changer.
