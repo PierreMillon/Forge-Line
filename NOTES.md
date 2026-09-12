@@ -4422,3 +4422,41 @@ caravane close — la conversion reste réservée au premier jamais touché.
 
 Cohérent avec le reste : le joueur régénère déjà dans `REGEN_ZONE`, le
 mur est le rempart de l'enceinte, la Forge est derrière lui.
+
+## v17.90 — le pont : des balles souples, pas une rangée écrasée
+
+Pierre, sur v17.80 : *"On ne s'est pas compris du tout... il y a des
+principes de collision... ils se repoussent un peu comme des balles de
+foot, avec une certaine souplesse. Si tu les forces dans un endroit très
+restreint, ils vont se rapprocher, pas en ligne. Tu as changé leur
+forme : leur forme ne change PAS, c'est l'autorisation qu'ils ont d'être
+très proches qui change... un amas global, comme si on poussait de vraies
+particules dans un espace de plus en plus restreint."*
+
+Mon erreur de v17.80 : j'ai pris "compressé" pour "déformé". Il parlait
+de la DISTANCE autorisée entre eux, pas de leur silhouette. Leçon : quand
+Pierre décrit un comportement physique, chercher le modèle (répulsion +
+enceinte), pas l'effet visuel.
+
+Quiz : enceinte = parallélogramme iso du pont, stricte ; interpénétration
+sans limite ; "vivant en permanence" ; et le même modèle au sol pour le
+joueur, les soldats/marchands et le funnel de la porte (#43, à faire).
+
+Modèle : positions en unités LOCALES de la coque (avant ×0,7, rotation,
+miroir — appliqués au dessin seulement, `deckToScreen`). Chaque frame :
+agitation ±0,35, répulsion souple par paires avec les rayons réels
+(`DECK_PUSH = 0.3`), projection stricte dans l'enceinte.
+
+**L'erreur de géométrie, vue au rendu** : premier essai avec un
+parallélogramme `|a|≤1, |b|≤1` bâti sur les demi-diagonales U, V de la
+coque. Or la coque est un losange : le parallélogramme construit sur ses
+demi-diagonales a ses coins HORS du losange — des cubes dépassaient de la
+coque aux angles. L'enceinte est le losange `|a|+|b| ≤ 1` (le pont vu de
+dessus est un rectangle ; en iso, un losange). Inset 0,7. Vérifié : 3, 15,
+40 passagers tous dans l'enceinte, chevauchements 0/3, 25/105, 229/780 —
+la compression est bien la répulsion qui cède, pas une déformation.
+
+Pièges de test : (1) une scène contrôlée avec `enemies` vide déclenche la
+fin de vague, qui remplace `boats` — geler avec `enemiesThisWave = 999 ;
+spawnTimer = -1e9` ; (2) le centre de la BASE du cube est à hw/2 sous le
+sommet bas (losange 2:1), pas à hw.

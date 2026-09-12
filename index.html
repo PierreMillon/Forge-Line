@@ -591,6 +591,7 @@ function assignBoatPassengers(targets, count){
   const queue = buildWaveEnemyQueue(count);
   for (const b of list) b.passengers = [];
   queue.forEach((t, i) => { list[i % list.length].passengers.push(t); });
+  for (const b of list) b.passengerPos = b.passengers.map(() => randomDeckPoint()); // v17.90 : un point de départ au hasard sur le pont, la répulsion fait le reste
 }
 function startWaveBoats(now){
   spawnBoat(now);
@@ -815,54 +816,102 @@ function drawOneBoat(b){
 // v17.24 : les ennemis à venir sont visibles massés sur le pont pendant
 // que le bateau glisse (et tant qu'ils n'ont pas débarqué une fois posé).
 // v17.46 : CHAQUE passager existe physiquement, sans plafond ni "+N".
-// v17.51 : paquet organique en spirale (packBoatCluster) — retiré en v17.80.
-// v17.80 (Pierre : "je veux toujours que tous les ennemis soient sur le
-// bateau à la même taille que la taille réelle, donc ils ont juste le
-// droit d'être compressés comme s'ils étaient un peu élastiques... il
-// faut pas qu'ils soient plus petits... comme ça à la fin on a des
-// bateaux qui arrivent avec des [passagers] extrêmement compressés, on
-// voit directement d'un coup d'œil qu'il y en a beaucoup") — remplace
-// les petits points de 1,8 px par les VRAIS cubes, à la même demi-largeur
-// que sur la plage (rr*0.85, voir le bloc de dessin des ennemis), alignés
-// en rangée sur le pont. Quand la somme de leurs largeurs dépasse le
-// pont, ils sont écrasés horizontalement d'un même facteur (hauteur
-// intacte) : cinq passagers tiennent à l'aise, quinze sont des lamelles
-// serrées — le nombre se lit sans compter. Et comme `shift()` retire
-// toujours le premier de la rangée, chaque débarquement desserre
-// visiblement ceux qui restent.
-// Complexité (motif du cube) partagée avec le dessin au sol :
+// v17.51 : paquet en spirale figé. v17.80 : rangée écrasée — FAUX, voir ci-dessous.
+// v17.90 (correction de Pierre sur v17.80 : "on ne s'est pas compris du
+// tout... il y a des principes de collision... ils ne peuvent pas être à
+// la même place, ils se repoussent un peu comme des balles de foot, avec
+// une certaine souplesse ; si tu les forces dans un endroit très
+// restreint, ils vont se rapprocher, pas en ligne. Tu as changé leur
+// forme : leur forme ne change PAS, c'est l'autorisation qu'ils ont d'être
+// très proches et de rentrer dans leur zone qui change ; sur un bateau
+// c'est un espace clos, donc un amas global, comme si on poussait de
+// vraies particules dans un espace de plus en plus restreint.")
+// Tranché en quiz : enceinte = parallélogramme iso du pont (stricte) ;
+// interpénétration sans limite quand ils sont trop nombreux ; amas
+// "vivant en permanence" (réajustement continu + léger tremblement).
+//
+// Modèle : chaque passager est une balle de rayon RÉEL (le même qu'au
+// sol, enemyRadius*0.85), en unités LOCALES de la coque (avant l'échelle
+// 0,7, la rotation et le miroir de drawOneBoat, appliqués seulement au
+// dessin). Chaque frame : agitation aléatoire minime, répulsion souple
+// par paires (même principe que resolveEnemyCollisions), puis projection
+// STRICTE dans le parallélogramme du pont. Peu nombreux, la répulsion
+// les sépare entièrement ; nombreux, elle ne peut plus et ils se
+// chevauchent — c'est ça, la compression. Leur dessin ne change jamais.
 const ENEMY_COMPLEXITY = { base: 0, fast_frail: 1, fast_tough: 2, boss: 3, trojan: 3, shielded: 1 };
-// largeur de pont utilisable, en px écran : coque (BOAT_HULL_HW*2) à
-// l'échelle 0,7 de drawOneBoat, moins les biseaux de proue/poupe
-const DECK_USABLE_W = BOAT_HULL_HW * 2 * 0.7 * 0.85;
-function passengerHalfWidth(t){ return enemyRadius({ type: t }) * 0.85; }
-function passengersTotalWidth(b){
-  return b.passengers.reduce((sum, t) => sum + 2 * passengerHalfWidth(t), 0);
+const BOAT_DRAW_SCALE = 0.7;   // l'échelle de drawOneBoat (v17.46, "diminuer de 30%")
+// le pont, en unités locales : centre + a·U + b·V avec |a|+|b| ≤ 1 — un
+// LOSANGE dont U et V sont les demi-diagonales, prises sur les quatre
+// points extrêmes de la silhouette de la coque (drawBoatHullPhosphor :
+// gauche (-32.16,9.12), droite (61,-17.77), haut (35.33,-35.86), bas
+// (-18.18,34.55)), resserrées de DECK_INSET : le pont est en retrait du
+// bordé. C'est bien le "parallélogramme iso du pont" choisi en quiz : vu
+// de dessus, le pont est un rectangle ; en iso il devient ce losange.
+// (Premier essai avec |a|≤1,|b|≤1 : un parallélogramme bâti sur les
+// demi-diagonales a ses coins HORS du losange — des cubes dépassaient de
+// la coque aux angles. Vu au rendu, corrigé ici.)
+const DECK_INSET = 0.7;
+const DECK = (() => {
+  const L = { x: -32.16, y: 9.12 }, R = { x: 61, y: -17.77 }, T = { x: 35.33, y: -35.86 }, B = { x: -18.18, y: 34.55 };
+  const c = { x: (L.x + R.x + T.x + B.x) / 4, y: (L.y + R.y + T.y + B.y) / 4 };
+  const U = { x: (R.x - L.x) / 2 * DECK_INSET, y: (R.y - L.y) / 2 * DECK_INSET };
+  const V = { x: (B.x - T.x) / 2 * DECK_INSET, y: (B.y - T.y) / 2 * DECK_INSET };
+  const det = U.x * V.y - U.y * V.x;
+  return { c, U, V, det };
+})();
+function deckPoint(a, b){ return { x: DECK.c.x + a*DECK.U.x + b*DECK.V.x, y: DECK.c.y + a*DECK.U.y + b*DECK.V.y }; }
+function deckCoords(p){
+  const dx = p.x - DECK.c.x, dy = p.y - DECK.c.y;
+  return { a: (dx * DECK.V.y - dy * DECK.V.x) / DECK.det, b: (DECK.U.x * dy - DECK.U.y * dx) / DECK.det };
 }
-// facteur d'écrasement horizontal des passagers de ce bateau (1 = à
-// l'aise). Sert aussi au débarquement : l'ennemi part du pont avec ce
-// facteur et se "détend" en courant (voir spawnEnemy / dessin des ennemis)
-function boatSquash(b){
-  if (!b.passengers || !b.passengers.length) return 1;
-  return Math.min(1, DECK_USABLE_W / passengersTotalWidth(b));
+const DECK_PUSH = 0.3;     // correction de chevauchement par frame — souple, jamais instantanée
+const DECK_JITTER = 0.35;  // agitation permanente, en unités locales par frame ("vivant")
+function passengerLocalRadius(t){ return enemyRadius({ type: t }) * 0.85 / BOAT_DRAW_SCALE; }
+function randomDeckPoint(){
+  let a, b;
+  do { a = Math.random()*2-1; b = Math.random()*2-1; } while (Math.abs(a) + Math.abs(b) > 0.85);
+  return deckPoint(a, b);
 }
-function drawBoatPassengers(b){
-  if (!b.passengers || !b.passengers.length) return;
-  const sx = boatSquash(b);
-  const rowW = Math.min(DECK_USABLE_W, passengersTotalWidth(b));
-  // pieds des cubes posés sur le pont (le motif a son sommet bas à y=0).
-  // La coque est centrée en b.y + BOAT_H/2 (voir drawOneBoat) et s'étend
-  // d'environ -25 à +24 px autour ; les pieds juste sous ce centre, les
-  // cubes (≈14 px de haut) occupent alors la face supérieure du pont.
-  // Mesuré : à BOAT_H*0.32 (l'ancienne hauteur des points) ils flottaient
-  // sur l'arrière de la coque.
-  const deckY = b.y + BOAT_H/2 + 4;
-  let x = b.x - rowW/2;
-  for (const t of b.passengers){
-    const hw = passengerHalfWidth(t);
-    const w = 2*hw*sx;
-    drawEnemyShape(x + w/2, deckY, hw, ENEMY_COMPLEXITY[t.id] ?? 0, sx);
-    x += w;
+function updateBoatPassengers(){
+  for (const bt of boats){
+    const pos = bt.passengerPos, types = bt.passengers;
+    if (!pos || !types || pos.length !== types.length) continue;
+    const n = pos.length;
+    for (const p of pos){ p.x += (Math.random()-0.5)*DECK_JITTER; p.y += (Math.random()-0.5)*DECK_JITTER*0.6; }
+    for (let i = 0; i < n; i++){
+      for (let j = i+1; j < n; j++){
+        const minD = passengerLocalRadius(types[i]) + passengerLocalRadius(types[j]);
+        const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+        const d = Math.hypot(dx, dy);
+        if (d < minD){
+          if (d > 0.001){
+            const push = (minD - d) * DECK_PUSH * 0.5, ux = dx/d, uy = dy/d;
+            pos[i].x -= ux*push; pos[i].y -= uy*push; pos[j].x += ux*push; pos[j].y += uy*push;
+          } else { pos[i].x -= 0.5; pos[j].x += 0.5; }
+        }
+      }
+    }
+    // enceinte stricte : personne ne sort du losange du pont, quoi qu'il arrive
+    for (const p of pos){
+      const { a, b } = deckCoords(p);
+      const l1 = Math.abs(a) + Math.abs(b);
+      if (l1 > 1){ const q = deckPoint(a / l1, b / l1); p.x = q.x; p.y = q.y; }
+    }
+  }
+}
+// local (coque) -> écran, même transformation que drawOneBoat
+function deckToScreen(bt, p){
+  const cos = Math.cos(bt.rot), sin = Math.sin(bt.rot);
+  const lx = (bt.mirrored ? -p.x : p.x) * BOAT_DRAW_SCALE, ly = p.y * BOAT_DRAW_SCALE;
+  return { x: bt.x + lx*cos - ly*sin, y: bt.y + BOAT_H/2 + lx*sin + ly*cos };
+}
+function drawBoatPassengers(bt){
+  if (!bt.passengers || !bt.passengers.length || !bt.passengerPos) return;
+  const items = bt.passengers.map((t, i) => { const sp = deckToScreen(bt, bt.passengerPos[i]); return { t, x: sp.x, y: sp.y }; });
+  items.sort((p, q) => p.y - q.y); // les plus proches de la caméra par-dessus
+  for (const it of items){
+    const hw = enemyRadius({ type: it.t }) * 0.85;
+    drawEnemyShape(it.x, it.y + hw*0.5, hw, ENEMY_COMPLEXITY[it.t.id] ?? 0); // le point est le centre de la BASE du cube ; le sommet bas du losange de base est hw/2 plus bas (losange 2:1)
   }
 }
 
@@ -2896,6 +2945,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.90", text: "Les passagers du bateau sont maintenant de vraies \"balles souples\" : forme inchangée, mais ils se repoussent élastiquement dans l'enceinte close du pont. Peu nombreux, ils tiennent chacun leur place ; nombreux, la répulsion ne suffit plus et ils se chevauchent en une masse dense — un bateau plein se voit d'un coup d'œil. L'amas vit en permanence (léger tremblement) et se desserre à chaque débarquement. Remplace la rangée écrasée de la v17.80, qui déformait leur silhouette." },
   { v: "17.89", text: "Menu : retiré les liens vers Bastion Orbit et Knight Wars — le portfolio (pierremillon.github.io/pierremillon) est désormais l'endroit unique pour naviguer d'un jeu à l'autre." },
   { v: "17.88", text: "On ne se soigne que dans l'enceinte du château. Un marchand blessé ne repart plus \"au large\" : il continue jusqu'au château et y entre (sans déclencher la conversion en soldats, réservée au premier marchand jamais touché). Un soldat blessé rentre derrière la porte et régénère sur place, autant de fois qu'il le faut, puis ressort à 80 %." },
   { v: "17.87", text: "Mur simplifié après essai : la zone d'escalier couvre tout l'escalier avec de la marge ; on monte en poussant vers le mur, on redescend en poussant vers le sol (vers le haut de l'écran) — avant, il fallait pousser à l'envers, d'où l'impossibilité de descendre. Le personnage est posé sur le mur, pas au-dessus. Et le mur (comme la Forge) est enfin opaque : ce qui est derrière lui, côté mer, disparaît derrière." },
@@ -3129,10 +3179,9 @@ function spawnEnemy(now){
   const withPassengers = landedBoats.filter(b => b.passengers && b.passengers.length);
   const candidates = withPassengers.length ? withPassengers : landedBoats;
   const sourceBoat = candidates.length ? candidates[Math.floor(Math.random()*candidates.length)] : null;
-  // v17.80 : l'écrasement qu'il avait sur le pont (calculé AVANT le shift,
-  // lui compris), pour qu'il débarque compressé et se détende en courant
-  const squashX = sourceBoat ? boatSquash(sourceBoat) : 1;
-  const type = (sourceBoat && sourceBoat.passengers && sourceBoat.passengers.length) ? sourceBoat.passengers.shift() : pickEnemyType();
+  const fromDeck = sourceBoat && sourceBoat.passengers && sourceBoat.passengers.length;
+  const type = fromDeck ? sourceBoat.passengers.shift() : pickEnemyType();
+  if (fromDeck && sourceBoat.passengerPos) sourceBoat.passengerPos.shift(); // v17.90 : sa place sur le pont se libère, les autres se desserrent
   // v17.24 : le type de base ("niveau 1") reste 1 balle = 1 mort POUR
   // TOUJOURS, à n'importe quelle vague — demandé explicitement : la
   // difficulté ne doit pas venir de PV qui grimpent sur les ennemis de
@@ -3203,9 +3252,6 @@ function spawnEnemy(now){
     // v17.32 (D) : course rapide et groupée juste après le débarquement,
     // avant toute stratégie — voir LANDING_DASH_MS et la boucle d'ennemis
     landingUntil: now + LANDING_DASH_MS,
-    // v17.80 : part du pont écrasé comme il y était, retrouve sa forme
-    // sur la durée de la course de débarquement (élastique qui se relâche)
-    squashX, squashUntil: now + LANDING_DASH_MS,
   };
   if (role === 'attacker') e.target = pickTargetTower(baseX, 0);
   enemies.push(e);
@@ -3460,6 +3506,7 @@ function update(now){
   projectiles = projectiles.filter(p => !p.dead);
 
   updateBoat(now);
+  updateBoatPassengers(); // v17.90 : l'amas sur le pont vit à chaque frame
 
   // vagues organiques : par à-coups (1, parfois 2-3 d'un coup), avec un
   // délai irrégulier entre chaque décision plutôt qu'un tapis roulant
@@ -4070,12 +4117,7 @@ const ENEMY_CUBE_MOTIFS = {
 // parfaitement lisible. Valeur choisie par Pierre sur comparatif.
 const ENEMY_LINE_W = 1.1;
 const ENEMY_LATTICE_LINE_W = 0.45;
-// sx (v17.80) : écrasement horizontal, 1 = forme normale. Appliqué aux
-// POINTS et non via ctx.scale : un scale anisotrope amincirait aussi les
-// traits verticaux (à sx=0.3 ils feraient 0.3 px, quasi invisibles), alors
-// qu'on veut un cube compressé dessiné avec le même trait que les autres.
-function drawEnemyShape(cx, cy, hw, complexity, sx){
-  sx = sx === undefined ? 1 : sx;
+function drawEnemyShape(cx, cy, hw, complexity){
   const m = ENEMY_CUBE_MOTIFS;
   const motif = complexity >= 3 ? m.lattice
               : complexity === 2 ? m.cross
@@ -4085,8 +4127,8 @@ function drawEnemyShape(cx, cy, hw, complexity, sx){
   ctx.lineWidth = complexity >= 3 ? ENEMY_LATTICE_LINE_W : ENEMY_LINE_W;
   ctx.beginPath();
   for (const [a, b] of motif){
-    ctx.moveTo(cx + a.x*hw*sx, cy + a.y*hw);
-    ctx.lineTo(cx + b.x*hw*sx, cy + b.y*hw);
+    ctx.moveTo(cx + a.x*hw, cy + a.y*hw);
+    ctx.lineTo(cx + b.x*hw, cy + b.y*hw);
   }
   ctx.stroke();
 }
@@ -5223,13 +5265,7 @@ function draw(now){
         // au rendu : à `rr` tout juste, le dessin se tasse et redevient
         // difficile à lire, le défaut même qu'on corrige ici.
         if (t.id === 'trojan') drawTrojanHorseShape(e.x, e.y-8, rr*1.3);
-        else {
-          // v17.80 : de squashX (sur le pont) à 1 (forme normale) pendant la course de débarquement
-          const sq = (e.squashUntil && now < e.squashUntil)
-            ? 1 - (1 - e.squashX) * Math.min(1, Math.max(0, (e.squashUntil - now) / LANDING_DASH_MS))
-            : 1;
-          drawEnemyShape(e.x, e.y-8, rr*0.85, ENEMY_COMPLEXITY[t.id] ?? 0, sq);
-        }
+        else drawEnemyShape(e.x, e.y-8, rr*0.85, ENEMY_COMPLEXITY[t.id] ?? 0);
         // v17.63 : anneau de bouclier — disparaît net dès qu'il encaisse
         // son premier coup (voir applyDirectHit), pour que "il reste
         // combien de coups à faire" se lise d'un coup d'œil, pas
