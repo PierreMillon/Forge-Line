@@ -4128,3 +4128,53 @@ Points à ne pas oublier si on y retouche :
 Vérifié : 1440x900 → colonne centrée 820px ; 420x900 dsf 3 → inchangé, le mur
 touche encore les deux bords. Seule erreur console : `fonts.googleapis.com`
 bloqué par le proxy du bac à sable, sans rapport.
+
+## v17.79 — six retours de Pierre pendant qu'il jouait
+
+Tous signalés en jeu, à la suite, pendant que je finissais v17.78. Dans
+l'ordre d'importance réelle :
+
+**Recommencer ne recommençait pas.** Le bouton faisait
+`if (reloadIfUpdateAvailable()) return; resetGame(0);` — donc dès qu'une
+mise à jour était disponible (c'est-à-dire presque toujours pendant que je
+pousse une version toutes les dix minutes), la page rechargeait AVANT la
+remise à zéro, et `loadProgress()` ramenait la vague et l'or de la partie
+perdue. Ordre inversé : `resetGame` d'abord (il réécrit la sauvegarde à
+zéro), rechargement ensuite. Leçon : un bouton dont l'effet dépend de
+l'ordre de deux effets de bord, il faut tester les deux ordres.
+
+**Vague suivante vidait la vague en cours.** `enemies.length = 0`, puis
+`spawned = 0`, puis un `spawnBoat` qui fait `boats = []`. Trois
+remplacements silencieux. Maintenant `callWaveEarly()` : `wave++`,
+`enemiesThisWave += enemiesForWave(wave)` sans toucher `spawned`,
+`spawnBoat(now, true)` qui AJOUTE, `assignBoatPassengers(newBoats, added)`
+qui ne charge que les nouveaux bateaux. Mesuré : 3 appuis → vague 1→4,
+7 bateaux, 15 à débarquer, 6 débarqués après 2,5 s, zéro erreur. Le bonus
+d'or est calculé sur la vague appelée (`added*1.5`), pas sur le cumul.
+
+**Viseur décalé.** Le losange suivait la convention de `drawDebugGrid`
+(sommet sur le nœud) alors que la tour se pose SUR le nœud. Une demi-case
+(12 px) d'écart, invisible sur un croquis, évident en jeu. Centré.
+
+**Angle de tir.** `MISS_DEVIATION` 0.3/0.6 → 0.15/0.3 rad. Le tir perdu
+s'arrêtait à `best+40` : impossible d'atteindre quelqu'un derrière la
+cible → `MISS_OVERSHOOT_PX = 140`. Et la collision était `< 6` px sur la
+position courante, avec une flèche qui avance de 8 px/frame : tunneling
+garanti sur un ennemi de 8 px de rayon. Maintenant distance au SEGMENT
+parcouru (`distPointSegment`) contre `enemyRadius(e) + pr.r`.
+
+**Soldats.** Ils tiraient — mais à moins de 30 px, donc jamais avant de
+mourir au contact. `SOLDIER_RANGE_PX = 120`, ils s'arrêtent à portée.
+Petits projectiles (`r: 2.5`). Et les harceleurs peuvent maintenant
+choisir un soldat proche (`HARASSER_SOLDIER_PREF = 0.55` dans 160 px) —
+"si c'est le choix qu'ils font", donc pas 100 %.
+
+**Horloge.** Part de camembert = arc + deux rayons = une croix au centre.
+Remplacée par un vrai cadran : cercle, progression sur la couronne, une
+seule aiguille, départ à midi. Testé aux cinq valeurs 0.08→0.99.
+
+Reste en file (tâches ouvertes) : passagers du bateau à taille réelle
+compressés (pas réduits), route raccordée au pied du mur, forge vide à
+construire, monter sur le mur par l'escalier. Et la question de Pierre
+sur l'origine du dessin de la catapulte : aucune référence, c'est une
+silhouette inventée (v17.62), déjà noté dans l'audit v17.76.

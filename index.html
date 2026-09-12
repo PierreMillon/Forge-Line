@@ -291,6 +291,7 @@ const I18N = {
     over_title_castle: "Le château est tombé", over_title_trojan: "Le cheval de Troie a atteint le château",
     over_wave: w => `Tu as tenu jusqu'à la vague ${w}`,
     wave_complete_banner: w => `Vague ${w} terminée !`,
+    wave_called_banner: w => `Vague ${w} appelée !`,
     // v17.64 : annonce d'un nouveau type d'ennemi à sa toute première
     // apparition (voir NEW_ENEMY_WAVE) — pas à chaque vague, seulement
     // les 3 fois où ça compte
@@ -347,6 +348,7 @@ const I18N = {
     over_title_castle: "The castle has fallen", over_title_trojan: "The Trojan Horse reached the castle",
     over_wave: w => `You made it to wave ${w}`,
     wave_complete_banner: w => `Wave ${w} complete!`,
+    wave_called_banner: w => `Wave ${w} called!`,
     new_enemy_incoming: name => `Watch out: ${name} incoming!`,
     enemy_name_fast_frail: "fast, frail enemies",
     enemy_name_fast_tough: "fast, tough enemies",
@@ -444,7 +446,19 @@ const PLAYER_RANGE_PX = 200;
 const ACCURACY_FULL_FRACTION = 0.25; // en dessous de 25% de PLAYER_RANGE_PX : 100% de précision
 const ACCURACY_ZONES = 10;
 const ACCURACY_MIN = 0.2; // à PLAYER_RANGE_PX (et au-delà) : 20% de précision (1 tir sur 5)
-const MISS_DEVIATION_MIN = 0.3, MISS_DEVIATION_MAX = 0.6; // radians — assez pour qu'on voie clairement que ça part à côté
+// v17.79 (Pierre : "on va réduire l'angle, on va le diviser par deux
+// l'angle quand je tire qui est un peu approximatif là, c'est encore trop
+// large") — divisé par deux, de 0.3/0.6 rad (17°/34°) à 0.15/0.3 rad
+// (8.6°/17°). Le tir raté part toujours visiblement à côté, mais il reste
+// dans la direction de la cible au lieu de partir franchement ailleurs.
+const MISS_DEVIATION_MIN = 0.15, MISS_DEVIATION_MAX = 0.3; // radians — assez pour qu'on voie clairement que ça part à côté
+// v17.79 (même demande : "si un projectile part mais qui touche pas la
+// personne, qui touche quelqu'un derrière ou qui frôle quelqu'un, ça
+// attaque quand même") — le tir perdu s'arrêtait 40 px après la distance
+// de la cible, donc il ne pouvait presque jamais atteindre quelqu'un
+// DERRIÈRE elle. 140 px, c'est un peu moins de 6 cases de grille au-delà
+// de la cible : de quoi traverser un groupe, sans traverser la carte.
+const MISS_OVERSHOOT_PX = 140;
 function hitChanceForDistance(d){
   const fullRangeDist = PLAYER_RANGE_PX * ACCURACY_FULL_FRACTION;
   if (d <= fullRangeDist) return 1;
@@ -497,18 +511,33 @@ function pickBoatCount(){
   }
   return 1;
 }
-function spawnBoat(now){
+// append=true : ajoute les nouveaux bateaux à ceux déjà en mer au lieu de
+// les remplacer (voir callWaveEarly — appeler la vague suivante empile,
+// elle n'annule pas la vague en cours). Renvoie les bateaux créés.
+function spawnBoat(now, append){
   const count = pickBoatCount();
-  boats = [];
+  if (!append) boats = [];
+  const created = [];
   const margin = BOAT_W*0.7;
   for (let i = 0; i < count; i++){
     // v17.24 : l'accostage tient compte de la mémoire des colonnes
     // (demandé) — un mélange 70% mémoire (pickPreferredX, la même
     // fonction que celle qui guide les ennemis) / 30% pur hasard, pour
     // ne pas non plus toujours accoster pile au même endroit
-    const targetX = Math.min(STAGE_W-margin, Math.max(margin,
-      Math.random() < 0.7 ? pickPreferredX() : margin + Math.random() * Math.max(1, STAGE_W - margin*2)
-    ));
+    // v17.79 : avec l'empilement de vagues il peut y avoir 5-7 bateaux en
+    // mer en même temps ; on essaie quelques tirages pour ne pas accoster
+    // PILE sur un bateau déjà là (sinon deux coques se superposent). Pas
+    // une garantie — la plage n'est pas infinie — juste le meilleur des
+    // essais.
+    let targetX = 0, bestGap = -1;
+    for (let tries = 0; tries < 6; tries++){
+      const cand = Math.min(STAGE_W-margin, Math.max(margin,
+        Math.random() < 0.7 ? pickPreferredX() : margin + Math.random() * Math.max(1, STAGE_W - margin*2)
+      ));
+      const gap = boats.reduce((g, o) => Math.min(g, Math.abs(o.targetX - cand)), Infinity);
+      if (gap > bestGap){ bestGap = gap; targetX = cand; }
+      if (gap >= BOAT_W) break; // assez loin de tous les autres : inutile d'insister
+    }
     const targetY = WATER_H - BOAT_H*0.6;
     boats.push({
       x: targetX, y: -BOAT_H,
@@ -525,7 +554,9 @@ function spawnBoat(now){
       landed: false,
       passengers: [] // rempli juste après par assignBoatPassengers() — les types déjà décidés pour cette vague, affichés sur le pont pendant que le bateau glisse
     });
+    created.push(boats[boats.length-1]);
   }
+  return created;
 }
 // v17.24 : les ennemis d'une vague sont décidés D'UN COUP à l'arrivée du
 // bateau (pas au fil du spawn comme avant) et répartis entre les bateaux,
@@ -534,9 +565,10 @@ function spawnBoat(now){
 // garde ses effets de bord habituels (boss unique par vague, réduction de
 // enemiesThisWave) : appelée en boucle jusqu'à avoir rempli le quota,
 // exactement comme si elle avait été appelée une à une comme avant.
-function buildWaveEnemyQueue(){
+function buildWaveEnemyQueue(count){
+  const n = (count === undefined) ? enemiesThisWave : count;
   const queue = [];
-  while (queue.length < enemiesThisWave) queue.push(pickEnemyType());
+  while (queue.length < n) queue.push(pickEnemyType());
   return queue;
 }
 // v17.51 (répété plusieurs fois par Pierre, jamais vraiment traité : "il
@@ -578,15 +610,43 @@ function packBoatCluster(n){
   pts.sort((p1,p2) => Math.hypot(p1.x,p1.y) - Math.hypot(p2.x,p2.y)); // centre d'abord
   return pts;
 }
-function assignBoatPassengers(){
-  const queue = buildWaveEnemyQueue();
-  for (const b of boats) b.passengers = [];
-  queue.forEach((t, i) => { boats[i % boats.length].passengers.push(t); });
-  for (const b of boats) b.passengerLayout = packBoatCluster(b.passengers.length);
+// targets : les bateaux à charger (par défaut tous). count : combien de
+// passagers répartir entre eux (par défaut la vague en cours). Les deux
+// servent à l'empilement de vagues : les bateaux déjà en mer gardent
+// leurs passagers, seuls les nouveaux reçoivent la vague appelée.
+function assignBoatPassengers(targets, count){
+  const list = targets || boats;
+  if (!list.length) return;
+  const queue = buildWaveEnemyQueue(count);
+  for (const b of list) b.passengers = [];
+  queue.forEach((t, i) => { list[i % list.length].passengers.push(t); });
+  for (const b of list) b.passengerLayout = packBoatCluster(b.passengers.length);
 }
 function startWaveBoats(now){
   spawnBoat(now);
   assignBoatPassengers();
+}
+// v17.79 (bug signalé par Pierre : "quand je clique sur vague suivante ça
+// supprime la vague actuelle, c'est pas bon du tout ; la vague suivante,
+// ça rajoute la vague suivante — d'où l'intérêt d'avoir un bonus d'or")
+// — le bouton faisait exactement l'inverse de son nom : il VIDAIT la
+// vague en cours (enemies.length = 0) puis repartait sur la suivante.
+// C'était un bouton "abandonner la vague", et le bonus d'or n'avait donc
+// aucune contrepartie.
+//
+// Maintenant il EMPILE : les ennemis en cours restent, un nouveau bateau
+// arrive en plus des bateaux déjà en mer, et ce qui reste à faire
+// débarquer s'additionne. Appuyer trois fois fait donc bien arriver
+// trois bateaux, tous en même temps. Le bonus d'or est la contrepartie
+// du risque pris — c'est ça qui rend le bouton intéressant.
+function callWaveEarly(now){
+  const added = enemiesForWave(wave + 1);
+  wave++;
+  enemiesThisWave += added;   // s'ADDITIONNE : `spawned` n'est pas remis à zéro, ce qui reste à faire débarquer inclut les deux vagues
+  bossSpawnedThisWave = false; // la nouvelle vague a droit à son boss même si celle d'avant a déjà eu le sien
+  const newBoats = spawnBoat(now, true);       // en plus des bateaux déjà en mer
+  assignBoatPassengers(newBoats, added);       // qui n'embarquent QUE la vague appelée
+  return added;
 }
 function updateBoat(now){
   for (const b of boats){
@@ -1075,9 +1135,35 @@ function updateMerchants(now){
 const SOLDIER_BASE_DMG_FRACTION = 0.5; // moitié de la force du joueur au grade 0
 const SOLDIER_BASE_HP = PLAYER_MAX_HEALTH * 3;
 const SOLDIER_SHOT_INTERVAL_MS = 900;
+// v17.79 (Pierre : "vérifie que les marchands qui se transforment en
+// soldats puissent bien tirer, il faut qu'ils puissent tirer comme moi
+// avec des petits projectiles") — vérifié : ils tiraient bien, mais
+// seulement une fois à MOINS DE 30 px de leur cible, c'est-à-dire
+// pratiquement au corps à corps. En pratique on ne voyait jamais un
+// projectile de soldat : ils mouraient au contact avant d'arriver à
+// portée. Ils ont maintenant une vraie portée, plus courte que celle du
+// joueur (200 px) — ce sont des auxiliaires, pas des clones — et ils
+// s'arrêtent d'avancer dès qu'ils y sont, au lieu de foncer dedans.
+const SOLDIER_RANGE_PX = 120;
+const SOLDIER_SHOT_RADIUS = 2.5; // "des petits projectiles" : plus fins que ceux du joueur (4 + racine des dégâts)
 const SOLDIER_BEHAVIOR_REROLL_MS = 3000;
 const SOLDIER_REPAIR_RATE = 0.3; // PV/frame, gratuit (contrairement à la réparation du joueur, qui coûte de l'or)
 let soldiers = []; // { x, y, hp, maxHp, grade, behavior, behaviorUntil, healUsedAtBoat, lastShotAt, dead }
+// v17.79 : à quelle distance un harceleur "remarque" un soldat, et avec
+// quelle probabilité il le prend pour cible plutôt qu'une tour. Pas 100% :
+// Pierre dit "si c'est le choix qu'ils font" — ça doit rester un choix,
+// sinon le moindre soldat détournerait toute la vague.
+const HARASSER_SOLDIER_NOTICE_PX = 160;
+const HARASSER_SOLDIER_PREF = 0.55;
+function nearestSoldier(x, y, maxDist){
+  let best = null, bestD = maxDist;
+  for (const s of soldiers){
+    if (s.dead) continue;
+    const d = Math.hypot(s.x-x, s.y-y);
+    if (d < bestD){ bestD = d; best = s; }
+  }
+  return best;
+}
 function soldierDmg(s){ return Math.round(effectivePlayerDmg() * SOLDIER_BASE_DMG_FRACTION * Math.pow(UPGRADE_POWER_GROWTH, s.grade)); }
 function soldierMaxHp(s){ return Math.round(SOLDIER_BASE_HP * Math.pow(UPGRADE_POWER_GROWTH, s.grade)); }
 function spawnSoldiers(now){
@@ -1128,10 +1214,13 @@ function updateSoldiers(now){
         if (d < best){ best = d; target = e; }
       }
       if (target){
-        if (best > 30){ s.x += (target.x-s.x)/best*0.7; s.y += (target.y-s.y)/best*0.7; }
+        // s'approche jusqu'à être à portée, puis tire sur place — sans
+        // aller au contact, où il se ferait simplement tuer (voir les
+        // dégâts de contact plus bas)
+        if (best > SOLDIER_RANGE_PX){ s.x += (target.x-s.x)/best*0.7; s.y += (target.y-s.y)/best*0.7; }
         else if (now - s.lastShotAt > SOLDIER_SHOT_INTERVAL_MS){
           s.lastShotAt = now;
-          projectiles.push({ x: s.x, y: s.y, target, speed: SHOT_SPEED_PX, dmg: soldierDmg(s), source: 'soldier' });
+          projectiles.push({ x: s.x, y: s.y, target, speed: SHOT_SPEED_PX, dmg: soldierDmg(s), r: SOLDIER_SHOT_RADIUS, source: 'soldier' });
           sfxShoot();
         }
       }
@@ -1730,8 +1819,25 @@ function drawWaitGauge(px, py, progress){
   if (phosphorMode){ ctx.fillStyle = '#000'; ctx.strokeStyle = PHOSPHOR_GREEN; }
   else { ctx.fillStyle = '#faf6ea'; ctx.strokeStyle = '#3a3529'; }
   ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI*2*Math.min(1, progress)); ctx.lineTo(px, py); ctx.closePath();
-  ctx.fill(); ctx.stroke();
+  // v17.79 (Pierre : "la petite horloge... il y a une petite croix au
+  // milieu, tu enlèves la croix, il y a juste le cercle qui tourne avec
+  // le trait") — c'était une part de camembert : l'arc PLUS deux rayons
+  // (le lineTo vers le centre et le closePath qui en repart), ce qui
+  // dessinait bien deux traits croisés au milieu. Maintenant : un
+  // cadran plein, son cercle, l'arc de progression sur la couronne, et
+  // UNE seule aiguille. Et elle part de midi, comme une vraie horloge,
+  // au lieu de 3 heures.
+  const p = Math.min(1, progress);
+  const START = -Math.PI/2;             // midi
+  const end = START + Math.PI*2*p;
+  ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI*2);
+  ctx.fill();                            // cadran plein : masque le décor derrière
+  ctx.globalAlpha = 0.45; ctx.stroke();  // le cercle, discret
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(px, py, 9, START, end); ctx.stroke(); // la progression sur la couronne
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(end)*7.5, py + Math.sin(end)*7.5); ctx.stroke(); // l'aiguille, seule
   ctx.restore();
 }
 
@@ -2320,6 +2426,17 @@ function resolveTowerCollision(pos, radius){
 // fixe (16px) bien plus petite que le rayon réel de certains types (le
 // cheval de Troie fait 18px de rayon à lui seul), d'où le chevauchement
 // massif signalé ("n'importe quoi, tout le monde se superpose").
+// distance d'un point (px,py) au segment [(ax,ay),(bx,by)] — sert au tir
+// perdu, qui doit pouvoir toucher un ennemi TRAVERSÉ pendant la frame et
+// pas seulement un ennemi qui se trouve pile sur le point d'arrivée
+function distPointSegment(px, py, ax, ay, bx, by){
+  const ux = bx-ax, uy = by-ay;
+  const L = ux*ux + uy*uy;
+  if (L === 0) return Math.hypot(px-ax, py-ay);
+  let t = ((px-ax)*ux + (py-ay)*uy) / L;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t*ux), py - (ay + t*uy));
+}
 function enemyRadius(e){
   const id = (e.type || ENEMY_TYPES[0]).id;
   return id === 'trojan' ? 18 : (id === 'boss' ? 11 : 8);
@@ -2400,17 +2517,14 @@ window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'c') tryCa
 // déjà utilisé pour la récompense normale des marchands).
 document.getElementById('skip-wave-btn').addEventListener('click', () => {
   if (gameOver || playerDead) return;
-  const bonus = waveValueEstimate();
+  const now = performance.now();
+  const added = callWaveEarly(now);
+  // le bonus est calculé sur la vague APPELÉE, pas sur l'état cumulé :
+  // trois appuis = trois bonus, un par vague réellement invoquée
+  const bonus = Math.round(added * 1.5);
   gold += bonus;
-  floatingTexts.push({ x: player.x, y: player.y-30, text: '+'+bonus, createdAt: performance.now(), color: '#d9a441' });
-  enemies.length = 0;
-  waveBanner = { text: t('wave_complete_banner')(wave), subtext: nextWaveAnnouncement(wave+1), createdAt: performance.now() };
-  wave++;
-  spawned = 0;
-  enemiesThisWave = enemiesForWave(wave);
-  bossSpawnedThisWave = false;
-  spawnInterval = pickNextSpawnDelay();
-  startWaveBoats(performance.now());
+  floatingTexts.push({ x: player.x, y: player.y-30, text: '+'+bonus, createdAt: now, color: '#d9a441' });
+  waveBanner = { text: t('wave_called_banner')(wave), subtext: nextWaveAnnouncement(wave), createdAt: now };
   saveProgress();
 });
 document.getElementById('autofire-btn').addEventListener('click', () => {
@@ -2619,6 +2733,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.79", text: "Six retours de Pierre en jeu. Le bouton \"vague suivante\" EMPILE maintenant les vagues (trois appuis = trois bateaux en plus, les ennemis en cours restent) au lieu de vider la vague en cours — le bonus d'or a enfin une contrepartie. \"Recommencer\" recommence vraiment (il rechargeait la page avant de remettre à zéro, et l'ancienne sauvegarde revenait). Le viseur de construction est centré sur le point de pose exact. L'angle des tirs ratés est divisé par deux, et un tir perdu touche désormais ce qu'il frôle ou ce qui est derrière. Les soldats issus des marchands tirent à vraie portée (ils n'ouvraient le feu qu'au corps à corps) et les harceleurs peuvent les prendre pour cible. L'horloge d'attente n'a plus de croix : cercle, couronne, une aiguille." },
   { v: "17.78", text: "Le jeu est maintenant borné à une largeur de tablette en portrait (820 px) et centré : sur ordinateur, des bandes noires occupent les côtés au lieu d'étirer une mise en page pensée pour du portrait. Les panneaux (menu, FAQ, versions) et les scanlines suivent la colonne de jeu, plus les bords de l'écran. Le mur garde du coup ses proportions exactes partout : son plafond de hauteur ne peut plus être atteint." },
   { v: "17.77", text: "Recalage complet du rythme : une partie vise maintenant 2-5 minutes, et tout le contenu tient dans cette fenêtre. Avant, l'ennemi bouclier n'arrivait qu'à la vague 20 et le cheval de Troie automatique à la vague 40 — autant dire jamais. Désormais : rapide/fragile vague 9, rapide/costaud 12, bouclier 15, ennemis plus résistants 17, et le cheval de Troie vague 19 comme point culminant. Les emojis de l'interface sont remplacés par du texte, pour coller à l'ambiance." },
   { v: "17.76", text: "Les 4 formes d'ennemis (du cube simple au cube « treillis » du boss) sont maintenant recopiées exactement depuis ton croquis, au lieu d'être fabriquées par formule : le treillis du boss avait un motif inventé en grille régulière, alors que ton dessin montre un motif bien plus travaillé en éventails. Son trait a été affiné pour rester lisible à la taille réelle." },
@@ -2964,8 +3079,8 @@ function playerShoot(now, manualInterval){
     // peut, par hasard, toucher un autre ennemi sur son passage
     const angle = Math.atan2(target.y-player.y, target.x-player.x)
       + (Math.random()<0.5?-1:1) * (MISS_DEVIATION_MIN + Math.random()*(MISS_DEVIATION_MAX-MISS_DEVIATION_MIN));
-    const destX = player.x + Math.cos(angle) * (best + 40);
-    const destY = player.y + Math.sin(angle) * (best + 40);
+    const destX = player.x + Math.cos(angle) * (best + MISS_OVERSHOOT_PX);
+    const destY = player.y + Math.sin(angle) * (best + MISS_OVERSHOOT_PX);
     projectiles.push({ x: player.x, y: player.y, destX, destY, wild: true, speed: SHOT_SPEED_PX, dmg, r, source: 'player' });
   }
   sfxShoot();
@@ -3106,9 +3221,24 @@ function update(now){
     if (pr.wild){
       // tir raté : file vers un point fixe dévié (pas de poursuite), mais
       // peut quand même toucher par hasard un ennemi croisé en chemin
+      // v17.79 (Pierre : "s'il touche quelqu'un derrière ou s'il frôle
+      // quelqu'un, ça attaque quand même") — deux défauts corrigés ici :
+      //  1. le rayon d'impact était 6 px en dur, alors qu'un ennemi fait
+      //     8 px de rayon (18 pour le cheval de Troie) et que la flèche
+      //     elle-même grossit avec les dégâts achetés (pr.r). Un tir qui
+      //     passait visiblement DANS l'ennemi ne lui faisait rien.
+      //  2. le test ne regardait que la position courante, alors que la
+      //     flèche avance de 8 px par frame : elle pouvait tout
+      //     simplement sauter par-dessus un ennemi d'une frame à l'autre.
+      //     On teste donc la distance au SEGMENT parcouru dans la frame,
+      //     pas au point d'arrivée.
+      const dx = pr.destX-pr.x, dy = pr.destY-pr.y, d = Math.hypot(dx, dy);
+      const step = Math.min(pr.speed, d);
+      const nx = pr.x + (d > 0 ? dx/d*step : 0), ny = pr.y + (d > 0 ? dy/d*step : 0);
       let hitSomeone = null;
       for (const e of enemies){
-        if (Math.hypot(e.x-pr.x, e.y-pr.y) < 6){ hitSomeone = e; break; }
+        if (e.hp <= 0) continue;
+        if (distPointSegment(e.x, e.y, pr.x, pr.y, nx, ny) < enemyRadius(e) + (pr.r || 3)){ hitSomeone = e; break; }
       }
       if (hitSomeone){
         const applied = applyDirectHit(hitSomeone, pr.dmg);
@@ -3116,9 +3246,8 @@ function update(now){
         if (pr.source === 'player' && applied > 0) playerAggroScore += 1;
         continue;
       }
-      const dx = pr.destX-pr.x, dy = pr.destY-pr.y, d = Math.hypot(dx, dy);
-      if (d < 6) pr.dead = true; // arrivé à destination sans rien toucher : disparaît, sans bruit
-      else { pr.x += dx/d*pr.speed; pr.y += dy/d*pr.speed; }
+      if (d <= pr.speed) pr.dead = true; // arrivé à destination sans rien toucher : disparaît, sans bruit
+      else { pr.x = nx; pr.y = ny; }
       continue;
     }
     if (!enemies.includes(pr.target) || pr.target.hp <= 0){ pr.dead = true; continue; }
@@ -3269,7 +3398,17 @@ function update(now){
       // rôde près du joueur (s'il a été agressif récemment) ou de la tour
       // qu'on répare le plus, sans jamais renoncer à avancer vers le
       // château — juste plus lentement le temps de harceler
-      const lure = playerAggroScore > HARASSER_THRESHOLD ? player : (mostRepairedTower() || { x: e.baseX, y: e.y + 40 });
+      // v17.79 (Pierre : "les ennemis doivent essayer de les tuer aussi si
+      // c'est le choix qu'ils font") — les soldats étaient totalement
+      // ignorés par l'IA : ils ne subissaient que les dégâts de contact
+      // d'un ennemi qui passait par hasard à côté. Un harceleur choisit
+      // maintenant le soldat le plus proche quand il y en a un dans son
+      // secteur, au même titre que le joueur ou une tour réparée. Choix,
+      // pas obligation : le tirage garde les autres cibles possibles.
+      const nearSoldier = nearestSoldier(e.x, e.y, HARASSER_SOLDIER_NOTICE_PX);
+      const lure = playerAggroScore > HARASSER_THRESHOLD ? player
+                 : (nearSoldier && Math.random() < HARASSER_SOLDIER_PREF ? nearSoldier
+                 : (mostRepairedTower() || { x: e.baseX, y: e.y + 40 }));
       const ldx = lure.x-e.x, ldy = lure.y-e.y, ld = Math.hypot(ldx, ldy) || 1;
       if (ld > 40){ e.x += ldx/ld*e.speed*0.7; e.y += ldy/ld*e.speed*0.4; }
       e.y += e.speed*0.3;
@@ -4627,11 +4766,19 @@ function draw(now){
         ctx.globalAlpha = 0.5;
         ctx.strokeStyle = PHOSPHOR_GREEN;
         ctx.lineWidth = 1;
+        // v17.79 (signalé par Pierre : "ça construit pas à l'endroit où
+        // il y a le carré") — le losange était tracé comme dans
+        // drawDebugGrid, c'est-à-dire avec son SOMMET sur le nœud de
+        // grille. Or c'est ce nœud, et pas le centre du losange, qui
+        // devient la base de la tour : le carré apparaissait donc une
+        // demi-case (12 px) SOUS l'endroit où la tour se posait vraiment.
+        // Le curseur sert à dire "la tour arrivera ici", pas à dessiner
+        // une case de la grille : on le centre donc sur le point de pose.
         ctx.beginPath();
-        ctx.moveTo(bp.x, bp.y);
-        ctx.lineTo(bp.x+GRID_TW/2, bp.y+GRID_TH/2);
-        ctx.lineTo(bp.x, bp.y+GRID_TH);
-        ctx.lineTo(bp.x-GRID_TW/2, bp.y+GRID_TH/2);
+        ctx.moveTo(bp.x, bp.y-GRID_TH/2);
+        ctx.lineTo(bp.x+GRID_TW/2, bp.y);
+        ctx.lineTo(bp.x, bp.y+GRID_TH/2);
+        ctx.lineTo(bp.x-GRID_TW/2, bp.y);
         ctx.closePath();
         ctx.stroke();
         ctx.restore();
@@ -5100,14 +5247,28 @@ document.getElementById('spectate-btn').addEventListener('click', () => {
   spectating = true;
   document.getElementById('over').style.display = 'none';
 });
+// v17.79 (bug signalé par Pierre : "j'appuie sur le bouton recommencer
+// depuis le début et ça n'a pas recommencé depuis le début, ça m'a mis
+// toujours la même vague, donc c'était impossible") — l'ordre était
+// inversé. On rechargeait la page D'ABORD si une mise à jour était
+// disponible, et au rechargement loadProgress() relisait la sauvegarde
+// de la partie PRÉCÉDENTE : le joueur revenait pile sur la vague qu'il
+// venait de perdre, avec son or, sans aucun moyen de repartir de zéro.
+// Et comme une mise à jour est disponible dès que le fichier a changé,
+// ça se produisait très souvent.
+//
+// Maintenant resetGame() passe en premier : il remet l'état à zéro ET
+// réécrit immédiatement la sauvegarde (voir la fin de resetGame). Si la
+// page recharge ensuite, elle relit donc une sauvegarde déjà remise à
+// zéro — "recommencer" recommence vraiment, mise à jour ou pas.
 document.getElementById('restart-btn').addEventListener('click', () => {
-  if (reloadIfUpdateAvailable()) return;
   resetGame(0);
+  reloadIfUpdateAvailable();
 });
 document.getElementById('bonus-btn').addEventListener('click', () => {
-  if (reloadIfUpdateAvailable()) return;
   resetGame(100);
   faqPanel.style.display = 'none';
+  reloadIfUpdateAvailable();
 });
 
 /* ---------- MISE À JOUR AUTOMATIQUE (pas de service worker, cf. Knight
