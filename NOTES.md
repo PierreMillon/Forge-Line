@@ -4400,3 +4400,25 @@ calques triés à la hauteur de leur base. Vérifié au rendu : ennemi à
 → visible ; joueur sur le mur → devant (calque forcé à `groundY+0.5`).
 Limite connue du tri par profondeur : une tour bâtie collée au mur côté
 mer sera cachée par lui, sommet compris. C'est le prix du principe.
+
+## v17.88 — le soin, uniquement dans l'enceinte du château
+
+Pierre, en réaction à mon quiz sur les marchands : *"Quand tu dis qu'ils
+vont au large pour se soigner, je ne suis pas sûr d'avoir compris :
+normalement le seul endroit où il peut venir se soigner, c'est dans
+l'enceinte du château."* — un principe du monde, pas un réglage. Il
+tranche au passage le "À voir" du quiz (marchand blessé).
+
+Ce que ça retire : le demi-tour des marchands blessés (`retreating`,
+`healUsed`, `MERCHANT_HEAL_FRACTION`) et le soin "une fois dans sa vie"
+des soldats au bout du chemin côté mer (`healUsedAtBoat` sur les
+soldats — les ENNEMIS gardent le leur : leur base à eux, c'est le bateau).
+
+Ce que ça met : soldat en `heal` → marche jusqu'à `(gateX, groundY+22)`,
+derrière la porte, et régénère +1 / `REGEN_TICK_MS` tant qu'il y est,
+ressort à 80 %. Mesuré : depuis 150 px devant le mur, derrière la porte
+en < 9 s, 5 → 11 PV. Marchand blessé à l'arrivée : absorbé, 0 soldat,
+caravane close — la conversion reste réservée au premier jamais touché.
+
+Cohérent avec le reste : le joueur régénère déjà dans `REGEN_ZONE`, le
+mur est le rempart de l'enceinte, la Forge est derrière lui.

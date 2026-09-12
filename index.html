@@ -1145,7 +1145,7 @@ const MERCHANT_ACCEL_RATE = 0.06;   // la vitesse réelle se rapproche de la cib
 const MERCHANT_DECEL_ZONE = 3;      // en indices de chemin restants : ralentit à l'approche du château/demi-tour
 const MERCHANT_HP = 20;
 const MERCHANT_CONTACT_DMG = 0.15;  // dégâts/frame d'un ennemi au contact
-const MERCHANT_HEAL_FRACTION = 0.5; // guérit la moitié du manquant, une fois dans sa vie
+// v17.88 : plus de MERCHANT_HEAL_FRACTION ni de retour au large — Pierre : "le seul endroit où il peut venir se soigner, c'est dans l'enceinte du château". Un marchand blessé continue jusqu'au château et y entre comme les autres (sans déclencher la conversion en soldats, réservée au premier marchand jamais touché).
 const SOLDIER_COUNT_REWARD = 4;
 // v17.25 : possible dès la vague 1, mais ensuite jamais deux fois de
 // suite — au moins une vague complète de pause entre deux caravanes
@@ -1155,7 +1155,7 @@ let pathDisturbedThisWave = false;  // un ennemi a-t-il traîné sur le chemin c
 let pathClearWaveStreak = 0;        // nb de vagues consécutives sans ennemi sur le chemin
 let playerOnPathSince = null;
 let activeCaravan = null;           // { rewardGiven, soldiersGiven } — un seul évènement à la fois
-let merchants = [];                 // { pathIdx, x, y, speed, hp, maxHp, retreating, wounded, everWounded, healUsed, dead }
+let merchants = [];                 // { pathIdx, x, y, speed, hp, maxHp, wounded, everWounded, dead }
 
 // approximation volontairement grossière : la moyenne pondérée des
 // récompenses par type (base 1, rapide/fragile 2, rapide/costaud 4,
@@ -1198,7 +1198,7 @@ function spawnCaravan(){
     merchants.push({
       pathIdx: pathScreenPoints.length - 1 - i*0.6, // étalés façon chenille
       x: 0, y: 0, speed: 0, hp: MERCHANT_HP, maxHp: MERCHANT_HP,
-      retreating: false, wounded: false, everWounded: false, healUsed: false, dead: false,
+      wounded: false, everWounded: false, dead: false,
     });
   }
   lastCaravanWave = wave;
@@ -1222,13 +1222,13 @@ function updateMerchants(now){
     // progressivement d'une vitesse cible, elle-même réduite à l'approche
     // du point d'arrêt (château ou demi-tour du retour) — démarrage et
     // arrêt progressifs, pas un à-coup de vitesse constante
-    const remaining = m.retreating ? (pathScreenPoints.length - 1 - m.pathIdx) : m.pathIdx;
+    const remaining = m.pathIdx; // v17.88 : plus de demi-tour, il ne reste que l'approche du château
     const targetSpeed = MERCHANT_SPEED_IDX * Math.min(1, Math.max(0.15, remaining / MERCHANT_DECEL_ZONE));
     m.speed += (targetSpeed - m.speed) * MERCHANT_ACCEL_RATE;
-    m.pathIdx += (m.retreating ? 1 : -1) * m.speed;
+    m.pathIdx -= m.speed;
     m.pathIdx = Math.max(0, Math.min(pathScreenPoints.length - 1, m.pathIdx));
 
-    if (!m.retreating && m.pathIdx <= 0){
+    if (m.pathIdx <= 0){
       // arrivé au château
       if (activeCaravan && !activeCaravan.rewardGiven){
         const reward = waveValueEstimate();
@@ -1240,18 +1240,10 @@ function updateMerchants(now){
         spawnSoldiers(now);
         activeCaravan.soldiersGiven = true;
       }
-      if (!m.everWounded){
-        m.dead = true; // absorbé (converti en soldat, ou juste arrivé si le lot de soldats est déjà donné)
-      } else {
-        m.retreating = true; // blessé : repart se soigner au large avant de retenter
-        m.wounded = false;
-      }
-    } else if (m.retreating && m.pathIdx >= pathScreenPoints.length - 1){
-      if (!m.healUsed){
-        m.hp = Math.min(m.maxHp, m.hp + (m.maxHp - m.hp) * MERCHANT_HEAL_FRACTION);
-        m.healUsed = true;
-      }
-      m.retreating = false; // retente sa chance
+      // v17.88 : blessé ou pas, il entre — le château EST l'endroit où
+      // l'on se soigne (Pierre). Avant, un blessé repartait "au large"
+      // se soigner puis retentait sa chance ; ça n'avait pas de sens.
+      m.dead = true; // absorbé (converti en soldat, ou juste arrivé)
     }
   }
   merchants = merchants.filter(m => !m.dead);
@@ -1281,7 +1273,7 @@ const SOLDIER_RANGE_PX = 120;
 const SOLDIER_SHOT_RADIUS = 2.5; // "des petits projectiles" : plus fins que ceux du joueur (4 + racine des dégâts)
 const SOLDIER_BEHAVIOR_REROLL_MS = 3000;
 const SOLDIER_REPAIR_RATE = 0.3; // PV/frame, gratuit (contrairement à la réparation du joueur, qui coûte de l'or)
-let soldiers = []; // { x, y, hp, maxHp, grade, behavior, behaviorUntil, healUsedAtBoat, lastShotAt, dead }
+let soldiers = []; // { x, y, hp, maxHp, grade, behavior, behaviorUntil, lastShotAt, dead }
 // v17.79 : à quelle distance un harceleur "remarque" un soldat, et avec
 // quelle probabilité il le prend pour cible plutôt qu'une tour. Pas 100% :
 // Pierre dit "si c'est le choix qu'ils font" — ça doit rester un choix,
@@ -1305,7 +1297,7 @@ function spawnSoldiers(now){
       x: REGEN_ZONE.x + REGEN_ZONE.w/2 + (i - (SOLDIER_COUNT_REWARD-1)/2) * 22,
       y: REGEN_ZONE.y - 20,
       grade: 0, behavior: 'guard', behaviorUntil: now + SOLDIER_BEHAVIOR_REROLL_MS,
-      healUsedAtBoat: false, lastShotAt: 0, dead: false,
+      lastShotAt: 0, dead: false, lastHealTickAt: 0,
     };
     s.maxHp = soldierMaxHp(s); s.hp = s.maxHp;
     soldiers.push(s);
@@ -1325,7 +1317,7 @@ function pickSoldierBehavior(s){
     ['fight', Math.max(0.1, 0.5 - caution)],
     ['guard', 0.25],
     ['hide', 0.1 + caution * 0.5],
-    ['heal', (s.hp < s.maxHp * 0.5 && !s.healUsedAtBoat) ? 0.35 : 0.05],
+    ['heal', s.hp < s.maxHp * 0.5 ? 0.35 : 0.05], // v17.88 : plus de "une fois dans sa vie" — on se soigne dans l'enceinte autant qu'il faut
   ];
   if (towerDamaged) weights.push(['repair', s.hp > s.maxHp * 0.5 ? 0.4 : 0.2]);
   const total = weights.reduce((sum, [, w]) => sum + w, 0);
@@ -1365,13 +1357,19 @@ function updateSoldiers(now){
       const d = Math.hypot(tx-s.x, ty-s.y);
       if (d > 10){ s.x += (tx-s.x)/d*0.5; s.y += (ty-s.y)/d*0.5; }
     } else if (s.behavior === 'heal'){
-      const last = pathScreenPoints.length ? pathScreenPoints[pathScreenPoints.length-1] : { x: s.x, y: s.y };
-      const d = Math.hypot(last.x-s.x, last.y-s.y);
-      if (d > 12){ s.x += (last.x-s.x)/d*0.6; s.y += (last.y-s.y)/d*0.6; }
-      else if (!s.healUsedAtBoat){
-        s.hp = Math.min(s.maxHp, s.hp + (s.maxHp-s.hp)*0.5);
-        s.healUsedAtBoat = true;
-        s.behavior = 'guard'; s.behaviorUntil = now;
+      // v17.88 (Pierre : "le seul endroit où il peut venir se soigner,
+      // c'est dans l'enceinte du château") — avant, le soldat allait au
+      // bout du chemin, côté mer, se soigner d'un coup, une fois dans sa
+      // vie. Maintenant il rentre DERRIÈRE la porte et régénère comme le
+      // joueur (+1 / REGEN_TICK_MS) tant qu'il y est, puis repart à 80 %.
+      const W = wallScreen();
+      const tx = W.gateX, ty = W.groundY + 22;
+      const d = Math.hypot(tx-s.x, ty-s.y);
+      if (d > 10){ s.x += (tx-s.x)/d*0.6; s.y += (ty-s.y)/d*0.6; }
+      else if (now - s.lastHealTickAt >= REGEN_TICK_MS){
+        s.hp = Math.min(s.maxHp, s.hp + 1);
+        s.lastHealTickAt = now;
+        if (s.hp >= s.maxHp * 0.8){ s.behavior = 'guard'; s.behaviorUntil = now; }
       }
     } else if (s.behavior === 'repair'){
       // v17.27 : va vers la tour la plus endommagée (pas juste la plus
@@ -2900,6 +2898,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.88", text: "On ne se soigne que dans l'enceinte du château. Un marchand blessé ne repart plus \"au large\" : il continue jusqu'au château et y entre (sans déclencher la conversion en soldats, réservée au premier marchand jamais touché). Un soldat blessé rentre derrière la porte et régénère sur place, autant de fois qu'il le faut, puis ressort à 80 %." },
   { v: "17.87", text: "Mur simplifié après essai : la zone d'escalier couvre tout l'escalier avec de la marge ; on monte en poussant vers le mur, on redescend en poussant vers le sol (vers le haut de l'écran) — avant, il fallait pousser à l'envers, d'où l'impossibilité de descendre. Le personnage est posé sur le mur, pas au-dessus. Et le mur (comme la Forge) est enfin opaque : ce qui est derrière lui, côté mer, disparaît derrière." },
   { v: "17.86", text: "La Forge devient le prérequis de tout : tant qu'elle n'est pas bâtie (100 or, sur place), ni tour, ni catapulte, ni amélioration — les boutons affichent \"Forge d'abord\". Une fois bâtie, tout redevient payant comme avant. Les bots du simulateur la bâtissent en premier, eux aussi." },
   { v: "17.85", text: "L'évasement du chemin à la porte se fait maintenant sur 3 crans (72 px) au lieu de 2 : la route s'élargit doucement en approchant, choisi sur planche comparative." },
@@ -5266,7 +5265,7 @@ function draw(now){
         ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2); ctx.stroke();
       } else {
       ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2);
-      ctx.fillStyle = m.retreating ? '#e0a94a' : '#d9a441'; ctx.fill();
+      ctx.fillStyle = '#d9a441'; ctx.fill();
       }
       const barW = 16, frac = Math.max(0, m.hp/m.maxHp);
       ctx.fillStyle = phosphorMode ? 'rgba(0,0,0,0.6)' : '#00000030'; ctx.fillRect(m.x-barW/2, m.y-20, barW, 3);
