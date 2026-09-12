@@ -2707,6 +2707,40 @@ const ENEMY_COLLISION_ITER = 2;     // deux passes de relaxation par frame : ré
 // pour ne pas coûter cher en toute fin de partie où les vagues sont
 // énormes — au-delà, le chevauchement redevient juste visuel, sans
 // conséquence de jeu (déjà le cas avant cette version).
+const FUNNEL_SQUEEZE = 0.25;        // v17.92 : fraction de la répulsion conservée dans le funnel de la porte
+function inGateFunnel(e){ return e.y > REGEN_ZONE.y - 100 && e.y <= REGEN_ZONE.y + REGEN_ZONE.h; } // même bande que la convergence (voir update)
+// v17.92 (quiz : "le même modèle balles souples pour le joueur, les
+// soldats et les marchands") — jusqu'ici seuls les ennemis se
+// repoussaient entre eux ; le joueur, les soldats et les marchands au sol
+// traversaient tout le monde. Même règle pour tous : rayon réel,
+// tolérance ENEMY_OVERLAP_ALLOWED, correction partielle par frame. Le
+// joueur en haut du mur ou dans l'escalier n'est pas un corps au sol.
+function resolveBodyCollisions(){
+  const bodies = [];
+  if (!playerDead && !playerOnWall && !playerClimb) bodies.push({ o: player, r: PLAYER_HW - 1, isPlayer: true });
+  for (const so of soldiers) if (!so.dead) bodies.push({ o: so, r: 8 });
+  for (const m of merchants) if (!m.dead && !m.aboard) bodies.push({ o: m, r: MERCHANT_R });
+  if (!bodies.length) return;
+  const foes = enemies.length <= ENEMY_COLLISION_MAX_COUNT ? enemies.filter(e => !e.fleeing) : [];
+  const pushPair = (A, ra, B, rb) => {
+    const minD = (ra + rb) * (1 - ENEMY_OVERLAP_ALLOWED);
+    const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy);
+    if (d >= minD) return;
+    if (d > 0.001){ const push = (minD - d) * ENEMY_COLLISION_PUSH * 0.5, ux = dx/d, uy = dy/d; A.x -= ux*push; A.y -= uy*push; B.x += ux*push; B.y += uy*push; }
+    else { A.x -= 0.5; B.x += 0.5; }
+  };
+  const px = player.x, py = player.y;
+  for (let i = 0; i < bodies.length; i++){
+    for (let j = i+1; j < bodies.length; j++) pushPair(bodies[i].o, bodies[i].r, bodies[j].o, bodies[j].r);
+    for (const e of foes) pushPair(bodies[i].o, bodies[i].r, e, enemyRadius(e));
+  }
+  // poussé, le joueur reste un corps au sol : le mur et les tours
+  // continuent de le bloquer (même règles que son propre déplacement)
+  if (bodies[0] && bodies[0].isPlayer && (player.x !== px || player.y !== py)){
+    resolveTowerCollision(player, TOWER_SOLID_RADIUS);
+    resolveWallCollision(px, py);
+  }
+}
 function resolveEnemyCollisions(){
   const n = enemies.length;
   if (n < 2 || n > ENEMY_COLLISION_MAX_COUNT) return;
@@ -2722,7 +2756,14 @@ function resolveEnemyCollisions(){
         const d = Math.hypot(dx, dy);
         if (d < minDist){
           if (d > 0.001){
-            const push = (minDist - d) * ENEMY_COLLISION_PUSH;
+            // v17.92 (quiz : "dans le funnel de la porte, même compression :
+            // l'amas se resserre en passant, puis se détend derrière") — dans
+            // la bande où ils convergent vers la porte, la répulsion CÈDE
+            // (FUNNEL_SQUEEZE) : ils s'interpénètrent comme sur le pont ;
+            // une fois le mur passé (y > sol), pleine répulsion, ils se
+            // desserrent. Forme inchangée, seule la distance autorisée change.
+            const squeeze = (inGateFunnel(a) && inGateFunnel(b)) ? FUNNEL_SQUEEZE : 1;
+            const push = (minDist - d) * ENEMY_COLLISION_PUSH * squeeze;
             const ux = dx/d, uy = dy/d;
             a.x -= ux*push*0.5; a.y -= uy*push*0.5;
             b.x += ux*push*0.5; b.y += uy*push*0.5;
@@ -3008,6 +3049,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.92", text: "Le modèle \"balles souples\" s'applique à tout le monde au sol : le joueur repousse et est repoussé par les ennemis et les soldats au lieu de les traverser, les soldats et les marchands descendus du chariot aussi. Dans le funnel de la porte, la répulsion cède : l'amas se resserre en passant et se détend derrière le mur." },
   { v: "17.91", text: "Les marchands voyagent DANS la caisse du chariot, pressés comme des balles souples (même modèle que le pont du bateau). Le chariot est maintenant ce qui roule sur le chemin ; un ennemi qui l'atteint blesse le marchand le plus exposé ; à la porte, le chariot s'arrête, ils descendent, se relâchent et entrent dans l'enceinte. La barre de vie d'un marchand n'apparaît qu'une fois blessé." },
   { v: "17.90", text: "Les passagers du bateau sont maintenant de vraies \"balles souples\" : forme inchangée, mais ils se repoussent élastiquement dans l'enceinte close du pont. Peu nombreux, ils tiennent chacun leur place ; nombreux, la répulsion ne suffit plus et ils se chevauchent en une masse dense — un bateau plein se voit d'un coup d'œil. L'amas vit en permanence (léger tremblement) et se desserre à chaque débarquement. Remplace la rangée écrasée de la v17.80, qui déformait leur silhouette." },
   { v: "17.89", text: "Menu : retiré les liens vers Bastion Orbit et Knight Wars — le portfolio (pierremillon.github.io/pierremillon) est désormais l'endroit unique pour naviguer d'un jeu à l'autre." },
@@ -3830,6 +3872,7 @@ function update(now){
   }
   updateMerchants(now);
   updateSoldiers(now);
+  resolveBodyCollisions(); // v17.92 : joueur, soldats, marchands au sol — balles souples comme les ennemis
 
   if (!playerDead && playerHealth <= 0){
     playerDead = true;

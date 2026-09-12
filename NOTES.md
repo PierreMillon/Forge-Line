@@ -4496,3 +4496,28 @@ restants ; 7 s : 0, caravane close, 4 soldats.
 Barre de vie : seulement si blessé. Huit barres pleines empilées dans
 17×10 px ne disaient plus rien ; Pierre avait demandé la barre pour
 qu'on VOIE un marchand blessé, c'est exactement ce que ça garde.
+
+## v17.92 — balles souples au sol : joueur, soldats, marchands, funnel
+
+Quiz (4 cases cochées) : ennemis entre eux (déjà là, v17.31), le joueur
+aussi, soldats et marchands aussi, et dans le funnel de la porte.
+
+`resolveBodyCollisions()` après `updateSoldiers` : corps = joueur (si
+vivant, au sol, pas dans l'escalier), soldats, marchands descendus ;
+paires corps↔corps et corps↔ennemis non fuyards ; mêmes constantes que
+les ennemis (`ENEMY_OVERLAP_ALLOWED`, `ENEMY_COLLISION_PUSH`). Le joueur
+poussé est re-collé au mur et aux tours après coup (`resolveWallCollision`
+avec sa position d'avant poussée), sinon un ennemi pouvait l'enfoncer
+dans la bande du mur.
+
+Funnel : `FUNNEL_SQUEEZE = 0.25` — dans la bande de convergence
+(`REGEN_ZONE.y-100` → sol), la répulsion entre deux ennemis ne garde que
+25 % de sa force ; derrière le mur, 100 %. C'est la même idée que le pont
+et la caisse : forme inchangée, distance autorisée qui varie.
+
+**Piège de mesure** : mes ennemis factices avec `landingUntil: 1e12`
+étaient en "course de débarquement" et s'enfuyaient d'eux-mêmes ; les
+distances mesurées (64, 79 px) venaient de leur mouvement, pas de la
+répulsion. Refait avec `update` gelé et les deux fonctions de collision
+appelées à la main : 14,1 / 14,1 / funnel 13,5 contre 14,1 dehors. En
+jeu, la convergence presse en continu, donc l'écart sera plus net.
