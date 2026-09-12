@@ -4319,3 +4319,20 @@ Règles en haut : x borné au tronçon gauche (pas de saut de la porte, le
 tronçon droit n'a pas d'escalier), pas de dégâts de contact, pas de
 construction (curseur et bouton), tir inchangé. Les harceleurs attirés
 par le joueur s'agglutinent sous le mur — voulu ("ils essaient").
+
+## v17.84 — ambiance compressée (6,46 Mo → 0,91 Mo)
+
+Pierre, en quiz : "le compresser fortement". Source : Vorbis stéréo
+192 kb/s, 4:38. Mesuré (ffmpeg 7.0.2 via imageio-ffmpeg) : Opus mono
+32 kb/s = 0,91 Mo ; 48 kb/s = 1,38 ; AAC mono 48 kb/s = 1,66 ; 64 kb/s =
+2,19. Retenu : Opus 32 k (c'est une nappe d'ambiance, très tolérante) +
+AAC 48 k en secours.
+
+Pourquoi deux `<source>` : WebKit n'est pas installé dans le bac à sable
+(et on ne doit pas lancer `playwright install`), donc impossible de
+vérifier si le Safari de Pierre lit l'Ogg/Opus. L'ancien fichier était
+déjà en Ogg — s'il n'avait jamais entendu la musique sur iPhone, c'est
+peut-être ça. Le secours AAC règle la question sans pari. Vérifié dans
+Chromium : `currentSrc` = ambience.opus.ogg, durée 278,8 s, aucune erreur.
+
+Si la qualité déçoit à l'oreille : ré-encoder à 48 k, un seul nombre.

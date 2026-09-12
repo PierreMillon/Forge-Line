@@ -194,7 +194,17 @@
   <div id="version-panel"></div>
 </div>
 
-<audio id="bg-music" src="assets/ambience.ogg" loop preload="none"></audio>
+<!-- v17.84 (Pierre, en quiz : "le compresser fortement") : l'ambiance
+     passait de 6,46 Mo (Vorbis stéréo 192 kb/s) à 0,91 Mo en Opus mono
+     32 kb/s. Deux sources : Opus/Ogg d'abord (Chrome, Firefox, Safari
+     récent), AAC/M4A mono 48 kb/s (1,66 Mo) en secours pour les Safari
+     qui ne lisent pas l'Ogg — impossible à vérifier ici (pas de WebKit
+     dans le bac à sable), d'où le secours plutôt qu'un pari. Le
+     navigateur ne télécharge que celle qu'il choisit. -->
+<audio id="bg-music" loop preload="none">
+  <source src="assets/ambience.opus.ogg" type="audio/ogg; codecs=opus">
+  <source src="assets/ambience.m4a" type="audio/mp4">
+</audio>
 
 <div id="stage">
   <canvas id="c"></canvas>
@@ -2835,6 +2845,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.84", text: "Musique d'ambiance compressée fortement : 0,9 Mo au lieu de 6,5 (Opus mono 32 kb/s), avec un secours AAC pour les navigateurs qui ne lisent pas l'Ogg. Le jeu se charge bien plus vite sur mobile." },
   { v: "17.83", text: "Le mur est enfin un vrai obstacle : on ne le traverse plus (sauf par la porte), on y MONTE par l'escalier du tronçon gauche. En haut, on marche sur toute la longueur du tronçon, les ennemis ne peuvent pas nous atteindre, on tire normalement — mais on ne construit pas de là-haut. On redescend par le même escalier en poussant vers le bas." },
   { v: "17.82", text: "La Forge n'est plus dessinée entière dès le départ : tant qu'elle n'est pas bâtie, seule son emprise au sol est visible (contour fin, comme le curseur de construction). On va sur place, on paie 100 or, le bâtiment apparaît — puis les tours d'élite et l'équipe de réparation restent payantes, comme avant." },
   { v: "17.81", text: "Le chemin des marchands est raccordé au mur comme un tuyau : il arrive au centre de la porte, à la base dessinée des montants (pas 46 px en l'air à côté, comme avant), et son double trait s'évase sur les deux derniers crans pour que le rail gauche atterrisse sur le montant gauche et le rail droit sur le montant droit." },
