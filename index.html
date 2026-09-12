@@ -17,12 +17,27 @@
      le DOM par syncBonusbarHeight(), remplace maintenant cette valeur
      au chargement — celle-ci n'est qu'un filet de sécurité tant que
      le JS n'a pas encore tourné. */
-  :root{ --topbar-h:52px; --bonusbar-h:120px; }
-  html,body{margin:0;height:100%;background:#e8dfc8;color:#3a3529;font-family:system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
+  /* v17.78 (Pierre) : "pour les ordinateurs on va les générer juste avec le
+     plus grand, en supposant que c'est le plus grand écran qui existe quand
+     téléphone ou bien une tablette en format portrait... on abandonne le
+     fait que ça prenne tout l'écran, on va réduire sur les deux bords, il y
+     aura du noir". Le jeu est donc borné à une largeur de tablette en
+     portrait et centré : au-delà, des bandes noires sur les côtés plutôt
+     que d'étirer une mise en page pensée pour du portrait. Évite d'avoir à
+     repenser tout le jeu pour les écrans larges — et au passage le mur n'a
+     plus jamais à s'étirer au-delà de cette largeur. 820px = iPad Air en
+     portrait, la plus grande tablette portrait courante. */
+  :root{ --topbar-h:52px; --bonusbar-h:120px; --max-w:820px;
+    /* largeur d'une bande noire latérale : 0 sur téléphone (l'écran est
+       plus étroit que --max-w), (100vw - 820px)/2 au-delà. Sert à recaler
+       les panneaux ancrés aux bords sur la colonne de jeu plutôt que sur
+       l'écran. */
+    --gutter: max(0px, (100vw - var(--max-w)) / 2); }
+  html,body{margin:0;height:100%;background:#020a04;color:#3a3529;font-family:system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
 
-  #topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);display:flex;align-items:center;background:#00000012;z-index:20}
+  #topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);max-width:var(--max-w);margin-inline:auto;display:flex;align-items:center;background:#00000012;z-index:20}
   #menu-btn{margin-left:10px;width:38px;height:38px;border-radius:8px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:18px;line-height:1;cursor:pointer}
-  #menu-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);left:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:170px;z-index:10;overflow:hidden}
+  #menu-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);left:calc(var(--gutter) + 10px);background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:170px;z-index:10;overflow:hidden}
   #menu-panel a, #menu-panel .disabled{display:block;padding:10px 14px;font-size:14px;color:#3a3529;text-decoration:none}
   #menu-panel a:hover{background:#00000010}
   #menu-panel .disabled{opacity:.45;cursor:default}
@@ -45,7 +60,7 @@
   #wave-label{pointer-events:none}
   #skip-wave-btn{width:26px;height:26px;border-radius:7px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
   #version-btn{margin-left:auto;margin-right:12px;padding:6px 10px;border-radius:8px;border:1px solid #00000030;background:#00000010;color:#3a3529;font-size:13px;font-family:inherit;cursor:pointer}
-  #version-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);right:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:230px;max-width:280px;max-height:calc(100vh - var(--topbar-h) - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;padding:10px 14px;font-size:13px;line-height:1.7}
+  #version-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);right:calc(var(--gutter) + 10px);background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;min-width:230px;max-width:280px;max-height:calc(100vh - var(--topbar-h) - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;padding:10px 14px;font-size:13px;line-height:1.7}
   #version-panel .v{font-weight:600;margin-right:4px}
   #version-panel .row:not(:last-child){border-bottom:1px solid #00000012;padding-bottom:4px;margin-bottom:4px}
 
@@ -58,7 +73,7 @@
      maintenant son contenu réel (icône + libellé + coût), mesurée en
      JS (syncBonusbarHeight) pour ajuster --bonusbar-h en conséquence,
      au lieu d'une valeur en dur trop courte qui coupait la 2e rangée */
-  #bonusbar{position:fixed;bottom:0;left:0;right:0;display:flex;flex-direction:column;gap:4px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
+  #bonusbar{position:fixed;bottom:0;left:0;right:0;display:flex;max-width:var(--max-w);margin-inline:auto;flex-direction:column;gap:4px;background:#00000010;z-index:6;padding:6px 8px;box-sizing:border-box}
   .bonusbar-row{display:flex;align-items:stretch;justify-content:center;gap:8px}
   #bonusbar button{flex:1;max-width:100px;padding:4px 3px;border-radius:9px;border:1px solid #00000030;background:#faf6ea;color:#3a3529;font-size:10.5px;line-height:1.3;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
   #bonusbar button:disabled{opacity:.42}
@@ -67,7 +82,7 @@
   #gold-display .gold-tag{opacity:.65;font-size:12px;letter-spacing:.5px}
   #bonusbar button .b-cost{opacity:.75;font-size:10px}
 
-  #stage{position:fixed;top:var(--topbar-h);bottom:var(--bonusbar-h);left:0;right:0;overflow:hidden;background:#e8dfc8}
+  #stage{position:fixed;top:var(--topbar-h);bottom:var(--bonusbar-h);left:0;right:0;max-width:var(--max-w);margin-inline:auto;overflow:hidden;background:#e8dfc8}
   canvas{display:block;touch-action:none;background:#e8dfc8}
 
   /* écran de défaite : une petite carte centrée, pas un voile plein écran —
@@ -94,7 +109,7 @@
   #ad-error-ok{padding:10px 14px;border-radius:8px;border:none;background:#5b8dd9;color:#fff;font-size:13.5px;cursor:pointer}
   #ad-error-ok:active{background:#4a78bd}
 
-  #faq-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);left:10px;background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;width:250px;max-height:calc(100vh - var(--topbar-h) - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;padding:12px 14px;font-size:12.5px;line-height:1.6}
+  #faq-panel{display:none;position:fixed;top:calc(var(--topbar-h) + 6px);left:calc(var(--gutter) + 10px);background:#faf6ea;border:1px solid #00000025;border-radius:10px;box-shadow:0 6px 18px #00000022;width:250px;max-height:calc(100vh - var(--topbar-h) - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;padding:12px 14px;font-size:12.5px;line-height:1.6}
   #faq-panel p{margin:0 0 10px}
   #faq-panel h3{margin:14px 0 6px;font-size:12.5px;border-top:1px solid #00000015;padding-top:10px}
   #faq-panel h3:first-of-type{margin-top:0;border-top:none;padding-top:0}
@@ -102,7 +117,7 @@
   #bonus-btn{width:100%;padding:9px 10px;border-radius:8px;border:1px solid #00000030;background:#fff3d0;color:#3a3529;font-size:12.5px;cursor:pointer}
   #bonus-btn:active{background:#f7e2a0}
 
-  #joyzone{display:none;position:fixed;left:0;right:0;top:var(--topbar-h);bottom:var(--bonusbar-h);z-index:3;touch-action:none}
+  #joyzone{display:none;position:fixed;left:0;right:0;top:var(--topbar-h);bottom:var(--bonusbar-h);max-width:var(--max-w);margin-inline:auto;z-index:3;touch-action:none}
   #joy-base,#joy-knob{display:none;position:fixed;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:4}
   #joy-base{width:88px;height:88px;background:#00000018;border:1px solid #00000030}
   #joy-knob{width:40px;height:40px;background:#00000040}
@@ -120,7 +135,7 @@
      dégradé au lieu du remplissage habituel. Le HUD (topbar/bottombar/
      bonusbar/menu/panneaux) bascule aussi en vert sur noir. Activé par
      défaut, désactivable dans le menu. */
-  #scanlines{position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;
+  #scanlines{position:fixed;top:0;bottom:0;left:var(--gutter);right:var(--gutter);z-index:8;pointer-events:none;opacity:0;
     background:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 1px, rgba(0,0,0,.32) 2px, rgba(0,0,0,.32) 3px);
     mix-blend-mode:multiply}
   body.phosphor #scanlines{opacity:1}
@@ -2604,6 +2619,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.78", text: "Le jeu est maintenant borné à une largeur de tablette en portrait (820 px) et centré : sur ordinateur, des bandes noires occupent les côtés au lieu d'étirer une mise en page pensée pour du portrait. Les panneaux (menu, FAQ, versions) et les scanlines suivent la colonne de jeu, plus les bords de l'écran. Le mur garde du coup ses proportions exactes partout : son plafond de hauteur ne peut plus être atteint." },
   { v: "17.77", text: "Recalage complet du rythme : une partie vise maintenant 2-5 minutes, et tout le contenu tient dans cette fenêtre. Avant, l'ennemi bouclier n'arrivait qu'à la vague 20 et le cheval de Troie automatique à la vague 40 — autant dire jamais. Désormais : rapide/fragile vague 9, rapide/costaud 12, bouclier 15, ennemis plus résistants 17, et le cheval de Troie vague 19 comme point culminant. Les emojis de l'interface sont remplacés par du texte, pour coller à l'ambiance." },
   { v: "17.76", text: "Les 4 formes d'ennemis (du cube simple au cube « treillis » du boss) sont maintenant recopiées exactement depuis ton croquis, au lieu d'être fabriquées par formule : le treillis du boss avait un motif inventé en grille régulière, alors que ton dessin montre un motif bien plus travaillé en éventails. Son trait a été affiné pour rester lisible à la taille réelle." },
   { v: "17.75", text: "Le cheval de Troie est redessiné à partir de ton croquis d'origine, cette fois recopié exactement (méthode automatique, aucune coordonnée à la main) : l'ancienne version était approximée et ne ressemblait plus au dessin dès qu'on la regardait en grand. Il est aussi affiché un peu plus grand — c'est la menace la plus grave du jeu, elle doit se repérer au premier coup d'œil." },
@@ -4336,7 +4352,13 @@ function drawCastle(){
   // que haut sur un écran large, au lieu de grandir sans limite.
   // Gardé identique (mêmes proportions que le croquis) sur téléphone,
   // où ce plafond n'est de toute façon jamais atteint.
-  const WALL_MAX_SCALE_Y = 2.35;
+  // v17.78 : le plafond existait pour éviter un mur démesurément haut sur
+  // un écran large. Maintenant que le jeu est borné à --max-w (820px, voir
+  // la CSS), la largeur ne peut plus dépasser 820/330 ≈ 2.49 : on relève
+  // donc le plafond juste au-dessus pour qu'il ne soit JAMAIS atteint dans
+  // la plage autorisée. Le mur garde ainsi ses proportions exactes partout,
+  // ce que Pierre demandait à l'origine ("en gardant les mêmes proportions").
+  const WALL_MAX_SCALE_Y = 2.6;
   // le mur "s'enfonce" avec les brèches (même principe que les tours
   // endommagées, hp/maxHp) — descend jusqu'à raz le sol à 10/10
   // brèches ("mur entièrement rasé"), sans jamais changer sa largeur

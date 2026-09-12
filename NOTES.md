@@ -4097,3 +4097,34 @@ texte. Gardés volontairement : ☰ ▶ ✓ ⚒, qui sont des symboles
 typographiques et non des emojis colorés. Le libellé or du bandeau est
 passé par le système de traduction (GOLD / OR) — il avait d'abord été
 écrit en dur en français, visible en anglais.
+
+## v17.78 — le jeu borné à une largeur de tablette portrait
+
+Pierre : *"pour les ordinateurs on va les générer juste avec le plus grand, en
+supposant que c'est le plus grand écran qui existe quand téléphone ou bien une
+tablette en format portrait... on abandonne le fait que ça prenne tout l'écran,
+on va réduire sur les deux bords, il y aura du noir."*
+
+Décision de conception, pas un correctif : plutôt que de repenser toute la mise
+en page (pensée pour du portrait) pour les écrans larges, on borne le jeu à
+`--max-w: 820px` (iPad Air en portrait, la plus grande tablette portrait
+courante) et on centre. Au-delà, bandes noires.
+
+Points à ne pas oublier si on y retouche :
+
+- `--gutter: max(0px, (100vw - var(--max-w)) / 2)` existe pour les éléments
+  ancrés à un bord (`#menu-panel`, `#faq-panel` à gauche, `#version-panel` à
+  droite). Sans ça ils flottaient contre le bord de l'écran, détachés de la
+  colonne de jeu. Mesuré : colonne 310..1130 sur 1440px, panneaux à 320 et
+  1120. Correct.
+- `#scanlines` est confiné à la colonne (`left/right: var(--gutter)`) : sinon
+  la trame CRT recouvrait aussi les bandes noires, ce qui n'a aucun sens.
+- `html,body` passe en `#020a04` : c'est ça, la couleur des bandes.
+- Conséquence sur le mur : la largeur de jeu ne peut plus dépasser
+  820/330 ≈ 2.49, donc `WALL_MAX_SCALE_Y` passe de 2.35 à 2.6 — un plafond
+  qui n'est désormais JAMAIS atteint. Le mur garde ses proportions exactes
+  partout, ce que Pierre demandait à l'origine.
+
+Vérifié : 1440x900 → colonne centrée 820px ; 420x900 dsf 3 → inchangé, le mur
+touche encore les deux bords. Seule erreur console : `fonts.googleapis.com`
+bloqué par le proxy du bac à sable, sans rapport.
