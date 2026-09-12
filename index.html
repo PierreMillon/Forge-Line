@@ -973,9 +973,25 @@ function castleGateHalfW(){ return WALL_NATIVE_GATE_HALF_W * (REGEN_ZONE.w / WAL
 // (WALL_WHOLE_EDGES), convertie à l'écran par wallScreen() — rien n'est
 // estimé "à l'œil" :
 const WALL_NATIVE_FOOTPRINT_DEPTH = 20;         // emprise au sol : la base des montants est à y=-18.75
-const WALL_NATIVE_STAIR_FOOT_X = [15, 37.5];    // pied de l'escalier : première marche (22.5,-3.75), avec une marge
-const WALL_NATIVE_STAIR_TOP = { x: 60, y: -58 }; // haut de l'escalier : dernière marche (60,-45), posé DANS la bande du dessus (voir WALL_NATIVE_TOP_BAND — à -52, hors bande, le joueur redescendait aussitôt)
-const WALL_NATIVE_TOP_BAND = [-62, -54];        // dessus praticable : faces -63.75 (arrière) / -56.25 (avant)
+// v17.87 (Pierre, après essai sur téléphone : "il faut simplifier... la
+// zone doit être assez large pour pouvoir monter sur l'escalier... pour
+// redescendre c'était impossible... un parcours beaucoup plus simple") —
+// trois changements :
+//  - la zone d'escalier couvre TOUT l'escalier avec de la marge (x natif
+//    5..75, au lieu de 15..37.5) ;
+//  - la montée ET la descente se décident sur la DIRECTION POUSSÉE dans
+//    cette zone, pas sur une position au pixel : au sol, pousser vers le
+//    bas (vers le mur) = monter ; en haut, pousser vers le haut (vers le
+//    sol devant, qui est AU-DESSUS à l'écran) = descendre. Avant, la
+//    descente demandait de pousser vers le bas — l'inverse de là où on
+//    veut aller — d'où "impossible" ;
+//  - la bande praticable descend un peu sur la face avant (-56..-46) :
+//    le cube chevauche le haut du mur au lieu de flotter au-dessus.
+const WALL_NATIVE_STAIR_X = [5, 75];            // zone d'escalier (large) : marches de (22.5,-3.75) à (60,-45)
+const WALL_NATIVE_STAIR_TOP = { x: 60, y: -50 }; // point d'arrivée en haut, dans la bande praticable
+const WALL_NATIVE_TOP_BAND = [-56, -46];        // dessus praticable : sous le bord avant du sommet (-56.25), pieds plantés
+const CLIMB_HOLD_MS = 120;                      // la direction doit être tenue ce temps-là avant de monter/descendre (pas de déclenchement sur un frôlement)
+let climbHoldSince = 0;
 const WALL_PLAYER_PAD = 6;                      // demi-encombrement du joueur contre le mur
 const CLIMB_MS = 380;                           // durée de la montée/descente interpolée
 const CLIMB_COOLDOWN_MS = 600;                  // après une montée/descente, on ne repart pas dans l'autre sens tout de suite (sinon, joystick maintenu = rebond)
@@ -1005,7 +1021,7 @@ function resolveWallCollision(prevX, prevY){
 // escalier + dessus du mur. Renvoie true si la position du joueur est
 // imposée par cette fonction (montée en cours, ou en haut du mur) — les
 // autres collisions ne s'appliquent alors pas.
-function updateWallClimb(now, prevX, prevY){
+function updateWallClimb(now, prevX, prevY, pushDY){
   const W = wallScreen();
   if (playerClimb){
     const t = Math.min(1, (now - playerClimb.start) / CLIMB_MS);
@@ -1016,25 +1032,30 @@ function updateWallClimb(now, prevX, prevY){
   }
   const canStart = now >= playerClimbCooldownUntil;
   const bandTop = W.groundY - WALL_NATIVE_FOOTPRINT_DEPTH * W.sY - WALL_PLAYER_PAD;
-  const footX0 = W.leftX + WALL_NATIVE_STAIR_FOOT_X[0] * W.sX, footX1 = W.leftX + WALL_NATIVE_STAIR_FOOT_X[1] * W.sX;
+  const zoneX0 = W.leftX + WALL_NATIVE_STAIR_X[0] * W.sX, zoneX1 = W.leftX + WALL_NATIVE_STAIR_X[1] * W.sX;
+  const inZoneX = player.x >= zoneX0 && player.x <= zoneX1;
   const topPt = { x: W.leftX + WALL_NATIVE_STAIR_TOP.x * W.sX, y: W.groundY + WALL_NATIVE_STAIR_TOP.y * W.sY };
-  const footPt = { x: (footX0 + footX1) / 2, y: bandTop - 2 };
+  const footPt = { x: Math.max(zoneX0, Math.min(zoneX1, player.x)), y: bandTop - 2 };
+  // la direction doit être tenue un court instant (CLIMB_HOLD_MS) pour
+  // compter — un frôlement du joystick ne fait pas monter/descendre
+  const wanted = !playerOnWall ? (pushDY > 0.3) : (pushDY < -0.3);
+  if (!(inZoneX && wanted)) climbHoldSince = 0;
+  else if (!climbHoldSince) climbHoldSince = now;
+  const held = climbHoldSince && now - climbHoldSince >= CLIMB_HOLD_MS;
   if (!playerOnWall){
-    // au sol, dans le pied d'escalier, en poussant vers le mur : on monte
-    if (canStart && player.x >= footX0 && player.x <= footX1 && player.y > bandTop - 4 && player.y > prevY){
-      playerClimb = { from: { x: player.x, y: player.y }, to: topPt, start: now, up: true };
+    // au sol, dans la zone d'escalier, collé au mur, en poussant vers lui : on monte
+    if (canStart && held && player.y > bandTop - 40){
+      playerClimb = { from: { x: player.x, y: player.y }, to: topPt, start: now, up: true }; climbHoldSince = 0;
       return true;
     }
     return false;
   }
-  // en haut : marche libre sur le dessus du tronçon gauche (le tronçon
-  // droit n'a pas d'escalier et la porte est un vide — on ne la saute pas)
-  const topY0 = W.groundY + WALL_NATIVE_TOP_BAND[0] * W.sY, topY1 = W.groundY + WALL_NATIVE_TOP_BAND[1] * W.sY;
-  // redescendre : au-dessus de l'escalier, pousser vers le bas au-delà du bord avant
-  if (canStart && player.y > topY1 && Math.abs(player.x - topPt.x) < 14 * W.sX){
-    playerClimb = { from: { x: player.x, y: player.y }, to: footPt, start: now, up: false };
+  // en haut : dans la zone d'escalier, pousser vers le haut (vers le sol devant) = descendre
+  if (canStart && held){
+    playerClimb = { from: { x: player.x, y: player.y }, to: footPt, start: now, up: false }; climbHoldSince = 0;
     return true;
   }
+  const topY0 = W.groundY + WALL_NATIVE_TOP_BAND[0] * W.sY, topY1 = W.groundY + WALL_NATIVE_TOP_BAND[1] * W.sY;
   player.x = Math.max(W.leftX + WALL_PLAYER_PAD + 2, Math.min(W.gateX - W.gateHalfW - WALL_PLAYER_PAD, player.x));
   player.y = Math.max(topY0, Math.min(topY1, player.y));
   return true;
@@ -2879,6 +2900,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.87", text: "Mur simplifié après essai : la zone d'escalier couvre tout l'escalier avec de la marge ; on monte en poussant vers le mur, on redescend en poussant vers le sol (vers le haut de l'écran) — avant, il fallait pousser à l'envers, d'où l'impossibilité de descendre. Le personnage est posé sur le mur, pas au-dessus. Et le mur (comme la Forge) est enfin opaque : ce qui est derrière lui, côté mer, disparaît derrière." },
   { v: "17.86", text: "La Forge devient le prérequis de tout : tant qu'elle n'est pas bâtie (100 or, sur place), ni tour, ni catapulte, ni amélioration — les boutons affichent \"Forge d'abord\". Une fois bâtie, tout redevient payant comme avant. Les bots du simulateur la bâtissent en premier, eux aussi." },
   { v: "17.85", text: "L'évasement du chemin à la porte se fait maintenant sur 3 crans (72 px) au lieu de 2 : la route s'élargit doucement en approchant, choisi sur planche comparative." },
   { v: "17.84", text: "Musique d'ambiance compressée fortement : 0,9 Mo au lieu de 6,5 (Opus mono 32 kb/s), avec un secours AAC pour les navigateurs qui ne lisent pas l'Ogg. Le jeu se charge bien plus vite sur mobile." },
@@ -3281,7 +3303,7 @@ function update(now){
     }
     // v17.83 : escalier / dessus du mur d'abord (position imposée), sinon
     // les obstacles du sol : tours, puis la bande du mur (sauf la porte)
-    if (!updateWallClimb(now, prevX, prevY)){
+    if (!updateWallClimb(now, prevX, prevY, dy)){ // dy : direction poussée (joystick/clavier), voir WALL_NATIVE_STAIR_X
       resolveTowerCollision(player, TOWER_SOLID_RADIUS); // une tour, c'est aussi un mur
       resolveWallCollision(prevX, prevY);
     }
@@ -4960,12 +4982,19 @@ function draw(now){
   }
   drawBoat();
   drawPath();
-  drawCastle();
-  drawForge();
-
   if (showGrid) drawDebugGrid();
 
   const layers = [];
+  // v17.87 (Pierre : "attention, le mur est opaque, donc si je suis
+  // derrière le mur, je suis invisible") — le mur et la Forge étaient
+  // dessinés AVANT tout le reste, donc ne cachaient jamais rien : un
+  // ennemi ou le joueur collé au mur côté mer se dessinait par-dessus.
+  // Ils entrent maintenant dans le tri par profondeur comme les autres
+  // objets, à la hauteur de leur base : ce qui est plus loin de la
+  // caméra (y plus petit) passe derrière eux et disparaît. Le joueur en
+  // haut du mur est la seule exception (voir son calque plus bas).
+  layers.push({ y: REGEN_ZONE.y + REGEN_ZONE.h, draw: drawCastle });
+  layers.push({ y: FORGE_ZONE.y + FORGE_ZONE.h*0.92, draw: drawForge });
 
   // v17.66 (demandé : "un petit curseur très discret... qui affiche
   // l'endroit où on peut construire une tour... des fois si je bouge
@@ -5300,7 +5329,9 @@ function draw(now){
     // flash rouge bref d'un coup encaissé, qui reste prioritaire dessus
     const critical = playerHealth <= PLAYER_MAX_HEALTH * 0.1;
     const blinkOn = !critical || Math.floor(now / 150) % 2 === 0;
-    layers.push({ y: player.y, draw: () => {
+    // v17.87 : sur le mur (ou dans l'escalier), le joueur est dessiné
+    // juste DEVANT le mur, sinon le tri par profondeur le cacherait derrière
+    layers.push({ y: (playerOnWall || playerClimb) ? REGEN_ZONE.y + REGEN_ZONE.h + 0.5 : player.y, draw: () => {
       if (!blinkOn) ctx.globalAlpha = 0.3;
       drawIsoBox(player.x, player.y, PLAYER_HW, PLAYER_HH, PLAYER_SH, pTop, pLeft, pRight, false, true);
       if (!blinkOn) ctx.globalAlpha = 1;
@@ -5416,7 +5447,7 @@ function resetGame(startingGold){
   repairingTower = null;
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
-  playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; // v17.83
+  playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; climbHoldSince = 0; // v17.83/v17.87
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0; precisionLevel = 0;
   forgeBuilt = false; forgeEliteLevel = 0; soldiersCanRepair = false;
   merchants = []; soldiers = []; activeCaravan = null;

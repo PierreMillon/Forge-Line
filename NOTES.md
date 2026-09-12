@@ -4369,3 +4369,34 @@ on simule la décision, pas la marche). Conséquence à mesurer à la
 prochaine session d'équilibrage : première tour plus tardive → les
 courbes v17.77 (2-5 min) sont à re-vérifier. NE PAS équilibrer avant
 d'avoir relancé le simulateur avec ce prérequis.
+
+## v17.87 — mur simplifié après essai réel, et mur opaque
+
+Pierre (téléphone) : *"il faut simplifier... la zone doit être assez large
+pour pouvoir monter sur l'escalier... on a l'impression qu'il est
+au-dessus du mur... pour redescendre c'était impossible... un parcours
+beaucoup plus simple."*
+
+Ce qui clochait vraiment dans v17.83, et que mes tests n'avaient pas vu :
+
+- **La descente demandait de pousser vers le BAS** (vers le bord avant
+  du sommet). Or le sol devant le mur est AU-DESSUS à l'écran : le joueur
+  pousse naturellement vers le haut, qui ne faisait que buter contre la
+  bande. Mes tests appuyaient sur la touche que J'AVAIS décidée, pas sur
+  celle qu'un joueur choisit. Maintenant : montée = pousser vers le mur
+  (bas), descente = pousser vers le sol devant (haut) — on pousse vers
+  là où on veut aller, dans les deux cas.
+- **Zone trop étroite** : x natif 15–37.5 → 5–75 (tout l'escalier, avec
+  marge). La montée ne dépend plus d'une position au pixel mais de la
+  direction tenue ≥ 120 ms (`CLIMB_HOLD_MS`) dans la zone.
+- **"Au-dessus du mur"** : bande praticable -62..-54 → -56..-46 : le cube
+  chevauche le haut du mur au lieu de flotter sur les merlons.
+
+**Mur opaque** (Pierre : *"attention, le mur est opaque, donc si je suis
+derrière le mur, je suis invisible"*) : le mur et la Forge étaient
+dessinés avant `layers`, donc jamais devant rien. Ils sont maintenant des
+calques triés à la hauteur de leur base. Vérifié au rendu : ennemi à
+`groundY-12` côté mer → caché ; à `groundY-110` → visible ; côté château
+→ visible ; joueur sur le mur → devant (calque forcé à `groundY+0.5`).
+Limite connue du tri par profondeur : une tour bâtie collée au mur côté
+mer sera cachée par lui, sommet compris. C'est le prix du principe.
