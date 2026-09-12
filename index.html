@@ -1202,7 +1202,49 @@ let pathDisturbedThisWave = false;  // un ennemi a-t-il traîné sur le chemin c
 let pathClearWaveStreak = 0;        // nb de vagues consécutives sans ennemi sur le chemin
 let playerOnPathSince = null;
 let activeCaravan = null;           // { rewardGiven, soldiersGiven } — un seul évènement à la fois
-let merchants = [];                 // { pathIdx, x, y, speed, hp, maxHp, wounded, everWounded, dead }
+// v17.91 (Pierre : "on va faire le même principe pour les marchands :
+// ils doivent être dans la caisse du chariot" — tranché en quiz : un seul
+// chariot, tous dedans ; au contact ennemi, le marchand le plus exposé
+// encaisse ; à la porte, ils descendent, se relâchent et entrent).
+// Le chariot est maintenant L'ENTITÉ qui roule sur le chemin
+// (activeCaravan.pathIdx) ; les marchands sont des balles souples dans sa
+// caisse (même modèle que le pont du bateau, v17.90) : forme inchangée,
+// répulsion élastique, enceinte stricte = parallélogramme INTÉRIEUR de
+// la caisse (le double liseré du croquis, voir drawCaravanCart).
+let merchants = [];                 // { aboard, lx, ly (locaux, dans la caisse), x, y, hp, maxHp, wounded, everWounded, dead }
+const MERCHANT_R = 7;               // rayon de la bille dessinée — sert aussi à la répulsion
+// ouverture intérieure de la caisse, en unités locales de drawCaravanCart
+// (origine = coin S de la caisse) : P0(-8.66,-14.95) P1(-0.02,-19.94)
+// P2(17.30,-10.00) P3(8.66,-5.02) — un vrai parallélogramme (P2 = P1+P3-P0),
+// donc centre + a·U + b·V avec |a|,|b| ≤ 1, U=(P1-P0)/2, V=(P3-P0)/2.
+const CART_BOX = { c: { x: 4.32, y: -12.475 }, U: { x: 4.32, y: -2.495 }, V: { x: 8.66, y: 4.965 } };
+CART_BOX.det = CART_BOX.U.x * CART_BOX.V.y - CART_BOX.U.y * CART_BOX.V.x;
+function cartBoxPoint(a, b){ return { x: CART_BOX.c.x + a*CART_BOX.U.x + b*CART_BOX.V.x, y: CART_BOX.c.y + a*CART_BOX.U.y + b*CART_BOX.V.y }; }
+function cartBoxCoords(p){
+  const dx = p.x - CART_BOX.c.x, dy = p.y - CART_BOX.c.y;
+  return { a: (dx * CART_BOX.V.y - dy * CART_BOX.V.x) / CART_BOX.det, b: (CART_BOX.U.x * dy - CART_BOX.U.y * dx) / CART_BOX.det };
+}
+const CART_PUSH = 0.3, CART_JITTER = 0.3;
+function updateCartPassengers(){
+  const aboard = merchants.filter(m => m.aboard && !m.dead);
+  for (const m of aboard){ m.lx += (Math.random()-0.5)*CART_JITTER; m.ly += (Math.random()-0.5)*CART_JITTER*0.6; }
+  for (let i = 0; i < aboard.length; i++){
+    for (let j = i+1; j < aboard.length; j++){
+      const a = aboard[i], b = aboard[j];
+      const dx = b.lx-a.lx, dy = b.ly-a.ly, d = Math.hypot(dx, dy), minD = MERCHANT_R*2;
+      if (d < minD){
+        if (d > 0.001){ const push = (minD-d)*CART_PUSH*0.5, ux = dx/d, uy = dy/d; a.lx -= ux*push; a.ly -= uy*push; b.lx += ux*push; b.ly += uy*push; }
+        else { a.lx -= 0.5; b.lx += 0.5; }
+      }
+    }
+  }
+  for (const m of aboard){
+    const { a, b } = cartBoxCoords({ x: m.lx, y: m.ly });
+    const ca = Math.max(-1, Math.min(1, a)), cb = Math.max(-1, Math.min(1, b));
+    if (ca !== a || cb !== b){ const q = cartBoxPoint(ca, cb); m.lx = q.x; m.ly = q.y; }
+  }
+}
+function caravanCartPos(){ return activeCaravan ? posOnPath(activeCaravan.pathIdx) : null; }
 
 // approximation volontairement grossière : la moyenne pondérée des
 // récompenses par type (base 1, rapide/fragile 2, rapide/costaud 4,
@@ -1242,55 +1284,76 @@ function spawnCaravan(){
   const count = MERCHANT_MIN + Math.floor(Math.random() * (MERCHANT_MAX - MERCHANT_MIN + 1));
   merchants = [];
   for (let i = 0; i < count; i++){
-    merchants.push({
-      pathIdx: pathScreenPoints.length - 1 - i*0.6, // étalés façon chenille
-      x: 0, y: 0, speed: 0, hp: MERCHANT_HP, maxHp: MERCHANT_HP,
-      wounded: false, everWounded: false, dead: false,
-    });
+    const q = cartBoxPoint(Math.random()*1.6-0.8, Math.random()*1.6-0.8);
+    merchants.push({ aboard: true, lx: q.x, ly: q.y, x: 0, y: 0, hp: MERCHANT_HP, maxHp: MERCHANT_HP, wounded: false, everWounded: false, dead: false });
   }
   lastCaravanWave = wave;
-  activeCaravan = { rewardGiven: false, soldiersGiven: false };
+  // le chariot part du bout du chemin (côté large) et roule vers la porte
+  activeCaravan = { pathIdx: pathScreenPoints.length - 1, speed: 0, rewardGiven: false, soldiersGiven: false, arrived: false };
 }
 function updateMerchants(now){
-  if (!merchants.length) return;
-  for (const m of merchants){
-    if (m.dead) continue;
-    const pos = posOnPath(m.pathIdx);
-    m.x = pos.x; m.y = pos.y;
-    for (const e of enemies){
-      if (Math.hypot(e.x-m.x, e.y-m.y) < 20){
-        m.hp -= MERCHANT_CONTACT_DMG;
-        m.wounded = true; m.everWounded = true;
-      }
-    }
-    if (m.hp <= 0){ m.dead = true; continue; }
-
-    // amortissement (v17.25) : la vitesse réelle (m.speed) se rapproche
-    // progressivement d'une vitesse cible, elle-même réduite à l'approche
-    // du point d'arrêt (château ou demi-tour du retour) — démarrage et
-    // arrêt progressifs, pas un à-coup de vitesse constante
-    const remaining = m.pathIdx; // v17.88 : plus de demi-tour, il ne reste que l'approche du château
+  if (!activeCaravan) return;
+  const W = wallScreen();
+  // le chariot roule (amortissement v17.25, inchangé, juste porté sur le chariot)
+  if (!activeCaravan.arrived){
+    const remaining = activeCaravan.pathIdx;
     const targetSpeed = MERCHANT_SPEED_IDX * Math.min(1, Math.max(0.15, remaining / MERCHANT_DECEL_ZONE));
-    m.speed += (targetSpeed - m.speed) * MERCHANT_ACCEL_RATE;
-    m.pathIdx -= m.speed;
-    m.pathIdx = Math.max(0, Math.min(pathScreenPoints.length - 1, m.pathIdx));
-
-    if (m.pathIdx <= 0){
-      // arrivé au château
-      if (activeCaravan && !activeCaravan.rewardGiven){
+    activeCaravan.speed += (targetSpeed - activeCaravan.speed) * MERCHANT_ACCEL_RATE;
+    activeCaravan.pathIdx = Math.max(0, activeCaravan.pathIdx - activeCaravan.speed);
+    if (activeCaravan.pathIdx <= 0){
+      activeCaravan.arrived = true;
+      if (!activeCaravan.rewardGiven){
         const reward = waveValueEstimate();
         gold += reward;
         floatingTexts.push({ x: REGEN_ZONE.x + REGEN_ZONE.w/2, y: REGEN_ZONE.y - 10, text: '+'+reward, createdAt: now, color: '#d9a441' });
         activeCaravan.rewardGiven = true;
       }
-      if (!m.everWounded && activeCaravan && !activeCaravan.soldiersGiven){
-        spawnSoldiers(now);
-        activeCaravan.soldiersGiven = true;
+      // à la porte, la caisse se vide : chacun descend là où il était
+      // dans la caisse et se relâche sur le sol (voir plus bas)
+      for (const m of merchants) if (m.aboard){ m.aboard = false; }
+    }
+  }
+  updateCartPassengers();
+  const cart = caravanCartPos();
+  const aboard = merchants.filter(m => m.aboard && !m.dead);
+  for (const m of aboard){ m.x = cart.x + m.lx; m.y = cart.y + m.ly; }
+  // contact ennemi sur le chariot : le marchand LE PLUS EXPOSÉ (le plus
+  // proche de l'ennemi dans la caisse) encaisse — plus la caisse est
+  // pleine, plus ils sont pressés vers les bords, plus ils sont vulnérables
+  if (aboard.length){
+    const bx = cart.x + CART_BOX.c.x, by = cart.y + CART_BOX.c.y;
+    for (const e of enemies){
+      if (Math.hypot(e.x-bx, e.y-by) < 24){
+        let victim = null, best = Infinity;
+        for (const m of aboard){ const d = Math.hypot(e.x-m.x, e.y-m.y); if (d < best){ best = d; victim = m; } }
+        victim.hp -= MERCHANT_CONTACT_DMG; victim.wounded = true; victim.everWounded = true;
       }
-      // v17.88 : blessé ou pas, il entre — le château EST l'endroit où
-      // l'on se soigne (Pierre). Avant, un blessé repartait "au large"
-      // se soigner puis retentait sa chance ; ça n'avait pas de sens.
-      m.dead = true; // absorbé (converti en soldat, ou juste arrivé)
+    }
+  }
+  // descendus : ils marchent vers l'intérieur de l'enceinte (derrière la
+  // porte) en se repoussant mollement, subissent le contact chacun pour
+  // soi, et sont absorbés une fois derrière le mur
+  const ground = merchants.filter(m => !m.aboard && !m.dead);
+  const tx = W.gateX, ty = W.groundY + 20;
+  for (const m of ground){
+    const d = Math.hypot(tx-m.x, ty-m.y);
+    if (d > 2){ m.x += (tx-m.x)/d*0.6; m.y += (ty-m.y)/d*0.6; }
+    for (const e of enemies){
+      if (Math.hypot(e.x-m.x, e.y-m.y) < 20){ m.hp -= MERCHANT_CONTACT_DMG; m.wounded = true; m.everWounded = true; }
+    }
+  }
+  for (let i = 0; i < ground.length; i++) for (let j = i+1; j < ground.length; j++){
+    const a = ground[i], b = ground[j];
+    const dx = b.x-a.x, dy = b.y-a.y, d = Math.hypot(dx, dy), minD = MERCHANT_R*2*(1-ENEMY_OVERLAP_ALLOWED);
+    if (d < minD && d > 0.001){ const push = (minD-d)*ENEMY_COLLISION_PUSH*0.5, ux = dx/d, uy = dy/d; a.x -= ux*push; a.y -= uy*push; b.x += ux*push; b.y += uy*push; }
+  }
+  for (const m of merchants){
+    if (m.dead) continue;
+    if (m.hp <= 0){ m.dead = true; continue; }
+    if (!m.aboard && m.y > W.groundY + 8){
+      // entré dans l'enceinte : le premier JAMAIS touché convertit la caravane
+      if (!m.everWounded && !activeCaravan.soldiersGiven){ spawnSoldiers(now); activeCaravan.soldiersGiven = true; }
+      m.dead = true;
     }
   }
   merchants = merchants.filter(m => !m.dead);
@@ -2945,6 +3008,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.91", text: "Les marchands voyagent DANS la caisse du chariot, pressés comme des balles souples (même modèle que le pont du bateau). Le chariot est maintenant ce qui roule sur le chemin ; un ennemi qui l'atteint blesse le marchand le plus exposé ; à la porte, le chariot s'arrête, ils descendent, se relâchent et entrent dans l'enceinte. La barre de vie d'un marchand n'apparaît qu'une fois blessé." },
   { v: "17.90", text: "Les passagers du bateau sont maintenant de vraies \"balles souples\" : forme inchangée, mais ils se repoussent élastiquement dans l'enceinte close du pont. Peu nombreux, ils tiennent chacun leur place ; nombreux, la répulsion ne suffit plus et ils se chevauchent en une masse dense — un bateau plein se voit d'un coup d'œil. L'amas vit en permanence (léger tremblement) et se desserre à chaque débarquement. Remplace la rangée écrasée de la v17.80, qui déformait leur silhouette." },
   { v: "17.89", text: "Menu : retiré les liens vers Bastion Orbit et Knight Wars — le portfolio (pierremillon.github.io/pierremillon) est désormais l'endroit unique pour naviguer d'un jeu à l'autre." },
   { v: "17.88", text: "On ne se soigne que dans l'enceinte du château. Un marchand blessé ne repart plus \"au large\" : il continue jusqu'au château et y entre (sans déclencher la conversion en soldats, réservée au premier marchand jamais touché). Un soldat blessé rentre derrière la porte et régénère sur place, autant de fois qu'il le faut, puis ressort à 80 %." },
@@ -5290,7 +5354,7 @@ function draw(now){
   // marchands : billes dorées (une barre de vie au-dessus, seuls eux en
   // ont une — demandé explicitement, contrairement aux ennemis/tours)
   for (const m of merchants){
-    layers.push({ y: m.y, draw: () => {
+    layers.push({ y: m.aboard && activeCaravan ? caravanCartPos().y + 0.5 : m.y, draw: () => {
       if (phosphorMode){
         // v17.44 (retour en arrière demandé par Pierre) : la silhouette de
         // "petit bonhomme" du v17.32 ne lui plaît pas ("des petits
@@ -5302,21 +5366,25 @@ function draw(now){
       ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2);
       ctx.fillStyle = '#d9a441'; ctx.fill();
       }
-      const barW = 16, frac = Math.max(0, m.hp/m.maxHp);
-      ctx.fillStyle = phosphorMode ? 'rgba(0,0,0,0.6)' : '#00000030'; ctx.fillRect(m.x-barW/2, m.y-20, barW, 3);
-      ctx.fillStyle = phosphorMode ? PHOSPHOR_GREEN : (frac > 0.4 ? '#4a9d4a' : '#c33f3f');
-      ctx.fillRect(m.x-barW/2, m.y-20, barW*frac, 3);
+      // v17.91 : la barre de vie n'apparaît qu'une fois blessé — huit
+      // barres pleines empilées dans la caisse ne disaient rien
+      if (m.hp < m.maxHp){
+        const barW = 16, frac = Math.max(0, m.hp/m.maxHp);
+        ctx.fillStyle = phosphorMode ? 'rgba(0,0,0,0.6)' : '#00000030'; ctx.fillRect(m.x-barW/2, m.y-20, barW, 3);
+        ctx.fillStyle = phosphorMode ? PHOSPHOR_GREEN : (frac > 0.4 ? '#4a9d4a' : '#c33f3f');
+        ctx.fillRect(m.x-barW/2, m.y-20, barW*frac, 3);
+      }
     }});
   }
   // le chariot tiré par un cheval : une seule fois pour toute la
   // caravane, derrière le marchand le plus en arrière (le chemin part de
   // l'index 0 au bord du château vers le large — "derrière" = l'index le
   // plus grand, donc encore plus loin dans cette direction)
-  if (phosphorMode && merchants.length){
-    let backIdx = merchants[0].pathIdx;
-    for (const m of merchants) if (m.pathIdx > backIdx) backIdx = m.pathIdx;
-    const cartPos = posOnPath(backIdx + 1.6);
-    layers.push({ y: cartPos.y, draw: () => drawCaravanCart(cartPos.x, cartPos.y) });
+  // v17.91 : le chariot EST la caravane ; les marchands à bord sont
+  // dessinés par-dessus (leur calque a un y légèrement plus grand)
+  if (phosphorMode && activeCaravan){
+    const cartPos = caravanCartPos();
+    layers.push({ y: cartPos.y - 0.5, draw: () => drawCaravanCart(cartPos.x, cartPos.y) });
   }
   // soldats : alliés obtenus via les marchands — bleu/vert, distinct des
   // ennemis (rouge/violet/orange) et du joueur (jaune)

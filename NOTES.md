@@ -4460,3 +4460,39 @@ Pièges de test : (1) une scène contrôlée avec `enemies` vide déclenche la
 fin de vague, qui remplace `boats` — geler avec `enemiesThisWave = 999 ;
 spawnTimer = -1e9` ; (2) le centre de la BASE du cube est à hw/2 sous le
 sommet bas (losange 2:1), pas à hw.
+
+## v17.91 — les marchands dans la caisse du chariot
+
+Pierre : *"on va faire le même principe pour les marchands : ils doivent
+être dans la caisse du chariot. Pose-moi des questions."* Quiz : un seul
+chariot, tous dedans ; au contact, le marchand le plus exposé encaisse ;
+à la porte, ils descendent et se relâchent ; blessé "à voir" → tranché
+ensuite par le principe du soin dans l'enceinte (v17.88).
+
+Avant : chaque marchand était une entité qui marchait sur le chemin en
+chenille (`pathIdx` par marchand), le chariot n'était qu'un décor dessiné
+derrière le dernier. Maintenant `activeCaravan` porte `pathIdx`/`speed`
+(l'amortissement v17.25 déplacé tel quel) et les marchands ont `lx, ly`
+dans le repère de `drawCaravanCart` (origine = coin S de la caisse).
+
+Enceinte = l'ouverture INTÉRIEURE de la caisse (le double liseré que le
+croquis montre, v17.53) : P0(-8.66,-14.95) P1(-0.02,-19.94)
+P2(17.30,-10.00) P3(8.66,-5.02). Vrai parallélogramme (P2 = P1+P3-P0),
+d'où `|a|,|b| ≤ 1` — contrairement au pont du bateau (losange, v17.90),
+et ce n'est pas un hasard : ici les quatre coins sont ceux d'un
+rectangle vu en iso, là-bas c'étaient les extrêmes d'une coque.
+
+Contact : un ennemi à < 24 px du centre de la caisse frappe le marchand
+à bord le plus proche de lui. Mesuré : sur 8, deux blessés (0,9 et 0,4)
+— l'agitation permanente fait changer "le plus exposé" d'une frame à
+l'autre, c'est cohérent avec "vivant".
+
+Descente : chacun quitte la caisse là où il était, marche vers
+`(gateX, groundY+20)` avec une répulsion molle entre eux (préfiguration
+de #43), et est absorbé derrière le mur ; le premier jamais touché
+convertit en soldats. Mesuré : 3 s après l'arrivée, 0 à bord, 5
+restants ; 7 s : 0, caravane close, 4 soldats.
+
+Barre de vie : seulement si blessé. Huit barres pleines empilées dans
+17×10 px ne disaient plus rien ; Pierre avait demandé la barre pour
+qu'on VOIE un marchand blessé, c'est exactement ce que ça garde.
