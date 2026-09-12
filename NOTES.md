@@ -4028,3 +4028,72 @@ Vérifié : `node --check` ; données livrées identiques à la sortie du
 script ; rendu à 3x des 4 paliers, à la taille réelle du jeu et en x4,
 aucune erreur console — l'escalade se lit clairement et le treillis du
 boss reste lisible à taille réelle.
+
+## v17.77 — recalage sur des parties de 2-5 min (et ce que ça révèle)
+
+Pierre, interrogé en quiz sur le but et l'ambiance du jeu : **vitrine
+technique ET vrai jeu à publier**, ambiance **froide et technique**
+(oscilloscope / terminal), partie de **2-5 minutes**, plaisir dans la
+**maîtrise d'une partie** (chaque partie repart de zéro).
+
+### Le décalage que ça met au jour
+
+Mesuré au simulateur : 2 min ≈ vague 11, 5 min ≈ vague 19. Or les
+seuils de contenu étaient : rapide/costaud vague 14, bouclier vague 20,
+PV exponentiels vague 30, cheval automatique vague 40, plateau
+"personne ne perd" vague 68.
+
+Autrement dit **la majorité du contenu était hors d'atteinte**, et tout
+l'équilibrage de difficulté fait en v17.73/74 visait un horizon que le
+joueur n'atteint jamais. Erreur de méthode de ma part : j'ai passé une
+session entière à simuler 90000 frames sans jamais demander combien de
+temps une partie était censée durer. **À retenir : demander la durée de
+session AVANT d'équilibrer quoi que ce soit.**
+
+### Compression (option choisie : tout faire tenir dans ~20 vagues)
+
+Vagues 1 à 9 **non touchées** : tutoriel dicté par Pierre + ruée du
+nombre, déjà calés, et la règle Bloons TD 5 validée ("une seule variable
+qui monte à la fois") reste respectée — les introductions restent
+espacées de 3 vagues et ne se superposent jamais à la ruée.
+
+    9  rapide/fragile      12  rapide/costaud     15  bouclier
+    17 PV exponentiels     19  cheval de Troie automatique (climax)
+
+Fenêtres de montée des types : 15-20 vagues -> 4 (sur une partie de 20
+vagues, un type qui met 20 vagues à monter n'existe pas). Recharge du
+cheval : 15 -> 6 vagues.
+
+### Recalibrage du cheval de Troie
+
+Ses PV (`TROJAN_LATE_HP_MULT`) avaient été fixés à 20 en v17.74, mais
+sur deux hypothèses devenues fausses : une arrivée vague 45, et un bot
+tirant à 20 coups/seconde (le plancher anti-spam du jeu), soit ~5x le
+rythme d'un vrai joueur. Rebalayé à cadence humaine réaliste
+(`--manualIntervalMs=250`), 10 parties par valeur :
+
+| mult | naïf | correct | bon |
+|---|---|---|---|
+| 3 | 26,8 (survit 1 fois sur 2) | 25,9 | 30,9 |
+| **5** | **19,6** | **19,0** | **31,0** |
+| 8 | 19,0 | 19,0 | 27,4 |
+
+Retenu : **5**. Dégradé net — qui n'a pas bâti de vraie défense tombe au
+cheval vague 19 (~5 min, la cible), qui a tour + catapulte passe le mur
+et continue. À 3 le cheval ne fait plus peur, à 8 il tue aussi le joueur
+correct sans lui laisser sa chance.
+
+Réserve honnête : le profil "bon" atteint encore la vague 31 (~11 min)
+sans mourir. Pour un jeu de maîtrise c'est défendable (le bon joueur est
+récompensé), mais ça dépasse la fenêtre 2-5 min — à trancher avec Pierre
+s'il veut aussi plafonner les bons joueurs.
+
+### Emojis retirés
+
+Ambiance "froide et technique" tranchée : les 8 pastilles emoji des
+boutons, l'emoji or du bandeau et ceux des menus/dialogues
+(musique, bruitages, pub, code bonus, alerte) sont remplacés par du
+texte. Gardés volontairement : ☰ ▶ ✓ ⚒, qui sont des symboles
+typographiques et non des emojis colorés. Le libellé or du bandeau est
+passé par le système de traduction (GOLD / OR) — il avait d'abord été
+écrit en dur en français, visible en anglais.

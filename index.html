@@ -62,7 +62,9 @@
   .bonusbar-row{display:flex;align-items:stretch;justify-content:center;gap:8px}
   #bonusbar button{flex:1;max-width:100px;padding:4px 3px;border-radius:9px;border:1px solid #00000030;background:#faf6ea;color:#3a3529;font-size:10.5px;line-height:1.3;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
   #bonusbar button:disabled{opacity:.42}
-  #bonusbar button .b-icon{font-size:16px}
+  /* v17.77 : plus d'emoji dans l'UI (ambiance "froid et technique",
+     tranchee avec Pierre) — libelle texte sobre a la place */
+  #gold-display .gold-tag{opacity:.65;font-size:12px;letter-spacing:.5px}
   #bonusbar button .b-cost{opacity:.75;font-size:10px}
 
   #stage{position:fixed;top:var(--topbar-h);bottom:var(--bonusbar-h);left:0;right:0;overflow:hidden;background:#e8dfc8}
@@ -159,17 +161,17 @@
     <a id="faq-toggle" href="#" data-i18n="menu_astuces">Astuces</a>
     <a id="lang-toggle" href="#" data-i18n="menu_lang">Langue : Français</a>
     <div class="menu-slider-row">
-      <label for="music-vol-slider" data-i18n="menu_music">🎵 Musique</label>
+      <label for="music-vol-slider" data-i18n="menu_music">Musique</label>
       <input type="range" id="music-vol-slider" min="0" max="100" value="35">
     </div>
     <div class="menu-slider-row">
-      <label for="sfx-vol-slider" data-i18n="menu_sfx">🔊 Bruitages</label>
+      <label for="sfx-vol-slider" data-i18n="menu_sfx">Bruitages</label>
       <input type="range" id="sfx-vol-slider" min="0" max="100" value="70">
     </div>
     <a id="menu-restart" href="#" data-i18n="menu_restart">Recommencer une nouvelle partie</a>
   </div>
   <div id="wave-group">
-    <span id="gold-display">💰 <span id="gold">0</span></span>
+    <span id="gold-display"><span class="gold-tag" data-i18n="gold_tag">OR</span> <span id="gold">0</span></span>
     <button id="skip-wave-btn" aria-label="Passer la vague" title="Passer la vague">▶</button>
     <div id="wave-label"><span data-i18n="wave_label">Vague</span> <span id="wave">1</span></div>
   </div>
@@ -190,8 +192,8 @@
       <h2 id="over-title" data-i18n="over_title_generic">Tu as perdu</h2>
       <p id="over-wave"></p>
       <div class="btns">
-        <button id="continue-btn" data-i18n="btn_continue_ad">🎬 Regarder une pub (30s) pour continuer</button>
-        <button id="revive-btn" data-i18n="btn_revive_ad">🎬 Regarder une pub (30s) pour revivre</button>
+        <button id="continue-btn" data-i18n="btn_continue_ad">Regarder une pub (30s) pour continuer</button>
+        <button id="revive-btn" data-i18n="btn_revive_ad">Regarder une pub (30s) pour revivre</button>
         <button id="spectate-btn" data-i18n="btn_spectate">Continuer à regarder</button>
         <button id="restart-btn" data-i18n="btn_restart">Recommencer au tout début</button>
       </div>
@@ -199,7 +201,7 @@
   </div>
   <div id="ad-error">
     <div id="ad-error-card">
-      <p data-i18n="ad_error_text">⚠️ La vidéo n'a pas pu se charger — une erreur technique de notre côté. Pas d'inquiétude, tu reçois quand même ton bonus.</p>
+      <p data-i18n="ad_error_text">La vidéo n'a pas pu se charger — une erreur technique de notre côté. Pas d'inquiétude, tu reçois quand même ton bonus.</p>
       <button id="ad-error-ok" data-i18n="btn_ad_error_ok">Recevoir mon bonus</button>
     </div>
   </div>
@@ -230,22 +232,22 @@
     <p data-i18n="p_ads1"><strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.</p>
     <p data-i18n="p_ads2"><strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.</p>
     <p data-i18n="p_ads3"><strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.</p>
-    <button id="bonus-btn" data-i18n="btn_bonus_code">🎁 Code bonus : recommencer avec 100 or</button>
+    <button id="bonus-btn" data-i18n="btn_bonus_code">Code bonus : recommencer avec 100 or</button>
   </div>
 </div>
 
 <div id="bonusbar">
   <div class="bonusbar-row">
-    <button id="autogold-btn"><span class="b-icon">💰</span><span data-i18n="b_autogold">Revenu auto</span><span class="b-cost" id="autogold-cost"></span></button>
-    <button id="damage-btn"><span class="b-icon">💥</span><span data-i18n="b_damage">Dégâts</span><span class="b-cost" id="damage-cost"></span></button>
-    <button id="tower-btn"><span class="b-icon">🏰</span><span id="tower-label"></span><span class="b-cost" id="tower-cost"></span></button>
-    <button id="autofire-btn"><span class="b-icon">🎯</span><span data-i18n="b_autofire">Cadence</span><span class="b-cost" id="autofire-cost"></span></button>
+    <button id="autogold-btn"><span data-i18n="b_autogold">Revenu auto</span><span class="b-cost" id="autogold-cost"></span></button>
+    <button id="damage-btn"><span data-i18n="b_damage">Dégâts</span><span class="b-cost" id="damage-cost"></span></button>
+    <button id="tower-btn"><span id="tower-label"></span><span class="b-cost" id="tower-cost"></span></button>
+    <button id="autofire-btn"><span data-i18n="b_autofire">Cadence</span><span class="b-cost" id="autofire-cost"></span></button>
   </div>
   <div class="bonusbar-row">
-    <button id="precision-btn"><span class="b-icon">🔬</span><span data-i18n="b_precision">Précision</span><span class="b-cost" id="precision-cost"></span></button>
-    <button id="forge-btn"><span class="b-icon">⚒️</span><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
-    <button id="soldier-repair-btn"><span class="b-icon">🔧</span><span id="soldier-repair-label"></span><span class="b-cost" id="soldier-repair-cost"></span></button>
-    <button id="catapult-btn"><span class="b-icon">🪨</span><span id="catapult-label"></span><span class="b-cost" id="catapult-cost"></span></button>
+    <button id="precision-btn"><span data-i18n="b_precision">Précision</span><span class="b-cost" id="precision-cost"></span></button>
+    <button id="forge-btn"><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
+    <button id="soldier-repair-btn"><span id="soldier-repair-label"></span><span class="b-cost" id="soldier-repair-cost"></span></button>
+    <button id="catapult-btn"><span id="catapult-label"></span><span class="b-cost" id="catapult-cost"></span></button>
   </div>
 </div>
 
@@ -267,9 +269,9 @@ const I18N = {
     menu_theme_coast: "Carte : Côte", menu_theme_forest: "Carte : Forêt", menu_theme_snow: "Carte : Neige",
     menu_grid_show: "Afficher la grille (debug)", menu_grid_hide: "Cacher la grille (debug)",
     menu_astuces: "Astuces", menu_lang: "Langue : Français",
-    menu_music: "🎵 Musique", menu_sfx: "🔊 Bruitages",
+    menu_music: "Musique", menu_sfx: "Bruitages",
     menu_restart: "Recommencer une nouvelle partie",
-    wave_label: "Vague", gold_label: "Or :", gold_suffix: " or",
+    wave_label: "Vague", gold_label: "Or :", gold_tag: "OR", gold_suffix: " or",
     over_title_generic: "Tu as perdu", over_title_combat: "Tu es tombé au combat",
     over_title_castle: "Le château est tombé", over_title_trojan: "Le cheval de Troie a atteint le château",
     over_wave: w => `Tu as tenu jusqu'à la vague ${w}`,
@@ -281,10 +283,10 @@ const I18N = {
     enemy_name_fast_frail: "ennemis rapides et fragiles",
     enemy_name_fast_tough: "ennemis rapides et costauds",
     enemy_name_shielded: "ennemis à bouclier",
-    btn_continue_ad: "🎬 Regarder une pub (30s) pour continuer",
-    btn_revive_ad: "🎬 Regarder une pub (30s) pour revivre",
+    btn_continue_ad: "Regarder une pub (30s) pour continuer",
+    btn_revive_ad: "Regarder une pub (30s) pour revivre",
     btn_spectate: "Continuer à regarder", btn_restart: "Recommencer au tout début",
-    ad_error_text: "⚠️ La vidéo n'a pas pu se charger — une erreur technique de notre côté. Pas d'inquiétude, tu reçois quand même ton bonus.",
+    ad_error_text: "La vidéo n'a pas pu se charger — une erreur technique de notre côté. Pas d'inquiétude, tu reçois quand même ton bonus.",
     btn_ad_error_ok: "Recevoir mon bonus",
     btn_reinforce: "Renforcer", btn_build: "Construire",
     forge_label: "Forge", forge_go: "Va à la Forge", forge_elite_label: "Tours d’élite",
@@ -317,15 +319,15 @@ const I18N = {
     p_ads1: "<strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.",
     p_ads2: "<strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.",
     p_ads3: "<strong>Ma progression est sauvegardée ?</strong> Oui, automatiquement sur cet appareil (dans ce navigateur) une fois débloqué. Si tu vides le cache ou changes de navigateur, elle peut se perdre — pas de panique, il y a un code bonus ci-dessous pour repartir avec un coup de pouce.",
-    btn_bonus_code: "🎁 Code bonus : recommencer avec 100 or",
+    btn_bonus_code: "Code bonus : recommencer avec 100 or",
   },
   en: {
     menu_theme_coast: "Map: Coast", menu_theme_forest: "Map: Forest", menu_theme_snow: "Map: Snow",
     menu_grid_show: "Show grid (debug)", menu_grid_hide: "Hide grid (debug)",
     menu_astuces: "Tips", menu_lang: "Language: English",
-    menu_music: "🎵 Music", menu_sfx: "🔊 Sound effects",
+    menu_music: "Music", menu_sfx: "Sound effects",
     menu_restart: "Start a new game",
-    wave_label: "Wave", gold_label: "Gold:", gold_suffix: " gold",
+    wave_label: "Wave", gold_label: "Gold:", gold_tag: "GOLD", gold_suffix: " gold",
     over_title_generic: "You lost", over_title_combat: "You fell in battle",
     over_title_castle: "The castle has fallen", over_title_trojan: "The Trojan Horse reached the castle",
     over_wave: w => `You made it to wave ${w}`,
@@ -334,10 +336,10 @@ const I18N = {
     enemy_name_fast_frail: "fast, frail enemies",
     enemy_name_fast_tough: "fast, tough enemies",
     enemy_name_shielded: "shielded enemies",
-    btn_continue_ad: "🎬 Watch an ad (30s) to continue",
-    btn_revive_ad: "🎬 Watch an ad (30s) to revive",
+    btn_continue_ad: "Watch an ad (30s) to continue",
+    btn_revive_ad: "Watch an ad (30s) to revive",
     btn_spectate: "Keep watching", btn_restart: "Restart from the beginning",
-    ad_error_text: "⚠️ The video couldn't load — a technical error on our end. No worries, you still get your bonus.",
+    ad_error_text: "The video couldn't load — a technical error on our end. No worries, you still get your bonus.",
     btn_ad_error_ok: "Claim my bonus",
     btn_reinforce: "Reinforce", btn_build: "Build",
     forge_label: "Forge", forge_go: "Go to the Forge", forge_elite_label: "Elite Towers",
@@ -371,7 +373,7 @@ const I18N = {
     p_ads1: "<strong>Why an ad?</strong> Forge Line isn't pay-to-win: with the right strategy, you should never actually need to pay or watch an ad. The rewarded ad just exists to support the game if you want to. There may be other ways to support it later (skins, etc.), but none of that gives an advantage you can't get by playing well.",
     p_ads2: "<strong>What if I'm really stuck?</strong> If an ad won't load or you've lost all your progress, a small gold bonus is there to get you going again (see below) — no need to have watched anything to use it.",
     p_ads3: "<strong>Is my progress saved?</strong> Yes, automatically on this device (in this browser) once unlocked. If you clear your cache or switch browsers, it can be lost — no worries, there's a bonus code below to get back on your feet.",
-    btn_bonus_code: "🎁 Bonus code: restart with 100 gold",
+    btn_bonus_code: "Bonus code: restart with 100 gold",
   },
 };
 function detectLang(){
@@ -1353,7 +1355,7 @@ const WAVE_HP_STEP = 6;
 // = false) reste 1 coup = 1 mort pour toujours, à n'importe quelle
 // vague — seuls les types qui montaient déjà en PV avec la vague sont
 // concernés ici.
-const ENEMY_HP_EXP_WAVE_START = 30; // même point que le plancher de cadence (v17.65/73) : vagues déjà bien calées avant, on n'y touche pas
+const ENEMY_HP_EXP_WAVE_START = 17; // v17.77 : ramené de 30 à 17 pour tenir dans une partie de 2-5 min (voir le bloc des seuils de types)
 function scaledEnemyHpBase(wave){
   if (wave < ENEMY_HP_EXP_WAVE_START) return BASE_ENEMY_HP + WAVE_HP_STEP * (wave-1); // formule v17.23, inchangée
   const atThreshold = BASE_ENEMY_HP + WAVE_HP_STEP * (ENEMY_HP_EXP_WAVE_START-1);
@@ -1466,9 +1468,28 @@ const ENEMY_TYPES = [
 // pour que le nouveau type n'arrive qu'une fois la ruée de nombre
 // terminée (vague 9 = EARLY_RUSH_WAVES+1), et le 2e type décalé d'autant
 // pour garder l'écartement d'origine entre les deux introductions.
-const WAVE_TYPE2_START = 9,  WAVE_TYPE2_RAMP_WAVES = 15, TYPE2_MAX_RATE = 0.15; // rapide/fragile
-const WAVE_TYPE3_START = 14, WAVE_TYPE3_RAMP_WAVES = 20, TYPE3_MAX_RATE = 0.15; // rapide/costaud — même écart de 5 vagues qu'avant avec WAVE_TYPE2_START (décalé en bloc, v17.41)
-const WAVE_TYPE4_START = 20, WAVE_TYPE4_RAMP_WAVES = 20, TYPE4_MAX_RATE = 0.15; // bouclier (v17.63) — même écart de 6 vagues après le type 3, même rythme d'introduction que les précédents
+// v17.77 (Pierre, en quiz : une partie doit durer 2-5 min) — mesuré au
+// simulateur : 2 min ≈ vague 11, 5 min ≈ vague 19. Avec les seuils
+// précédents (type 3 vague 14, bouclier vague 20, PV exponentiels vague
+// 30, cheval automatique vague 40), la MAJORITÉ du contenu tombait hors
+// d'atteinte : un joueur ne voyait jamais le bouclier ni le cheval, et
+// tout l'équilibrage fait en v17.73/74 visait un horizon (vague 68) que
+// personne n'atteint. Tout est donc compressé pour tenir dans ~20 vagues,
+// afin qu'UNE partie montre l'intégralité du contenu.
+//
+// Ce qui n'est PAS touché : les vagues 1 à 9 (tutoriel dicté par Pierre +
+// ruée du nombre, déjà calées), et la règle Bloons TD 5 validée plus haut
+// — une seule variable qui monte à la fois. Les introductions restent donc
+// espacées de 3 vagues, jamais superposées à la ruée du nombre.
+//   9 : rapide/fragile   12 : rapide/costaud   15 : bouclier
+//  17 : PV exponentiels  19 : cheval de Troie automatique (le climax)
+//
+// Les fenêtres de montée passent de 15-20 vagues à 4 : sur une partie de
+// 20 vagues, un type qui met 20 vagues à atteindre sa proportion normale
+// n'existe pratiquement pas.
+const WAVE_TYPE2_START = 9,  WAVE_TYPE2_RAMP_WAVES = 4, TYPE2_MAX_RATE = 0.15; // rapide/fragile
+const WAVE_TYPE3_START = 12, WAVE_TYPE3_RAMP_WAVES = 4, TYPE3_MAX_RATE = 0.15; // rapide/costaud
+const WAVE_TYPE4_START = 15, WAVE_TYPE4_RAMP_WAVES = 4, TYPE4_MAX_RATE = 0.15; // bouclier (v17.63)
 // v17.64 (amélioration d'expérience de jeu, proposée et tranchée sans
 // attendre) : la seule fois où un joueur a vraiment besoin d'un
 // avertissement AVANT que ça n'arrive, c'est la toute première
@@ -1533,7 +1554,7 @@ function pickEnemyType(){
 // avec un temps de recharge en vagues pour ne pas devenir un piège
 // répétitif à chaque fois qu'on traîne un peu dans l'eau.
 const TROJAN_WARNING_MS = 3000, TROJAN_TRIGGER_MS = 6000; // court, avec avertissement (choisi)
-const TROJAN_COOLDOWN_WAVES = 15;
+const TROJAN_COOLDOWN_WAVES = 6; // v17.77 : 15 vagues de recharge n'avait de sens qu'avec des parties très longues ; à 6, un joueur qui tient le coup le revoit
 const TROJAN_SOLDIER_COUNT = 3;
 // v17.74 (Pierre : "un mécanisme de fin de partie séparé") — passé un
 // certain point, plus aucun ennemi normal n'est une vraie menace (les
@@ -1551,17 +1572,24 @@ const TROJAN_SOLDIER_COUNT = 3;
 // risque), juste déclenché AUTOMATIQUEMENT en plus, passé cette
 // vague — le déclenchement par l'eau reste inchangé et continue de
 // marcher normalement avant ce point.
-const TROJAN_AUTO_START_WAVE = 40;
-// mesuré au simulateur (voir NOTES.md) : sans ce boost, même une
-// défense minimale (1 tour + 1 catapulte) détruit le cheval ~4,8x
-// plus vite qu'il ne peut atteindre le mur (291 frames pour le tuer
-// contre 1399 pour le trajet, non gêné) — aucun vrai risque, la
-// course était déjà gagnée d'avance. Appliqué SEULEMENT à partir de
-// TROJAN_AUTO_START_WAVE : le déclenchement par l'eau, sur des vagues
-// plus tôt (joueur souvent sans tour/catapulte encore), reste sur le
-// multiplicateur d'origine (v17.24, jamais revu, toujours "un vrai
-// danger" pour un début de partie).
-const TROJAN_LATE_HP_MULT = 20;
+const TROJAN_AUTO_START_WAVE = 19; // v17.77 : ramené de 40 à 19 — c'est le climax de la partie, il doit tomber DANS la fenêtre de jeu réelle
+// Sans ce boost, même une défense minimale détruit le cheval ~4,8x plus
+// vite qu'il ne peut atteindre le mur (291 frames pour le tuer contre
+// 1399 pour le trajet) : aucun risque réel. Appliqué SEULEMENT à partir
+// de TROJAN_AUTO_START_WAVE — le déclenchement par l'eau, plus tôt dans
+// la partie (joueur souvent sans tour ni catapulte), garde le
+// multiplicateur d'origine (v17.24).
+//
+// v17.77 : recalibré de 20 à 5. Les 20 avaient été mesurés sur un bot
+// tirant à 20 coups/seconde (le plancher anti-spam du jeu), soit ~5x le
+// rythme d'un vrai joueur — et pour une arrivée vague 45, pas 19.
+// Rebalayé à cadence humaine réaliste (250ms entre tirs) sur 10 parties
+// par valeur : à 3 le cheval se tue trop facilement (le profil qui ne
+// construit rien survit une fois sur deux), à 8 il tue aussi le joueur
+// correct sans lui laisser sa chance. À 5, le dégradé est net — ceux qui
+// n'ont pas bâti de vraie défense tombent au cheval vague 19 (~5 min,
+// la cible), celui qui a tour + catapulte passe le mur et continue.
+const TROJAN_LATE_HP_MULT = 5;
 // pas dans ENEMY_TYPES : ne doit jamais être tiré au hasard par pickEnemyType()
 const TROJAN_ENEMY_TYPE = { id: 'trojan', hpMult: 1, speedMult: 0.6, colorA: '#e8dfc8', colorB: '#5c3f26', goldReward: 0, breachDamage: 10, scalesWithWave: false, isTrojan: true };
 let playerInWaterSince = null, trojanWarningShown = false;
@@ -2576,6 +2604,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.77", text: "Recalage complet du rythme : une partie vise maintenant 2-5 minutes, et tout le contenu tient dans cette fenêtre. Avant, l'ennemi bouclier n'arrivait qu'à la vague 20 et le cheval de Troie automatique à la vague 40 — autant dire jamais. Désormais : rapide/fragile vague 9, rapide/costaud 12, bouclier 15, ennemis plus résistants 17, et le cheval de Troie vague 19 comme point culminant. Les emojis de l'interface sont remplacés par du texte, pour coller à l'ambiance." },
   { v: "17.76", text: "Les 4 formes d'ennemis (du cube simple au cube « treillis » du boss) sont maintenant recopiées exactement depuis ton croquis, au lieu d'être fabriquées par formule : le treillis du boss avait un motif inventé en grille régulière, alors que ton dessin montre un motif bien plus travaillé en éventails. Son trait a été affiné pour rester lisible à la taille réelle." },
   { v: "17.75", text: "Le cheval de Troie est redessiné à partir de ton croquis d'origine, cette fois recopié exactement (méthode automatique, aucune coordonnée à la main) : l'ancienne version était approximée et ne ressemblait plus au dessin dès qu'on la regardait en grand. Il est aussi affiché un peu plus grand — c'est la menace la plus grave du jeu, elle doit se repérer au premier coup d'œil." },
   { v: "17.74", text: "Correctif de difficulté (suite) : au-delà de la vague 30, les ennemis qui montaient déjà en PV avec la vague grandissent maintenant en exponentielle (comme tes dégâts), pas en ligne droite pour toujours. Nouveau : à partir de la vague 40, le cheval de Troie revient tout seul, sans qu'il faille traîner dans l'eau — le laisser passer reste une défaite immédiate, donc une vraie course contre la montre, même très loin dans la partie." },
