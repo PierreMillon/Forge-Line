@@ -4277,3 +4277,45 @@ aussi vouloir dire que la Forge devrait être un PRÉREQUIS aux tours. Je
 n'ai pas fait ça — ça changerait le rythme des 2 premières minutes (100
 or avant la première tour). À lui de trancher en quiz si c'est ce qu'il
 voulait.
+
+## v17.83 — monter sur le mur par l'escalier
+
+Pierre : *"il faut que le mur soit [in]franchissable, on ne peut pas aller
+sur le mur, et on ajoute l'option de pouvoir passer sur l'escalier ; si je
+passe sur l'escalier, je considère que je monte sur le mur, et quand je
+suis en haut du mur on ne peut pas m'attaquer, mais je peux toujours
+tirer."*
+
+État avant : le joueur n'était bloqué par RIEN — seulement les marges de
+l'écran (`MARGIN`). Il marchait par-dessus le dessin du mur.
+
+Toute la géométrie vient des données du croquis (`WALL_WHOLE_EDGES`),
+convertie par `wallScreen()` :
+
+- emprise au sol : profondeur native 20 (base des montants à -18.75) ;
+- pied d'escalier : x natif 15–37.5 (première marche à (22.5,-3.75)) ;
+- haut d'escalier : (60, -58) — la dernière marche est à (60,-45), le
+  point d'arrivée est posé DANS la bande praticable du dessus,
+  [-62, -54] (faces -63.75 arrière / -56.25 avant).
+
+**Le rebond, et sa cause exacte.** Premier essai : arrivée à y natif -52.
+Or -52 > -54 = bord avant de la bande → dès la frame suivante le test
+"pousse au-delà du bord avant, près de l'escalier" déclenchait la
+descente. Avec la touche maintenue 700 ms (> 380 ms de montée), le
+joueur montait puis redescendait aussitôt. Deux corrections : arrivée à
+-58 (dans la bande), et `CLIMB_COOLDOWN_MS = 600` après toute
+montée/descente (un joystick maintenu ne doit pas faire l'ascenseur).
+Re-mesuré avec la touche maintenue 900 ms : reste en haut.
+
+**Le faux positif du test de dégâts.** Premier test "(f) pas de dégâts en
+haut" : hp inchangé… mais le joueur était en fait au sol, dans
+`REGEN_ZONE` (bande de 46 px devant le mur), où +1/0,5 s masque
+largement 0,02/frame. Re-testé en haut (hors regen, vérifié
+`inRegenZone=false`) contre un témoin au sol hors regen (blessé) : OK.
+Leçon : un test "rien ne change" doit prouver que quelque chose AURAIT
+changé sans la protection.
+
+Règles en haut : x borné au tronçon gauche (pas de saut de la porte, le
+tronçon droit n'a pas d'escalier), pas de dégâts de contact, pas de
+construction (curseur et bouton), tir inchangé. Les harceleurs attirés
+par le joueur s'agglutinent sous le mur — voulu ("ils essaient").

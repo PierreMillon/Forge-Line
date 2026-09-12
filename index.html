@@ -949,6 +949,84 @@ function wallIntactScaleY(){ return Math.min(REGEN_ZONE.w / WALL_NATIVE_W, WALL_
 // de vérité, utilisée par le funnel des ennemis (update) et par le
 // raccord du chemin des marchands (drawPath).
 function castleGateHalfW(){ return WALL_NATIVE_GATE_HALF_W * (REGEN_ZONE.w / WALL_NATIVE_W); }
+
+// --- v17.83 : le mur se franchit par l'escalier, pas à travers ---
+// Pierre : "il faut que le mur soit [in]franchissable, on ne peut pas
+// aller sur le mur, et on ajoute l'option de pouvoir passer sur
+// l'escalier ; si je passe sur l'escalier, je considère que je monte sur
+// le mur, et quand je suis en haut du mur on ne peut pas m'attaquer, mais
+// je peux toujours tirer." Avant : le joueur n'était bloqué par RIEN
+// (seulement les marges de l'écran) et marchait par-dessus le dessin.
+// Toute la géométrie ci-dessous est en unités natives du croquis
+// (WALL_WHOLE_EDGES), convertie à l'écran par wallScreen() — rien n'est
+// estimé "à l'œil" :
+const WALL_NATIVE_FOOTPRINT_DEPTH = 20;         // emprise au sol : la base des montants est à y=-18.75
+const WALL_NATIVE_STAIR_FOOT_X = [15, 37.5];    // pied de l'escalier : première marche (22.5,-3.75), avec une marge
+const WALL_NATIVE_STAIR_TOP = { x: 60, y: -58 }; // haut de l'escalier : dernière marche (60,-45), posé DANS la bande du dessus (voir WALL_NATIVE_TOP_BAND — à -52, hors bande, le joueur redescendait aussitôt)
+const WALL_NATIVE_TOP_BAND = [-62, -54];        // dessus praticable : faces -63.75 (arrière) / -56.25 (avant)
+const WALL_PLAYER_PAD = 6;                      // demi-encombrement du joueur contre le mur
+const CLIMB_MS = 380;                           // durée de la montée/descente interpolée
+const CLIMB_COOLDOWN_MS = 600;                  // après une montée/descente, on ne repart pas dans l'autre sens tout de suite (sinon, joystick maintenu = rebond)
+let playerClimbCooldownUntil = 0;
+let playerOnWall = false;                       // en haut du mur : intouchable, ne construit pas, tire normalement
+let playerClimb = null;                         // { from, to, start, up } pendant la montée/descente
+function wallScreen(){
+  return { leftX: REGEN_ZONE.x, groundY: REGEN_ZONE.y + REGEN_ZONE.h,
+           sX: REGEN_ZONE.w / WALL_NATIVE_W, sY: wallIntactScaleY(),
+           gateX: REGEN_ZONE.x + REGEN_ZONE.w/2, gateHalfW: castleGateHalfW() };
+}
+// au sol : la bande du mur est solide, sauf la porte. On regarde d'où
+// venait le joueur pour le repousser du bon côté (devant, derrière) ; s'il
+// sort latéralement de la porte dans le mur, c'est son x qu'on annule
+// (il bute contre le montant), pas son y.
+function resolveWallCollision(prevX, prevY){
+  const W = wallScreen();
+  const bandTop = W.groundY - WALL_NATIVE_FOOTPRINT_DEPTH * W.sY - WALL_PLAYER_PAD;
+  const bandBot = W.groundY + WALL_PLAYER_PAD;
+  const inGate = x => Math.abs(x - W.gateX) < W.gateHalfW - WALL_PLAYER_PAD;
+  if (player.y <= bandTop || player.y >= bandBot || inGate(player.x)) return;
+  if (inGate(prevX)) player.x = prevX;
+  else if (prevY <= bandTop) player.y = bandTop;
+  else if (prevY >= bandBot) player.y = bandBot;
+  else player.y = (player.y - bandTop < bandBot - player.y) ? bandTop : bandBot;
+}
+// escalier + dessus du mur. Renvoie true si la position du joueur est
+// imposée par cette fonction (montée en cours, ou en haut du mur) — les
+// autres collisions ne s'appliquent alors pas.
+function updateWallClimb(now, prevX, prevY){
+  const W = wallScreen();
+  if (playerClimb){
+    const t = Math.min(1, (now - playerClimb.start) / CLIMB_MS);
+    player.x = playerClimb.from.x + (playerClimb.to.x - playerClimb.from.x) * t;
+    player.y = playerClimb.from.y + (playerClimb.to.y - playerClimb.from.y) * t;
+    if (t >= 1){ playerOnWall = playerClimb.up; playerClimb = null; playerClimbCooldownUntil = now + CLIMB_COOLDOWN_MS; }
+    return true;
+  }
+  const canStart = now >= playerClimbCooldownUntil;
+  const bandTop = W.groundY - WALL_NATIVE_FOOTPRINT_DEPTH * W.sY - WALL_PLAYER_PAD;
+  const footX0 = W.leftX + WALL_NATIVE_STAIR_FOOT_X[0] * W.sX, footX1 = W.leftX + WALL_NATIVE_STAIR_FOOT_X[1] * W.sX;
+  const topPt = { x: W.leftX + WALL_NATIVE_STAIR_TOP.x * W.sX, y: W.groundY + WALL_NATIVE_STAIR_TOP.y * W.sY };
+  const footPt = { x: (footX0 + footX1) / 2, y: bandTop - 2 };
+  if (!playerOnWall){
+    // au sol, dans le pied d'escalier, en poussant vers le mur : on monte
+    if (canStart && player.x >= footX0 && player.x <= footX1 && player.y > bandTop - 4 && player.y > prevY){
+      playerClimb = { from: { x: player.x, y: player.y }, to: topPt, start: now, up: true };
+      return true;
+    }
+    return false;
+  }
+  // en haut : marche libre sur le dessus du tronçon gauche (le tronçon
+  // droit n'a pas d'escalier et la porte est un vide — on ne la saute pas)
+  const topY0 = W.groundY + WALL_NATIVE_TOP_BAND[0] * W.sY, topY1 = W.groundY + WALL_NATIVE_TOP_BAND[1] * W.sY;
+  // redescendre : au-dessus de l'escalier, pousser vers le bas au-delà du bord avant
+  if (canStart && player.y > topY1 && Math.abs(player.x - topPt.x) < 14 * W.sX){
+    playerClimb = { from: { x: player.x, y: player.y }, to: footPt, start: now, up: false };
+    return true;
+  }
+  player.x = Math.max(W.leftX + WALL_PLAYER_PAD + 2, Math.min(W.gateX - W.gateHalfW - WALL_PLAYER_PAD, player.x));
+  player.y = Math.max(topY0, Math.min(topY1, player.y));
+  return true;
+}
 function inRegenZone(x, y){
   const pad = 14; // un peu de marge autour du rectangle, plus confortable à atteindre
   return x >= REGEN_ZONE.x - pad && x <= REGEN_ZONE.x + REGEN_ZONE.w + pad &&
@@ -2339,6 +2417,7 @@ function findBuildSpot(){
 // si vraiment aucune case libre à proximité, exactement comme tryBuild
 // refuserait de construire en silence dans ces deux cas.
 function buildPreviewCell(){
+  if (playerOnWall || playerClimb) return null; // v17.83 : on ne bâtit pas depuis le haut du mur
   const p = findBuildSpot();
   if (!p || p.y < noBuildY()) return null;
   return p;
@@ -2347,6 +2426,7 @@ function tryBuild(kind){
   kind = kind || 'tower';
   const cost = kind === 'catapult' ? CATAPULT_BUILD_COST : TOWER_BUILD_COST;
   if (gold < cost) return;
+  if (playerOnWall || playerClimb) return; // v17.83 : même règle que le curseur
   const chosen = findBuildSpot();
   if (!chosen) return; // vraiment aucune case libre à proximité (très rare)
   // v17.25 : hors construction dans l'eau et sur le sable (jusqu'à la
@@ -2755,6 +2835,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.83", text: "Le mur est enfin un vrai obstacle : on ne le traverse plus (sauf par la porte), on y MONTE par l'escalier du tronçon gauche. En haut, on marche sur toute la longueur du tronçon, les ennemis ne peuvent pas nous atteindre, on tire normalement — mais on ne construit pas de là-haut. On redescend par le même escalier en poussant vers le bas." },
   { v: "17.82", text: "La Forge n'est plus dessinée entière dès le départ : tant qu'elle n'est pas bâtie, seule son emprise au sol est visible (contour fin, comme le curseur de construction). On va sur place, on paie 100 or, le bâtiment apparaît — puis les tours d'élite et l'équipe de réparation restent payantes, comme avant." },
   { v: "17.81", text: "Le chemin des marchands est raccordé au mur comme un tuyau : il arrive au centre de la porte, à la base dessinée des montants (pas 46 px en l'air à côté, comme avant), et son double trait s'évase sur les deux derniers crans pour que le rail gauche atterrisse sur le montant gauche et le rail droit sur le montant droit." },
   { v: "17.80", text: "Les passagers du bateau sont dessinés à leur VRAIE taille (les mêmes cubes qu'au sol), en rangée sur le pont. Quand ils sont trop nombreux pour la largeur du pont, ils sont écrasés horizontalement comme des élastiques — jamais rapetissés : un bateau plein se voit d'un coup d'œil, et chaque débarquement desserre ceux qui restent. L'ennemi qui descend part compressé et reprend sa forme en courant. Correctif au passage : un passager pouvait rester à bord pour toujours si son bateau accostait après les autres." },
@@ -3128,6 +3209,7 @@ function update(now){
   if (!playerDead){
     // déplacement fluide (clavier 8 directions à vitesse fixe, joystick à
     // vitesse analogique — proportionnelle à la distance tirée du centre)
+    const prevX = player.x, prevY = player.y; // v17.83 : pour savoir d'où il vient (mur, escalier)
     let dx = 0, dy = 0, speedFactor = 1;
     if (joyActive){
       dx = joyDX; dy = joyDY; speedFactor = joyMagnitude;
@@ -3150,7 +3232,12 @@ function update(now){
     } else {
       inertiaVX = 0; inertiaVY = 0;
     }
-    resolveTowerCollision(player, TOWER_SOLID_RADIUS); // une tour, c'est aussi un mur
+    // v17.83 : escalier / dessus du mur d'abord (position imposée), sinon
+    // les obstacles du sol : tours, puis la bande du mur (sauf la porte)
+    if (!updateWallClimb(now, prevX, prevY)){
+      resolveTowerCollision(player, TOWER_SOLID_RADIUS); // une tour, c'est aussi un mur
+      resolveWallCollision(prevX, prevY);
+    }
     player.x = Math.max(MARGIN, Math.min(STAGE_W-MARGIN, player.x));
     player.y = Math.max(MARGIN, Math.min(STAGE_H-MARGIN, player.y));
 
@@ -3159,7 +3246,8 @@ function update(now){
     // les ennemis visent le château, pas le joueur — mais s'ils se
     // retrouvent au contact, ça compte quand même : dégâts + flash rouge
     // (sauf courte invulnérabilité après une résurrection)
-    if (now > playerInvulnUntil){
+    // v17.83 : en haut du mur (ou dans l'escalier), hors de portée du contact
+    if (now > playerInvulnUntil && !playerOnWall && !playerClimb){
       for (const e of enemies){
         if (Math.hypot(e.x-player.x, e.y-player.y) < PLAYER_CONTACT_RANGE){
           playerHealth = Math.max(0, playerHealth - PLAYER_DAMAGE_RATE);
@@ -5281,6 +5369,7 @@ function resetGame(startingGold){
   repairingTower = null;
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
+  playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; // v17.83
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0; precisionLevel = 0;
   forgeBuilt = false; forgeEliteLevel = 0; soldiersCanRepair = false;
   merchants = []; soldiers = []; activeCaravan = null;
