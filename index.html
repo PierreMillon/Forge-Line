@@ -2755,6 +2755,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.82", text: "La Forge n'est plus dessinée entière dès le départ : tant qu'elle n'est pas bâtie, seule son emprise au sol est visible (contour fin, comme le curseur de construction). On va sur place, on paie 100 or, le bâtiment apparaît — puis les tours d'élite et l'équipe de réparation restent payantes, comme avant." },
   { v: "17.81", text: "Le chemin des marchands est raccordé au mur comme un tuyau : il arrive au centre de la porte, à la base dessinée des montants (pas 46 px en l'air à côté, comme avant), et son double trait s'évase sur les deux derniers crans pour que le rail gauche atterrisse sur le montant gauche et le rail droit sur le montant droit." },
   { v: "17.80", text: "Les passagers du bateau sont dessinés à leur VRAIE taille (les mêmes cubes qu'au sol), en rangée sur le pont. Quand ils sont trop nombreux pour la largeur du pont, ils sont écrasés horizontalement comme des élastiques — jamais rapetissés : un bateau plein se voit d'un coup d'œil, et chaque débarquement desserre ceux qui restent. L'ennemi qui descend part compressé et reprend sa forme en courant. Correctif au passage : un passager pouvait rester à bord pour toujours si son bateau accostait après les autres." },
   { v: "17.79", text: "Six retours de Pierre en jeu. Le bouton \"vague suivante\" EMPILE maintenant les vagues (trois appuis = trois bateaux en plus, les ennemis en cours restent) au lieu de vider la vague en cours — le bonus d'or a enfin une contrepartie. \"Recommencer\" recommence vraiment (il rechargeait la page avant de remettre à zéro, et l'ancienne sauvegarde revenait). Le viseur de construction est centré sur le point de pose exact. L'angle des tirs ratés est divisé par deux, et un tir perdu touche désormais ce qu'il frôle ou ce qui est derrière. Les soldats issus des marchands tirent à vraie portée (ils n'ouvraient le feu qu'au corps à corps) et les harceleurs peuvent les prendre pour cible. L'horloge d'attente n'a plus de croix : cercle, couronne, une aiguille." },
@@ -4584,6 +4585,34 @@ function drawForge(){
     const mx = x + w*0.55, baseY = y + h*0.92;
     const A = { x: mx, y: baseY };
     ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1;
+    // v17.82 (Pierre : "la forge, j'allais pas l'utiliser en fait, parce
+    // que normalement je devrais aller à la forge d'abord pour la
+    // construire, elle devrait être vide, ensuite quand je la construis
+    // je dois encore dépenser de l'argent pour d'autres améliorations")
+    // — le bâtiment était dessiné entier dès le début de partie, quel
+    // que soit forgeBuilt : rien ne montrait qu'il y avait quelque chose
+    // à construire, ni où. Tant qu'elle n'est pas bâtie, on ne dessine
+    // que son EMPRISE au sol : le parallélogramme de base du corps,
+    // pris dans les données du croquis (coins gauche/droit/avant du
+    // corps, quatrième coin déduit), dans le même langage discret que
+    // le curseur de construction (contour fin, demi-transparent). Le
+    // reste (100 or pour bâtir, puis élite/réparation payantes) était
+    // déjà comme Pierre le décrit.
+    if (!forgeBuilt){
+      const Lc = { x: -24.94, y: -6.94 }, Rc = { x: 18.93, y: -10.41 }, Fc = { x: 0.9, y: 0 };
+      const Bc = { x: Lc.x + Rc.x - Fc.x, y: Lc.y + Rc.y - Fc.y };
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(A.x + Fc.x, A.y + Fc.y);
+      ctx.lineTo(A.x + Rc.x, A.y + Rc.y);
+      ctx.lineTo(A.x + Bc.x, A.y + Bc.y);
+      ctx.lineTo(A.x + Lc.x, A.y + Lc.y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
     const fillSil = (pts) => {
       ctx.beginPath();
       ctx.moveTo(A.x+pts[0][0], A.y+pts[0][1]);

@@ -4252,3 +4252,28 @@ sur `PATH_FLARE_SEGMENTS = 2` crans (48 px) la demi-largeur va de 28,6 à
 3 px. Ça donne un V assez ouvert. C'est littéralement la demande ; si
 Pierre le trouve trop "entonnoir", passer à 1 cran (collier court) ou 3
 (élargissement doux) est un seul nombre à changer.
+
+## v17.82 — la Forge vide tant qu'elle n'est pas bâtie
+
+Pierre : *"la forge, j'allais pas l'utiliser en fait, parce que normalement
+je devrais aller à la forge d'abord pour la construire, elle devrait être
+vide, ensuite quand je la construis, du coup je dois encore dépenser de
+l'argent pour créer d'autres tours et d'autres améliorations."*
+
+Diagnostic : l'économie qu'il décrit existait déjà (bouton "Construire" 100
+or dans la zone, puis élite 40+ / réparation 60, tous payants). Ce qui
+manquait, c'est le SIGNAL : `drawForge` dessinait le bâtiment complet
+dès la première frame, `forgeBuilt` ou pas. Rien n'invitait à y aller.
+
+Emplacement vide = parallélogramme de base du corps, pris dans les
+données du croquis : coins gauche (-24.94,-6.94), droit (18.93,-10.41),
+avant (0.9,0), le quatrième déduit par `L + R - F`. Alpha 0,5, trait 1 —
+même langage que le curseur de construction ("ici, on peut bâtir"). Rendu
+vérifié dans les deux états, transition testée par un vrai clic sur le
+bouton (150 → 50 or).
+
+Note pour plus tard : "créer d'autres tours" dans sa phrase pourrait
+aussi vouloir dire que la Forge devrait être un PRÉREQUIS aux tours. Je
+n'ai pas fait ça — ça changerait le rythme des 2 premières minutes (100
+or avant la première tour). À lui de trancher en quiz si c'est ce qu'il
+voulait.
