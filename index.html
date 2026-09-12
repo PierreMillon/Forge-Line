@@ -169,8 +169,6 @@
 <div id="topbar">
   <button id="menu-btn" aria-label="Menu">☰</button>
   <div id="menu-panel">
-    <a href="https://pierremillon.github.io/Bastion-Orbit/">Bastion Orbit</a>
-    <a href="https://pierremillon.github.io/knight-wars/">Knight Wars</a>
     <a id="theme-toggle" href="#" data-i18n="menu_theme_coast">Carte : Côte</a>
     <a id="grid-toggle" href="#" data-i18n="menu_grid_show">Afficher la grille (debug)</a>
     <a id="faq-toggle" href="#" data-i18n="menu_astuces">Astuces</a>
@@ -2898,6 +2896,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.89", text: "Menu : retiré les liens vers Bastion Orbit et Knight Wars — le portfolio (pierremillon.github.io/pierremillon) est désormais l'endroit unique pour naviguer d'un jeu à l'autre." },
   { v: "17.88", text: "On ne se soigne que dans l'enceinte du château. Un marchand blessé ne repart plus \"au large\" : il continue jusqu'au château et y entre (sans déclencher la conversion en soldats, réservée au premier marchand jamais touché). Un soldat blessé rentre derrière la porte et régénère sur place, autant de fois qu'il le faut, puis ressort à 80 %." },
   { v: "17.87", text: "Mur simplifié après essai : la zone d'escalier couvre tout l'escalier avec de la marge ; on monte en poussant vers le mur, on redescend en poussant vers le sol (vers le haut de l'écran) — avant, il fallait pousser à l'envers, d'où l'impossibilité de descendre. Le personnage est posé sur le mur, pas au-dessus. Et le mur (comme la Forge) est enfin opaque : ce qui est derrière lui, côté mer, disparaît derrière." },
   { v: "17.86", text: "La Forge devient le prérequis de tout : tant qu'elle n'est pas bâtie (100 or, sur place), ni tour, ni catapulte, ni amélioration — les boutons affichent \"Forge d'abord\". Une fois bâtie, tout redevient payant comme avant. Les bots du simulateur la bâtissent en premier, eux aussi." },
