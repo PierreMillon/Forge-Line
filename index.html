@@ -315,6 +315,7 @@ const I18N = {
     ad_error_text: "La vidéo n'a pas pu se charger — une erreur technique de notre côté. Pas d'inquiétude, tu reçois quand même ton bonus.",
     btn_ad_error_ok: "Recevoir mon bonus",
     btn_reinforce: "Renforcer", btn_build: "Construire",
+    needs_forge: "Forge d’abord",
     forge_label: "Forge", forge_go: "Va à la Forge", forge_elite_label: "Tours d’élite",
     repair_label: "Réparateurs", repair_acquired: "Acquis ✓",
     repair_go_forge: "Va à la Forge", repair_build_forge: "Construis la Forge",
@@ -369,6 +370,7 @@ const I18N = {
     ad_error_text: "The video couldn't load — a technical error on our end. No worries, you still get your bonus.",
     btn_ad_error_ok: "Claim my bonus",
     btn_reinforce: "Reinforce", btn_build: "Build",
+    needs_forge: "Forge first",
     forge_label: "Forge", forge_go: "Go to the Forge", forge_elite_label: "Elite Towers",
     repair_label: "Repair crew", repair_acquired: "Acquired ✓",
     repair_go_forge: "Go to the Forge", repair_build_forge: "Build the Forge first",
@@ -2477,12 +2479,14 @@ function pickNearestTowerOfKind(x, y, kind){
 // le bouton "tour" du bandeau : renforce la tour à portée si on est déjà
 // collé à une, sinon en construit une nouvelle — jamais les deux à la fois
 function tryTowerAction(){
+  if (!forgeBuilt) return; // v17.86 : prérequis Forge (choix de Pierre en quiz)
   const near = pickNearestTowerOfKind(player.x, player.y, 'tower');
   if (near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX) tryUpgradeTower(near);
   else tryBuild('tower');
 }
 // même logique, pour la catapulte (v17.62)
 function tryCatapultAction(){
+  if (!forgeBuilt) return; // v17.86 : prérequis Forge (choix de Pierre en quiz)
   const near = pickNearestTowerOfKind(player.x, player.y, 'catapult');
   if (near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX) tryUpgradeTower(near);
   else tryBuild('catapult');
@@ -2606,6 +2610,7 @@ function resolveEnemyCollisions(){
 }
 
 document.getElementById('autogold-btn').addEventListener('click', () => {
+  if (!forgeBuilt) return; // v17.86 : prérequis Forge
   const cost = autoGoldCost();
   if (gold < cost) return;
   gold -= cost;
@@ -2613,6 +2618,7 @@ document.getElementById('autogold-btn').addEventListener('click', () => {
   autoGoldLevel++;
 });
 document.getElementById('damage-btn').addEventListener('click', () => {
+  if (!forgeBuilt) return; // v17.86 : prérequis Forge
   if (gold < dmgUpgradeCost()) return;
   gold -= dmgUpgradeCost();
   dmgLevel++;
@@ -2640,12 +2646,14 @@ document.getElementById('skip-wave-btn').addEventListener('click', () => {
   saveProgress();
 });
 document.getElementById('autofire-btn').addEventListener('click', () => {
+  if (!forgeBuilt) return; // v17.86 : prérequis Forge
   const cost = autoFireCost();
   if (gold < cost) return;
   gold -= cost;
   autoFireLevel++;
 });
 document.getElementById('precision-btn').addEventListener('click', () => {
+  if (!forgeBuilt) return; // v17.86 : prérequis Forge
   const cost = precisionCost();
   if (gold < cost) return;
   gold -= cost;
@@ -2654,15 +2662,20 @@ document.getElementById('precision-btn').addEventListener('click', () => {
 // la Forge : contrairement aux autres boutons, n'agit que si le joueur
 // est physiquement dans la zone — sinon rien ne se passe (le bouton est
 // désactivé et l'affiche dans refreshBonusbar)
+// v17.86 : sorti du handler pour être appelé aussi par les bots du
+// simulateur (simulate.mjs), qui doivent maintenant bâtir la Forge avant
+// tout le reste. Renvoie true si elle vient d'être bâtie.
+function tryBuildForge(){
+  if (!inForgeZone(player.x, player.y) || forgeBuilt) return false;
+  if (gold < FORGE_BUILD_COST) return false;
+  gold -= FORGE_BUILD_COST;
+  forgeBuilt = true;
+  sfxBuild();
+  return true;
+}
 document.getElementById('forge-btn').addEventListener('click', () => {
   if (!inForgeZone(player.x, player.y)) return;
-  if (!forgeBuilt){
-    if (gold < FORGE_BUILD_COST) return;
-    gold -= FORGE_BUILD_COST;
-    forgeBuilt = true;
-    sfxBuild();
-    return;
-  }
+  if (!forgeBuilt){ tryBuildForge(); return; }
   const cost = forgeEliteCost();
   if (gold < cost) return;
   gold -= cost;
@@ -2686,6 +2699,23 @@ document.getElementById('soldier-repair-btn').addEventListener('click', () => {
 // auto se voit directement à l'écran une fois le 1er palier acheté).
 function refreshBonusbar(){
   const disabledAll = playerDead || gameOver;
+  // v17.86 (Pierre, en quiz : "Oui, prérequis") — tant que la Forge n'est
+  // pas bâtie, rien d'autre n'est achetable : ni tour, ni catapulte, ni
+  // amélioration. Les six boutons affichent "Forge d'abord" à la place
+  // du coût, et le bouton Forge ("Va à la Forge" / "Construire 100 or")
+  // reste le seul actif. Après construction, tout redevient payant
+  // comme avant — c'est le sens de sa phrase "je dois encore dépenser de
+  // l'argent pour créer d'autres tours et d'autres améliorations".
+  if (!forgeBuilt){
+    for (const id of ['autogold', 'damage', 'tower', 'autofire', 'precision', 'catapult']){
+      document.getElementById(id + '-btn').disabled = true;
+      document.getElementById(id + '-cost').textContent = t('needs_forge');
+    }
+    document.getElementById('tower-label').textContent = t('btn_build');
+    document.getElementById('catapult-label').textContent = t('btn_build');
+    refreshForgeButtons(disabledAll);
+    return;
+  }
   const agCost = autoGoldCost();
   const agBtn = document.getElementById('autogold-btn');
   agBtn.disabled = disabledAll || gold < agCost;
@@ -2739,8 +2769,12 @@ function refreshBonusbar(){
     catCost.textContent = CATAPULT_BUILD_COST + t('gold_suffix');
   }
 
-  // Forge : système à part, seulement utilisable depuis sa zone (pas à
-  // distance comme les autres boutons)
+  refreshForgeButtons(disabledAll);
+}
+// Forge : système à part, seulement utilisable depuis sa zone (pas à
+// distance comme les autres boutons). v17.86 : fonction séparée, appelée
+// aussi quand le reste du bandeau est verrouillé (prérequis).
+function refreshForgeButtons(disabledAll){
   const fBtn = document.getElementById('forge-btn');
   const fLabel = document.getElementById('forge-label');
   const fCost = document.getElementById('forge-cost');
@@ -2845,6 +2879,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.86", text: "La Forge devient le prérequis de tout : tant qu'elle n'est pas bâtie (100 or, sur place), ni tour, ni catapulte, ni amélioration — les boutons affichent \"Forge d'abord\". Une fois bâtie, tout redevient payant comme avant. Les bots du simulateur la bâtissent en premier, eux aussi." },
   { v: "17.85", text: "L'évasement du chemin à la porte se fait maintenant sur 3 crans (72 px) au lieu de 2 : la route s'élargit doucement en approchant, choisi sur planche comparative." },
   { v: "17.84", text: "Musique d'ambiance compressée fortement : 0,9 Mo au lieu de 6,5 (Opus mono 32 kb/s), avec un secours AAC pour les navigateurs qui ne lisent pas l'Ogg. Le jeu se charge bien plus vite sur mobile." },
   { v: "17.83", text: "Le mur est enfin un vrai obstacle : on ne le traverse plus (sauf par la porte), on y MONTE par l'escalier du tronçon gauche. En haut, on marche sur toute la longueur du tronçon, les ennemis ne peuvent pas nous atteindre, on tire normalement — mais on ne construit pas de là-haut. On redescend par le même escalier en poussant vers le bas." },

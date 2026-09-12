@@ -4346,3 +4346,26 @@ envoyée, choix = 3 crans (élargissement doux sur 72 px).
 les trois variantes en une passe sans recharger (`buildPath()` après
 changement). Bonne pratique à garder pour tout réglage visuel qu'on
 soumet en planche.
+
+## v17.86 — la Forge, prérequis de tout le bandeau
+
+Quiz : "Faut-il en plus qu'elle soit un PRÉREQUIS ?" → "Oui, prérequis"
+(j'avais recommandé non, en prévenant que ça retarde la première tour ;
+c'est son choix, il connaît le coût).
+
+Implémentation : `forgeBuilt` verrouille les six boutons hors Forge dans
+`refreshBonusbar` (libellé `needs_forge`), ET des gardes `if (!forgeBuilt)
+return;` dans `tryTowerAction`, `tryCatapultAction` et les quatre
+handlers d'amélioration — le bouton grisé ne suffit pas (clavier, API,
+bots). `tryBuildForge()` sort du handler pour être partagé.
+
+Testé : avant, tout grisé + appels directs sans effet (0 tour, or
+intact) ; après `tryBuildForge()` en zone, tour construite (500→380).
+
+**Simulateur** : sans mise à jour, les trois bots n'auraient plus jamais
+rien construit et toute mesure de difficulté aurait été fausse en silence.
+Ils bâtissent maintenant la Forge dès 100 or (téléportation dans la zone :
+on simule la décision, pas la marche). Conséquence à mesurer à la
+prochaine session d'équilibrage : première tour plus tardive → les
+courbes v17.77 (2-5 min) sont à re-vérifier. NE PAS équilibrer avant
+d'avoir relancé le simulateur avec ce prérequis.

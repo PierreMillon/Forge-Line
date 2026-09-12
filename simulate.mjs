@@ -155,7 +155,18 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       update(now);
       if (wave > maxWaveReached) maxWaveReached = wave;
 
-      if (policy === 'naive'){
+      // v17.86 : prérequis Forge (index.html) — sans elle, aucune tour ni
+      // amélioration. Tous les bots vont donc la bâtir dès 100 or (en se
+      // téléportant dans sa zone : on simule la décision, pas la marche),
+      // puis reviennent devant la porte.
+      if (!forgeBuilt){
+        if (gold >= FORGE_BUILD_COST){
+          const px = player.x, py = player.y;
+          player.x = FORGE_ZONE.x + FORGE_ZONE.w/2; player.y = FORGE_ZONE.y + FORGE_ZONE.h/2;
+          tryBuildForge();
+          player.x = px; player.y = py;
+        }
+      } else if (policy === 'naive'){
         // "fait n'importe quoi" : tir par à-coups, jamais de tour, dépense
         // au hasard sur un palier abordable dès qu'il se présente
         if (frame % 4 === 0) playerShoot(now, manualInterval);
