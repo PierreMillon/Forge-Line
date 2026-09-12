@@ -1065,7 +1065,7 @@ let pathScreenPoints = [];
 //    jusqu'à la largeur de la porte : les deux rails atterrissent sur
 //    les deux montants ;
 //  - puis le zigzag d'origine sur la grille, inchangé.
-const PATH_FLARE_SEGMENTS = 2;
+let PATH_FLARE_SEGMENTS = 3; // v17.85 : 3 crans (72 px), choisi par Pierre sur planche comparative (1 = collier court, 2 = V, 3 = élargissement doux). `let` pour rester réglable à l'exécution (planches).
 function buildPath(){
   const gateX = REGEN_ZONE.x + REGEN_ZONE.w/2;
   // base DESSINÉE des montants de la porte (mur intact), pas le sol :
@@ -2845,6 +2845,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.85", text: "L'évasement du chemin à la porte se fait maintenant sur 3 crans (72 px) au lieu de 2 : la route s'élargit doucement en approchant, choisi sur planche comparative." },
   { v: "17.84", text: "Musique d'ambiance compressée fortement : 0,9 Mo au lieu de 6,5 (Opus mono 32 kb/s), avec un secours AAC pour les navigateurs qui ne lisent pas l'Ogg. Le jeu se charge bien plus vite sur mobile." },
   { v: "17.83", text: "Le mur est enfin un vrai obstacle : on ne le traverse plus (sauf par la porte), on y MONTE par l'escalier du tronçon gauche. En haut, on marche sur toute la longueur du tronçon, les ennemis ne peuvent pas nous atteindre, on tire normalement — mais on ne construit pas de là-haut. On redescend par le même escalier en poussant vers le bas." },
   { v: "17.82", text: "La Forge n'est plus dessinée entière dès le départ : tant qu'elle n'est pas bâtie, seule son emprise au sol est visible (contour fin, comme le curseur de construction). On va sur place, on paie 100 or, le bâtiment apparaît — puis les tours d'élite et l'équipe de réparation restent payantes, comme avant." },

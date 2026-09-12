@@ -4336,3 +4336,13 @@ peut-être ça. Le secours AAC règle la question sans pari. Vérifié dans
 Chromium : `currentSrc` = ambience.opus.ogg, durée 278,8 s, aucune erreur.
 
 Si la qualité déçoit à l'oreille : ré-encoder à 48 k, un seul nombre.
+
+## v17.85 — évasement sur 3 crans (choisi sur planche)
+
+Pierre a demandé à voir ("Montre") plutôt que de trancher à l'aveugle :
+planche des trois variantes rendues à la même échelle (1/2/3 crans),
+envoyée, choix = 3 crans (élargissement doux sur 72 px).
+`PATH_FLARE_SEGMENTS` reste un `let` : c'est ce qui a permis de rendre
+les trois variantes en une passe sans recharger (`buildPath()` après
+changement). Bonne pratique à garder pour tout réglage visuel qu'on
+soumet en planche.
