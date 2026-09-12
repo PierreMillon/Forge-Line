@@ -4178,3 +4178,41 @@ compressés (pas réduits), route raccordée au pied du mur, forge vide à
 construire, monter sur le mur par l'escalier. Et la question de Pierre
 sur l'origine du dessin de la catapulte : aucune référence, c'est une
 silhouette inventée (v17.62), déjà noté dans l'audit v17.76.
+
+## v17.80 — passagers à taille réelle, compressés (pas réduits)
+
+Pierre : *"je veux toujours que tous les ennemis soient sur le bateau à la
+même taille que la taille réelle, donc ils ont juste le droit d'être
+compressés comme s'ils étaient un peu élastiques... il faut pas qu'ils
+soient plus petits... comme ça à la fin on a des bateaux qui arrivent avec
+des [passagers] extrêmement compressés, on voit directement d'un coup
+d'œil qu'il y en a beaucoup."*
+
+Principe : rangée de vrais cubes (`drawEnemyShape`, même `rr*0.85` qu'au
+sol), `sx = min(1, DECK_USABLE_W / Σ largeurs)`. À 3 passagers sx=1, à 15
+sx=0,23 — des lamelles. Hauteur intacte.
+
+Trois pièges rencontrés, tous mesurés :
+
+- **`ctx.scale(sx, 1)` est faux ici** : un scale anisotrope amincit aussi
+  les traits verticaux (0,23 px à sx=0,23). L'écrasement est appliqué aux
+  POINTS du motif (`drawEnemyShape(..., sx)`), le trait reste uniforme.
+- **Hauteur du pont** : les anciens points étaient à `b.y + BOAT_H*0.32` ;
+  des cubes à cette hauteur flottaient sur l'arrière de la coque (vu au
+  rendu). La coque est centrée en `b.y + BOAT_H/2` (drawOneBoat) et
+  s'étend de -25 à +24 px autour (silhouette ×0,7) → pieds à
+  `b.y + BOAT_H/2 + 4`.
+- **Passager abandonné** : avec les vagues empilées (v17.79), si le seul
+  bateau encore chargé n'avait pas fini d'accoster, le spawn tirait un
+  type à part (`pickEnemyType`) et le passager restait à bord à jamais.
+  Invisible avec des points, flagrant avec un cube. Mesuré : 1 sur 15
+  après 8 s. Garde ajoutée dans la condition de spawn ; re-mesuré : 0/15.
+
+Décompression au débarquement : `e.squashX` (calculé AVANT le `shift`,
+donc lui compris) → 1 sur `LANDING_DASH_MS`, ratio clampé dans [0,1] —
+mon premier test avec `squashUntil = now + 1e9` avait fait exploser la
+formule non clampée (cube de largeur ~1e6 px, invisible), d'où le clamp.
+
+`packBoatCluster` (spirale v17.51) est retiré : la rangée est ce que
+Pierre demande, et `shift()` en tête de rangée donne gratuitement le
+"ça se desserre" à chaque débarquement.
