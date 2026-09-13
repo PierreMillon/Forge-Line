@@ -4638,3 +4638,34 @@ le pied du rempart — cohérent en iso. La bande solide du mur ne descend
 que jusqu'à `groundY + 6`, la Forge reste atteignable par la porte.
 Mesuré à 420 px : sol du mur à 699 pour une scène de 757, marge
 d'apparition toujours 31 px.
+
+## v17.99 — relecture de la série v17.78 → v17.98
+
+Relecture systématique du diff (21 commits) avant de rendre compte. Cinq
+constats, tous vrais, tous corrigés :
+
+1. **Double poussée des marchands au sol** — `updateMerchants` avait sa
+   propre boucle de répulsion ET `resolveBodyCollisions` les incluait :
+   raideur doublée par rapport aux constantes affichées. Boucle retirée.
+2. **Harceleur qui tremble** — `Math.random() < HARASSER_SOLDIER_PREF` à
+   chaque frame : la cible alternait 60 fois/s entre soldat et tour. Le
+   choix est tiré une fois et gardé 2-4 s (`e.harassPrefersSoldier`).
+3. **Passager oublié aux vagues boss** — `pickEnemyType()` DÉCRÉMENTE
+   `enemiesThisWave` quand il tire un boss ; ma v17.79 figeait le quota
+   au début de `buildWaveEnemyQueue` → un passager de plus que le budget
+   de spawn, planté sur le pont. Quota relu à chaque tour, y compris pour
+   les vagues empilées (`count - (start - enemiesThisWave)`).
+4. **Physique du pont sans plafond** — O(n²) avec deux allocations par
+   paire ; à 120 passagers empilés c'était ~14 000 objets par frame par
+   bateau. Rayons calculés une fois par frame, plafond
+   `ENEMY_COLLISION_MAX_COUNT` comme au sol.
+5. **Cinq copies du noyau de poussée, deux du parallélogramme** —
+   `softPush(A, B, minD, strength)` et `paraPoint/paraCoords(box, …)`
+   partagés par le pont, la caisse, les ennemis, le joueur/alliés.
+
+Vérifié après : physique isolée (14,1 px), pont, caisse, file de vague,
+smoke 16 s. Note pour Pierre : la première relecture avait tourné dans le
+mauvais dépôt (le portfolio, cwd du bac à sable) et y a trouvé un vrai
+problème dans le commit d'une autre session — le hub désenregistre tous
+les service workers de l'origine pierremillon.github.io à chaque visite.
+Pas mon commit, pas touché ; signalé.

@@ -580,9 +580,16 @@ function spawnBoat(now, append){
 // enemiesThisWave) : appelée en boucle jusqu'à avoir rempli le quota,
 // exactement comme si elle avait été appelée une à une comme avant.
 function buildWaveEnemyQueue(count){
-  const n = (count === undefined) ? enemiesThisWave : count;
+  // v17.99 (relecture) : pickEnemyType() peut DÉCRÉMENTER enemiesThisWave
+  // (tirage d'un boss, qui compte pour plusieurs) — le quota doit donc
+  // être relu à chaque tour, sinon la file a un passager de plus que le
+  // budget de spawn et il reste à bord pour toujours. Avec un `count`
+  // explicite (vague empilée), on retranche de même ce que le tirage a
+  // enlevé au compteur global pendant la construction.
+  const start = enemiesThisWave;
+  const quota = () => (count === undefined) ? enemiesThisWave : count - (start - enemiesThisWave);
   const queue = [];
-  while (queue.length < n) queue.push(pickEnemyType());
+  while (queue.length < quota()) queue.push(pickEnemyType());
   return queue;
 }
 // targets : les bateaux à charger (par défaut tous). count : combien de
@@ -843,6 +850,23 @@ function drawOneBoat(b){
 // les sépare entièrement ; nombreux, elle ne peut plus et ils se
 // chevauchent — c'est ça, la compression. Leur dessin ne change jamais.
 const ENEMY_COMPLEXITY = { base: 0, fast_frail: 1, fast_tough: 2, boss: 3, trojan: 3, shielded: 1 };
+// v17.99 (relecture) : UN seul noyau de répulsion souple pour tout le jeu
+// — pont, caisse du chariot, ennemis au sol, joueur/soldats/marchands.
+// Avant, la même formule était recopiée cinq fois. A et B ont x,y ;
+// minD = distance visée ; strength = fraction de l'écart corrigée par
+// frame. À distance nulle, sépare d'un pixel dans une direction fixe.
+function softPush(A, B, minD, strength){
+  const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy);
+  if (d >= minD) return;
+  if (d > 0.001){ const push = (minD - d) * strength * 0.5, ux = dx/d, uy = dy/d; A.x -= ux*push; A.y -= uy*push; B.x += ux*push; B.y += uy*push; }
+  else { A.x -= 0.5; B.x += 0.5; }
+}
+// parallélogramme centre + a·U + b·V (pont du bateau, caisse du chariot)
+function paraPoint(box, a, b){ return { x: box.c.x + a*box.U.x + b*box.V.x, y: box.c.y + a*box.U.y + b*box.V.y }; }
+function paraCoords(box, p){
+  const dx = p.x - box.c.x, dy = p.y - box.c.y;
+  return { a: (dx * box.V.y - dy * box.V.x) / box.det, b: (box.U.x * dy - box.U.y * dx) / box.det };
+}
 const BOAT_DRAW_SCALE = 0.7;   // l'échelle de drawOneBoat (v17.46, "diminuer de 30%")
 // le pont, en unités locales : centre + a·U + b·V avec |a|+|b| ≤ 1 — un
 // LOSANGE dont U et V sont les demi-diagonales, prises sur les quatre
@@ -863,11 +887,8 @@ const DECK = (() => {
   const det = U.x * V.y - U.y * V.x;
   return { c, U, V, det };
 })();
-function deckPoint(a, b){ return { x: DECK.c.x + a*DECK.U.x + b*DECK.V.x, y: DECK.c.y + a*DECK.U.y + b*DECK.V.y }; }
-function deckCoords(p){
-  const dx = p.x - DECK.c.x, dy = p.y - DECK.c.y;
-  return { a: (dx * DECK.V.y - dy * DECK.V.x) / DECK.det, b: (DECK.U.x * dy - DECK.U.y * dx) / DECK.det };
-}
+function deckPoint(a, b){ return paraPoint(DECK, a, b); }
+function deckCoords(p){ return paraCoords(DECK, p); }
 const DECK_PUSH = 0.3;     // correction de chevauchement par frame — souple, jamais instantanée
 const DECK_JITTER = 0.35;  // agitation permanente, en unités locales par frame ("vivant")
 function passengerLocalRadius(t){ return enemyRadius({ type: t }) * 0.85 / BOAT_DRAW_SCALE; }
@@ -882,18 +903,13 @@ function updateBoatPassengers(){
     if (!pos || !types || pos.length !== types.length) continue;
     const n = pos.length;
     for (const p of pos){ p.x += (Math.random()-0.5)*DECK_JITTER; p.y += (Math.random()-0.5)*DECK_JITTER*0.6; }
-    for (let i = 0; i < n; i++){
-      for (let j = i+1; j < n; j++){
-        const minD = passengerLocalRadius(types[i]) + passengerLocalRadius(types[j]);
-        const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
-        const d = Math.hypot(dx, dy);
-        if (d < minD){
-          if (d > 0.001){
-            const push = (minD - d) * DECK_PUSH * 0.5, ux = dx/d, uy = dy/d;
-            pos[i].x -= ux*push; pos[i].y -= uy*push; pos[j].x += ux*push; pos[j].y += uy*push;
-          } else { pos[i].x -= 0.5; pos[j].x += 0.5; }
-        }
-      }
+    // v17.99 (relecture) : rayons calculés une fois par frame (pas deux
+    // objets alloués par paire), et même plafond que la collision au sol —
+    // au-delà, l'amas n'est plus que l'enceinte + l'agitation, comme
+    // resolveEnemyCollisions abandonne au-delà de ENEMY_COLLISION_MAX_COUNT
+    if (n <= ENEMY_COLLISION_MAX_COUNT){
+      const radii = types.map(passengerLocalRadius);
+      for (let i = 0; i < n; i++) for (let j = i+1; j < n; j++) softPush(pos[i], pos[j], radii[i] + radii[j], DECK_PUSH);
     }
     // enceinte stricte : personne ne sort du losange du pont, quoi qu'il arrive
     for (const p of pos){
@@ -1235,25 +1251,16 @@ const MERCHANT_R = 7;               // rayon de la bille dessinée — sert auss
 // donc centre + a·U + b·V avec |a|,|b| ≤ 1, U=(P1-P0)/2, V=(P3-P0)/2.
 const CART_BOX = { c: { x: 4.32, y: -12.475 }, U: { x: 4.32, y: -2.495 }, V: { x: 8.66, y: 4.965 } };
 CART_BOX.det = CART_BOX.U.x * CART_BOX.V.y - CART_BOX.U.y * CART_BOX.V.x;
-function cartBoxPoint(a, b){ return { x: CART_BOX.c.x + a*CART_BOX.U.x + b*CART_BOX.V.x, y: CART_BOX.c.y + a*CART_BOX.U.y + b*CART_BOX.V.y }; }
-function cartBoxCoords(p){
-  const dx = p.x - CART_BOX.c.x, dy = p.y - CART_BOX.c.y;
-  return { a: (dx * CART_BOX.V.y - dy * CART_BOX.V.x) / CART_BOX.det, b: (CART_BOX.U.x * dy - CART_BOX.U.y * dx) / CART_BOX.det };
-}
+function cartBoxPoint(a, b){ return paraPoint(CART_BOX, a, b); }
+function cartBoxCoords(p){ return paraCoords(CART_BOX, p); }
 const CART_PUSH = 0.3, CART_JITTER = 0.3;
 function updateCartPassengers(){
   const aboard = merchants.filter(m => m.aboard && !m.dead);
   for (const m of aboard){ m.lx += (Math.random()-0.5)*CART_JITTER; m.ly += (Math.random()-0.5)*CART_JITTER*0.6; }
-  for (let i = 0; i < aboard.length; i++){
-    for (let j = i+1; j < aboard.length; j++){
-      const a = aboard[i], b = aboard[j];
-      const dx = b.lx-a.lx, dy = b.ly-a.ly, d = Math.hypot(dx, dy), minD = MERCHANT_R*2;
-      if (d < minD){
-        if (d > 0.001){ const push = (minD-d)*CART_PUSH*0.5, ux = dx/d, uy = dy/d; a.lx -= ux*push; a.ly -= uy*push; b.lx += ux*push; b.ly += uy*push; }
-        else { a.lx -= 0.5; b.lx += 0.5; }
-      }
-    }
-  }
+  // les positions locales sont lx/ly : on passe des vues {x,y} au noyau partagé
+  const views = aboard.map(m => ({ x: m.lx, y: m.ly }));
+  for (let i = 0; i < views.length; i++) for (let j = i+1; j < views.length; j++) softPush(views[i], views[j], MERCHANT_R*2, CART_PUSH);
+  aboard.forEach((m, i) => { m.lx = views[i].x; m.ly = views[i].y; });
   for (const m of aboard){
     const { a, b } = cartBoxCoords({ x: m.lx, y: m.ly });
     const ca = Math.max(-1, Math.min(1, a)), cb = Math.max(-1, Math.min(1, b));
@@ -1358,11 +1365,7 @@ function updateMerchants(now){
       if (Math.hypot(e.x-m.x, e.y-m.y) < 20){ m.hp -= MERCHANT_CONTACT_DMG; m.wounded = true; m.everWounded = true; }
     }
   }
-  for (let i = 0; i < ground.length; i++) for (let j = i+1; j < ground.length; j++){
-    const a = ground[i], b = ground[j];
-    const dx = b.x-a.x, dy = b.y-a.y, d = Math.hypot(dx, dy), minD = MERCHANT_R*2*(1-ENEMY_OVERLAP_ALLOWED);
-    if (d < minD && d > 0.001){ const push = (minD-d)*ENEMY_COLLISION_PUSH*0.5, ux = dx/d, uy = dy/d; a.x -= ux*push; a.y -= uy*push; b.x += ux*push; b.y += uy*push; }
-  }
+  // (v17.99 : leur répulsion entre eux est faite par resolveBodyCollisions — elle était appliquée deux fois)
   for (const m of merchants){
     if (m.dead) continue;
     if (m.hp <= 0){ m.dead = true; continue; }
@@ -2760,13 +2763,7 @@ function resolveBodyCollisions(){
   for (const m of merchants) if (!m.dead && !m.aboard) bodies.push({ o: m, r: MERCHANT_R });
   if (!bodies.length) return;
   const foes = enemies.length <= ENEMY_COLLISION_MAX_COUNT ? enemies.filter(e => !e.fleeing) : [];
-  const pushPair = (A, ra, B, rb) => {
-    const minD = (ra + rb) * (1 - ENEMY_OVERLAP_ALLOWED);
-    const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy);
-    if (d >= minD) return;
-    if (d > 0.001){ const push = (minD - d) * ENEMY_COLLISION_PUSH * 0.5, ux = dx/d, uy = dy/d; A.x -= ux*push; A.y -= uy*push; B.x += ux*push; B.y += uy*push; }
-    else { A.x -= 0.5; B.x += 0.5; }
-  };
+  const pushPair = (A, ra, B, rb) => softPush(A, B, (ra + rb) * (1 - ENEMY_OVERLAP_ALLOWED), ENEMY_COLLISION_PUSH);
   const px = player.x, py = player.y;
   for (let i = 0; i < bodies.length; i++){
     for (let j = i+1; j < bodies.length; j++) pushPair(bodies[i].o, bodies[i].r, bodies[j].o, bodies[j].r);
@@ -2790,28 +2787,14 @@ function resolveEnemyCollisions(){
         const b = enemies[j];
         if (b.fleeing) continue;
         const minDist = (enemyRadius(a) + enemyRadius(b)) * (1 - ENEMY_OVERLAP_ALLOWED);
-        const dx = b.x-a.x, dy = b.y-a.y;
-        const d = Math.hypot(dx, dy);
-        if (d < minDist){
-          if (d > 0.001){
-            // v17.92 (quiz : "dans le funnel de la porte, même compression :
-            // l'amas se resserre en passant, puis se détend derrière") — dans
-            // la bande où ils convergent vers la porte, la répulsion CÈDE
-            // (FUNNEL_SQUEEZE) : ils s'interpénètrent comme sur le pont ;
-            // une fois le mur passé (y > sol), pleine répulsion, ils se
-            // desserrent. Forme inchangée, seule la distance autorisée change.
-            const squeeze = (inGateFunnel(a) && inGateFunnel(b)) ? FUNNEL_SQUEEZE : 1;
-            const push = (minDist - d) * ENEMY_COLLISION_PUSH * squeeze;
-            const ux = dx/d, uy = dy/d;
-            a.x -= ux*push*0.5; a.y -= uy*push*0.5;
-            b.x += ux*push*0.5; b.y += uy*push*0.5;
-          } else {
-            // exactement au même endroit (cas limite) : sépare dans une
-            // direction arbitraire mais déterministe, pour ne jamais
-            // rester bloqué à distance nulle (division par zéro évitée)
-            a.x -= 0.5; b.x += 0.5;
-          }
-        }
+        // v17.92 (quiz : "dans le funnel de la porte, même compression :
+        // l'amas se resserre en passant, puis se détend derrière") — dans
+        // la bande où ils convergent vers la porte, la répulsion CÈDE
+        // (FUNNEL_SQUEEZE) : ils s'interpénètrent comme sur le pont ;
+        // une fois le mur passé (y > sol), pleine répulsion, ils se
+        // desserrent. Forme inchangée, seule la distance autorisée change.
+        const squeeze = (inGateFunnel(a) && inGateFunnel(b)) ? FUNNEL_SQUEEZE : 1;
+        softPush(a, b, minDist, ENEMY_COLLISION_PUSH * squeeze); // v17.99 : noyau partagé
       }
     }
   }
@@ -3087,6 +3070,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.99", text: "Relecture de code après la série : les marchands descendus du chariot n'étaient plus repoussés deux fois par frame ; un harceleur ne change plus de cible soixante fois par seconde entre un soldat et une tour ; aux vagues à boss, plus de passager oublié sur le pont ; la physique du pont ne s'emballe plus avec des dizaines de passagers. Sous le capot, un seul noyau de répulsion partagé par tout le jeu." },
   { v: "17.98", text: "Le mur descend de 16 px sur l'écran ; la Forge reste juste derrière lui, dans l'enceinte." },
   { v: "17.97", text: "Le personnage apparaissait ~26 px plus bas que prévu par rapport au mur (le bandeau du bas change de hauteur juste après le placement, et le mur remontait sans lui). Il suit maintenant le sol à chaque redimensionnement — y compris si tu tournes l'écran en cours de partie." },
   { v: "17.96", text: "Sur tablette et ordinateur, le personnage apparaissait collé à la bande solide du mur (6 px) ; il apparaît maintenant toujours à au moins 12 px devant, à toutes les largeurs." },
@@ -3796,10 +3780,13 @@ function update(now){
       // maintenant le soldat le plus proche quand il y en a un dans son
       // secteur, au même titre que le joueur ou une tour réparée. Choix,
       // pas obligation : le tirage garde les autres cibles possibles.
-      const nearSoldier = nearestSoldier(e.x, e.y, HARASSER_SOLDIER_NOTICE_PX);
+      // v17.99 (relecture) : le choix soldat/tour est tiré UNE fois puis
+      // gardé quelques secondes — tiré à chaque frame, il alternait 60 fois
+      // par seconde et l'ennemi tremblait entre les deux cibles
+      if (now > (e.harassChoiceUntil || 0)){ e.harassPrefersSoldier = Math.random() < HARASSER_SOLDIER_PREF; e.harassChoiceUntil = now + 2000 + Math.random()*2000; }
+      const nearSoldier = e.harassPrefersSoldier ? nearestSoldier(e.x, e.y, HARASSER_SOLDIER_NOTICE_PX) : null;
       const lure = playerAggroScore > HARASSER_THRESHOLD ? player
-                 : (nearSoldier && Math.random() < HARASSER_SOLDIER_PREF ? nearSoldier
-                 : (mostRepairedTower() || { x: e.baseX, y: e.y + 40 }));
+                 : (nearSoldier || mostRepairedTower() || { x: e.baseX, y: e.y + 40 });
       const ldx = lure.x-e.x, ldy = lure.y-e.y, ld = Math.hypot(ldx, ldy) || 1;
       if (ld > 40){ e.x += ldx/ld*e.speed*0.7; e.y += ldy/ld*e.speed*0.4; }
       e.y += e.speed*0.3;
