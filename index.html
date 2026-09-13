@@ -993,6 +993,7 @@ const REGEN_TICK_MS = 500;
 // recalculés au resize (toute la largeur, en bas de l'écran).
 const CASTLE_SEGMENTS = 10;
 const REGEN_ZONE = { x: 0, y: 0, w: 0, h: 46 };
+const WALL_DROP = 16; // v17.98 : le mur descend de 16 px (demande de Pierre, "un peu plus bas")
 // Faits géométriques du mur, en unités natives du croquis (voir
 // WALL_WHOLE_EDGES plus bas, auto-généré) — remontés ici en v17.81 parce
 // que buildPath() en a besoin dès resizeCanvas(), avant le bloc du mur :
@@ -1622,7 +1623,12 @@ function resizeCanvas(){
   const prevRegenY = REGEN_ZONE.y; // v17.97 : pour faire suivre le joueur si le sol bouge
   FORGE_ZONE.x = STAGE_W - FORGE_ZONE.w - 16;
   FORGE_ZONE.y = STAGE_H - FORGE_ZONE.h - 8;
-  REGEN_ZONE.x = 0; REGEN_ZONE.w = STAGE_W; REGEN_ZONE.y = FORGE_ZONE.y - REGEN_ZONE.h - 12;
+  // v17.98 (Pierre : "on va baisser le mur un peu plus bas") — le mur
+  // descend de WALL_DROP px ; la Forge, côté château, se dessine
+  // par-dessus le pied du mur (tri par profondeur), ce qui est cohérent :
+  // elle est dans l'enceinte, collée au rempart. Tout le reste (joueur,
+  // route, point de soin, apparition) dérive de REGEN_ZONE et suit.
+  REGEN_ZONE.x = 0; REGEN_ZONE.w = STAGE_W; REGEN_ZONE.y = FORGE_ZONE.y - REGEN_ZONE.h - 12 + WALL_DROP;
   buildPath();
 
   if (!playerPlaced){
@@ -3081,6 +3087,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.98", text: "Le mur descend de 16 px sur l'écran ; la Forge reste juste derrière lui, dans l'enceinte." },
   { v: "17.97", text: "Le personnage apparaissait ~26 px plus bas que prévu par rapport au mur (le bandeau du bas change de hauteur juste après le placement, et le mur remontait sans lui). Il suit maintenant le sol à chaque redimensionnement — y compris si tu tournes l'écran en cours de partie." },
   { v: "17.96", text: "Sur tablette et ordinateur, le personnage apparaissait collé à la bande solide du mur (6 px) ; il apparaît maintenant toujours à au moins 12 px devant, à toutes les largeurs." },
   { v: "17.95", text: "Astuces mises à jour : une entrée \"Le mur\" explique comment monter par l'escalier et redescendre ; la Forge y est décrite comme le prérequis de tout ; les marchands voyagent dans le chariot ; les seuils d'arrivée des types d'ennemis sont corrigés (9, 12 et 15 — le texte disait encore 9, 14 et 20, et 5 et 10 en français). Soldats et marchands ont une silhouette pleine, comme tout le reste." },

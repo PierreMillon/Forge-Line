@@ -4627,3 +4627,14 @@ décalage que `REGEN_ZONE.y`. Mesuré : 31 / 12 px, comme prévu.
 Leçon : mesurer juste APRÈS le chargement, pas seulement dans une scène
 contrôlée — les redimensionnements en cascade au démarrage sont
 invisibles autrement.
+
+## v17.98 — le mur descend de 16 px
+
+Pierre : *"On va baisser le mur un peu plus bas."* `WALL_DROP = 16` dans
+le calcul de `REGEN_ZONE.y`. La Forge (zone fixée au bas de l'écran)
+commence maintenant 4 px au-dessus de la ligne de sol du mur : côté
+château, dessinée après lui par le tri de profondeur, elle se pose contre
+le pied du rempart — cohérent en iso. La bande solide du mur ne descend
+que jusqu'à `groundY + 6`, la Forge reste atteignable par la porte.
+Mesuré à 420 px : sol du mur à 699 pour une scène de 757, marge
+d'apparition toujours 31 px.
