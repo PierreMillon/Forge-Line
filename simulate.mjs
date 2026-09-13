@@ -149,11 +149,15 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
     let frame = 0, endWave = 1, reason = 'maxFrames';
     let waveAtFrame0 = wave;
     let maxWaveReached = wave;
+    let forgeFrame = -1, firstTowerFrame = -1, maxTowers = 0; // v17.93 : instrumentation (prérequis Forge)
 
     for (; frame < maxFrames; frame++){
       const now = start + frame*16.67;
       update(now);
       if (wave > maxWaveReached) maxWaveReached = wave;
+      if (forgeBuilt && forgeFrame < 0) forgeFrame = frame;
+      if (towers.length > maxTowers) maxTowers = towers.length;
+      if (towers.length && firstTowerFrame < 0) firstTowerFrame = frame;
 
       // v17.86 : prérequis Forge (index.html) — sans elle, aucune tour ni
       // amélioration. Tous les bots vont donc la bâtir dès 100 or (en se
@@ -166,11 +170,16 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
           tryBuildForge();
           player.x = px; player.y = py;
         }
-      } else if (policy === 'naive'){
+      }
+      // (v17.93 : `if` autonome, plus de `else` — un `else if` ici coupait
+      // le TIR de tous les profils tant que la Forge n'était pas bâtie :
+      // 0 kill, 0 or, jamais 100 or, brèche à la vague 4 pour tout le
+      // monde. Mesuré avant correction, faux résultat de simulateur.)
+      if (policy === 'naive'){
         // "fait n'importe quoi" : tir par à-coups, jamais de tour, dépense
         // au hasard sur un palier abordable dès qu'il se présente
         if (frame % 4 === 0) playerShoot(now, manualInterval);
-        if (frame % 60 === 0){
+        if (frame % 60 === 0 && forgeBuilt){ // v17.93 : respecte le prérequis Forge comme le vrai bandeau (avant, il décrémentait `gold` directement et n'atteignait jamais 100 or)
           const choice = RNG_SPEND_OPTIONS[Math.floor(Math.random()*RNG_SPEND_OPTIONS.length)];
           if (choice === 'damage' && gold >= dmgUpgradeCost()){ gold -= dmgUpgradeCost(); dmgLevel++; }
           else if (choice === 'autofire' && gold >= autoFireCost()){ gold -= autoFireCost(); autoFireLevel++; }
@@ -255,6 +264,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
     if (reason === 'maxFrames') endWave = wave;
     return {
       policy, endWave, reason, frames: frame, towersBuilt: towers.length, dmgLevel, goldLeft: gold,
+      forgeFrame, firstTowerFrame, maxTowers, trojanDefeat: !!trojanCauseOfDefeat, // v17.93
       // "vagues infinies : mesure sur les 100 premières" — a atteint (ou dépassé) le repère demandé ?
       reachedWaveTrack: maxWaveReached >= maxWaveTrack,
     };

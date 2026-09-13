@@ -1934,7 +1934,14 @@ const TROJAN_AUTO_START_WAVE = 19; // v17.77 : ramené de 40 à 19 — c'est le 
 // correct sans lui laisser sa chance. À 5, le dégradé est net — ceux qui
 // n'ont pas bâti de vraie défense tombent au cheval vague 19 (~5 min,
 // la cible), celui qui a tour + catapulte passe le mur et continue.
-const TROJAN_LATE_HP_MULT = 5;
+// v17.93 : 5 -> 6. Depuis v17.79 (angle des tirs ratés divisé par deux,
+// tirs perdus qui touchent) le joueur tue plus vite : à 5, le profil
+// "correct" (une tour, pas de catapulte) survivait au cheval une fois sur
+// deux au lieu d'y tomber. Balayé 5/6/8 à cadence humaine (250 ms), 10
+// parties par point : 6 retrouve le profil voulu en v17.77 (le naïf et
+// le correct tombent vague 19, le bon passe) ; à 8 le correct n'a plus
+// aucune chance. Une seule variable touchée (règle Bloons), voir NOTES.
+const TROJAN_LATE_HP_MULT = 6;
 // pas dans ENEMY_TYPES : ne doit jamais être tiré au hasard par pickEnemyType()
 const TROJAN_ENEMY_TYPE = { id: 'trojan', hpMult: 1, speedMult: 0.6, colorA: '#e8dfc8', colorB: '#5c3f26', goldReward: 0, breachDamage: 10, scalesWithWave: false, isTrojan: true };
 let playerInWaterSince = null, trojanWarningShown = false;
@@ -3049,6 +3056,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.93", text: "Rééquilibrage mesuré après le prérequis Forge et le tir plus précis : le cheval de Troie de fin de partie a 20 % de PV en plus (×6 au lieu de ×5), pour qu'une défense sans catapulte y tombe bien vers la vague 19 comme prévu. Le simulateur respecte maintenant le prérequis (ses bots tiraient sans le vouloir à travers un bug, puis trichaient sur les achats)." },
   { v: "17.92", text: "Le modèle \"balles souples\" s'applique à tout le monde au sol : le joueur repousse et est repoussé par les ennemis et les soldats au lieu de les traverser, les soldats et les marchands descendus du chariot aussi. Dans le funnel de la porte, la répulsion cède : l'amas se resserre en passant et se détend derrière le mur." },
   { v: "17.91", text: "Les marchands voyagent DANS la caisse du chariot, pressés comme des balles souples (même modèle que le pont du bateau). Le chariot est maintenant ce qui roule sur le chemin ; un ennemi qui l'atteint blesse le marchand le plus exposé ; à la porte, le chariot s'arrête, ils descendent, se relâchent et entrent dans l'enceinte. La barre de vie d'un marchand n'apparaît qu'une fois blessé." },
   { v: "17.90", text: "Les passagers du bateau sont maintenant de vraies \"balles souples\" : forme inchangée, mais ils se repoussent élastiquement dans l'enceinte close du pont. Peu nombreux, ils tiennent chacun leur place ; nombreux, la répulsion ne suffit plus et ils se chevauchent en une masse dense — un bateau plein se voit d'un coup d'œil. L'amas vit en permanence (léger tremblement) et se desserre à chaque débarquement. Remplace la rangée écrasée de la v17.80, qui déformait leur silhouette." },

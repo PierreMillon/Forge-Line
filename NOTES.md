@@ -4521,3 +4521,45 @@ distances mesurées (64, 79 px) venaient de leur mouvement, pas de la
 répulsion. Refait avec `update` gelé et les deux fonctions de collision
 appelées à la main : 14,1 / 14,1 / funnel 13,5 contre 14,1 dehors. En
 jeu, la convergence presse en continu, donc l'écart sera plus net.
+
+## v17.93 — re-mesure après le prérequis Forge (et deux bugs du simulateur)
+
+Ma note v17.86 disait : ne rien équilibrer avant d'avoir relancé le
+simulateur avec le prérequis. Fait, et il a d'abord fallu réparer le
+simulateur lui-même — deux fois.
+
+**Bug 1 — plus personne ne tirait.** Mon patch v17.86 avait mis la
+construction de la Forge dans un `if (!forgeBuilt) {…} else if (policy…)`.
+Le tir de chaque profil est DANS sa branche : tant que la Forge n'était
+pas bâtie, aucun bot ne tirait → 0 kill, 0 or, jamais 100 or, brèche à
+la vague 4 pour les trois profils. Un résultat "catastrophe" parfaitement
+régulier, qui aurait pu passer pour un vrai déséquilibre. Le signal qui
+m'a alerté : `goldLeft: 0` partout, même pour le bon joueur. Leçon : un
+résultat uniforme entre profils très différents, c'est le banc qui est
+cassé, pas le jeu.
+
+**Bug 2 — le naïf trichait.** Il achetait ses paliers en décrémentant
+`gold` directement, sans passer par le bandeau verrouillé : dmg 35-43
+sans jamais bâtir la Forge. Corrigé (`&& forgeBuilt`). Le correct et le
+bon n'étaient pas concernés (ils n'achètent qu'après leur première tour,
+donc après la Forge).
+
+Instrumentation ajoutée : `forgeFrame`, `firstTowerFrame`, `maxTowers`,
+`trojanDefeat` par partie. Mesuré : Forge à 115-136 s, première tour à
+133-159 s. Les deux premières minutes se jouent au tir seul.
+
+**Balayage** (250 ms, 10 parties/point, vague médiane, survie au cheval) :
+
+| TROJAN_LATE_HP_MULT | naïf | correct | bon |
+|---|---|---|---|
+| 5 | 19 (survit 1/10) | 25 (survit 5/10) | 30, jamais mort |
+| **6** | **19 (1/10)** | **19 (2/10)** | **30** |
+| 8 | 19 (0/10) | 19 (0/10, 3 morts par ses soldats) | 30 |
+
+Référence v17.77 (avant Forge et avant le tir plus létal) : 19,6 / 19,0 /
+31. Retenu **6** : c'est le point qui retrouve l'intention d'origine, et
+la cause est identifiée (v17.79 rend le tir plus efficace, le cheval
+mourait trop souvent). Une seule variable, comme demandé.
+
+Reste ouvert, inchangé depuis v17.77 : le bon joueur ne meurt pas en
+10 min. À trancher avec Pierre s'il veut aussi plafonner les bons.
