@@ -1012,6 +1012,17 @@ function wallIntactScaleY(){ return Math.min(REGEN_ZONE.w / WALL_NATIVE_W, WALL_
 // de vérité, utilisée par le funnel des ennemis (update) et par le
 // raccord du chemin des marchands (drawPath).
 function castleGateHalfW(){ return WALL_NATIVE_GATE_HALF_W * (REGEN_ZONE.w / WALL_NATIVE_W); }
+// v17.96 : point d'apparition du joueur, devant la porte. REGEN_ZONE.y-16
+// suffisait sur téléphone (31 px devant la bande solide du mur), mais la
+// bande grandit avec l'échelle du mur : à 820 px de large il ne restait
+// que 6 px — la moindre poussée d'un ennemi collait le joueur au mur dès
+// l'apparition. On garantit 12 px devant la bande, quelle que soit la
+// largeur. (Dépend de WALL_NATIVE_FOOTPRINT_DEPTH/WALL_PLAYER_PAD,
+// déclarés juste après ; lus seulement à l'exécution.)
+function playerSpawnY(){
+  const bandTop = REGEN_ZONE.y + REGEN_ZONE.h - WALL_NATIVE_FOOTPRINT_DEPTH * wallIntactScaleY() - WALL_PLAYER_PAD;
+  return Math.min(REGEN_ZONE.y - 16, bandTop - 12);
+}
 
 // --- v17.83 : le mur se franchit par l'escalier, pas à travers ---
 // Pierre : "il faut que le mur soit [in]franchissable, on ne peut pas
@@ -1614,7 +1625,7 @@ function resizeCanvas(){
   buildPath();
 
   if (!playerPlaced){
-    player.x = STAGE_W/2; player.y = REGEN_ZONE.y - 16;
+    player.x = STAGE_W/2; player.y = playerSpawnY();
     playerPlaced = true;
   } else {
     player.x = Math.min(player.x, STAGE_W-MARGIN);
@@ -3060,6 +3071,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.96", text: "Sur tablette et ordinateur, le personnage apparaissait collé à la bande solide du mur (6 px) ; il apparaît maintenant toujours à au moins 12 px devant, à toutes les largeurs." },
   { v: "17.95", text: "Astuces mises à jour : une entrée \"Le mur\" explique comment monter par l'escalier et redescendre ; la Forge y est décrite comme le prérequis de tout ; les marchands voyagent dans le chariot ; les seuils d'arrivée des types d'ennemis sont corrigés (9, 12 et 15 — le texte disait encore 9, 14 et 20, et 5 et 10 en français). Soldats et marchands ont une silhouette pleine, comme tout le reste." },
   { v: "17.94", text: "Les cubes d'ennemis ont une silhouette pleine, comme tout le reste du monde : quand ils se chevauchent (pont du bateau, funnel de la porte), ceux de devant cachent ceux de derrière au lieu de laisser leurs arêtes se traverser. Une masse de quarante se lit enfin comme une pile de cubes." },
   { v: "17.93", text: "Rééquilibrage mesuré après le prérequis Forge et le tir plus précis : le cheval de Troie de fin de partie a 20 % de PV en plus (×6 au lieu de ×5), pour qu'une défense sans catapulte y tombe bien vers la vague 19 comme prévu. Le simulateur respecte maintenant le prérequis (ses bots tiraient sans le vouloir à travers un bug, puis trichaient sur les achats)." },
@@ -5634,7 +5646,7 @@ function resetGame(startingGold){
   // bas de l'écran, la forge est maintenant derrière lui) — se caler sur
   // REGEN_ZONE.y comme le fait resizeCanvas, pas sur une valeur fixe
   // devenue fausse (le joueur réapparaissait dans la forge, pas devant le mur)
-  player.x = STAGE_W/2; player.y = REGEN_ZONE.y - 16;
+  player.x = STAGE_W/2; player.y = playerSpawnY();
   startWaveBoats(performance.now());
   document.getElementById('over').style.display = 'none';
   // v17.46 (bug signalé : "recommencer ne remet pas l'or à zéro") — en

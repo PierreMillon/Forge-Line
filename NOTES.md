@@ -4605,3 +4605,10 @@ les clés, aucun `undefined`.
 
 Silhouettes : cercles soldat/marchand remplis en noir avant le trait —
 dernière exception au principe "le monde est opaque".
+
+## v17.96 — apparition à distance sûre du mur, à toutes les largeurs
+
+Vu en vérifiant v17.95 à 820 px : `REGEN_ZONE.y - 16` laissait 31 px
+devant la bande solide sur téléphone, 6 px sur tablette/ordinateur (la
+bande suit l'échelle du mur, ×2,48). `playerSpawnY()` garantit 12 px.
+Mesuré : 420 px → 31 px de marge (inchangé), 820 px → 12 px.
