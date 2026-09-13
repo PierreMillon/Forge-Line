@@ -1619,6 +1619,7 @@ function resizeCanvas(){
   // eau. La forge occupe donc la bande la plus basse de l'écran, et le
   // mur (REGEN_ZONE) est repositionné juste devant elle (au-dessus,
   // c'est-à-dire vers un y plus petit).
+  const prevRegenY = REGEN_ZONE.y; // v17.97 : pour faire suivre le joueur si le sol bouge
   FORGE_ZONE.x = STAGE_W - FORGE_ZONE.w - 16;
   FORGE_ZONE.y = STAGE_H - FORGE_ZONE.h - 8;
   REGEN_ZONE.x = 0; REGEN_ZONE.w = STAGE_W; REGEN_ZONE.y = FORGE_ZONE.y - REGEN_ZONE.h - 12;
@@ -1628,6 +1629,15 @@ function resizeCanvas(){
     player.x = STAGE_W/2; player.y = playerSpawnY();
     playerPlaced = true;
   } else {
+    // v17.97 (trouvé en mesurant v17.96) : le premier resizeCanvas place le
+    // joueur, puis applyLanguage remplit le bandeau du bas, sa hauteur
+    // change, et ce second passage remontait le mur (REGEN_ZONE.y) sans
+    // bouger le joueur — il se retrouvait ~26 px plus bas que prévu par
+    // rapport au mur, dès le chargement, sur tous les écrans (5 px de
+    // marge au lieu de 31 sur téléphone, DANS la bande du mur à 820 px).
+    // Le joueur suit maintenant le sol : même décalage que REGEN_ZONE.y.
+    // Vaut aussi pour une rotation d'écran en cours de partie.
+    player.y += REGEN_ZONE.y - prevRegenY;
     player.x = Math.min(player.x, STAGE_W-MARGIN);
     player.y = Math.min(player.y, STAGE_H-MARGIN);
   }
@@ -3071,6 +3081,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.97", text: "Le personnage apparaissait ~26 px plus bas que prévu par rapport au mur (le bandeau du bas change de hauteur juste après le placement, et le mur remontait sans lui). Il suit maintenant le sol à chaque redimensionnement — y compris si tu tournes l'écran en cours de partie." },
   { v: "17.96", text: "Sur tablette et ordinateur, le personnage apparaissait collé à la bande solide du mur (6 px) ; il apparaît maintenant toujours à au moins 12 px devant, à toutes les largeurs." },
   { v: "17.95", text: "Astuces mises à jour : une entrée \"Le mur\" explique comment monter par l'escalier et redescendre ; la Forge y est décrite comme le prérequis de tout ; les marchands voyagent dans le chariot ; les seuils d'arrivée des types d'ennemis sont corrigés (9, 12 et 15 — le texte disait encore 9, 14 et 20, et 5 et 10 en français). Soldats et marchands ont une silhouette pleine, comme tout le reste." },
   { v: "17.94", text: "Les cubes d'ennemis ont une silhouette pleine, comme tout le reste du monde : quand ils se chevauchent (pont du bateau, funnel de la porte), ceux de devant cachent ceux de derrière au lieu de laisser leurs arêtes se traverser. Une masse de quarante se lit enfin comme une pile de cubes." },

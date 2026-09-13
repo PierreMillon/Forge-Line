@@ -4612,3 +4612,18 @@ Vu en vérifiant v17.95 à 820 px : `REGEN_ZONE.y - 16` laissait 31 px
 devant la bande solide sur téléphone, 6 px sur tablette/ordinateur (la
 bande suit l'échelle du mur, ×2,48). `playerSpawnY()` garantit 12 px.
 Mesuré : 420 px → 31 px de marge (inchangé), 820 px → 12 px.
+
+## v17.97 — le joueur suit le sol au redimensionnement
+
+Trouvé en mesurant v17.96 (qui visait 12 px de marge à 820 px et n'en
+donnait pas) : `resizeCanvas` place le joueur au premier passage
+(`playerPlaced`), puis `applyLanguage` remplit le bandeau du bas, sa
+hauteur change, un second passage remonte `REGEN_ZONE.y`… et ne fait que
+borner le joueur. Résultat depuis toujours : ~26 px trop bas par rapport
+au mur dès le chargement (5 px de marge au lieu de 31 sur téléphone, dans
+la bande du mur à 820 px — dans la porte, donc sans collision, d'où
+l'absence de symptôme visible). Le joueur reçoit maintenant le même
+décalage que `REGEN_ZONE.y`. Mesuré : 31 / 12 px, comme prévu.
+Leçon : mesurer juste APRÈS le chargement, pas seulement dans une scène
+contrôlée — les redimensionnements en cascade au démarrage sont
+invisibles autrement.
