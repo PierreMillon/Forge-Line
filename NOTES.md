@@ -4563,3 +4563,22 @@ mourait trop souvent). Une seule variable, comme demandé.
 
 Reste ouvert, inchangé depuis v17.77 : le bon joueur ne meurt pas en
 10 min. À trancher avec Pierre s'il veut aussi plafonner les bons.
+
+## v17.94 — silhouette pleine des cubes d'ennemis
+
+Vieil item de ces notes ("silhouette pleine pas appliquée à tous les
+objets") devenu urgent avec les balles souples : dès v17.90 les cubes se
+chevauchent par dizaines, et en traits seuls c'était un enchevêtrement.
+Rendu avant/après sur 3/15/40 passagers et 14 ennemis dans le funnel :
+la masse devient une pile de cubes, le treillis du boss reste lisible.
+
+L'enveloppe est le même hexagone pour les quatre motifs (sommets de
+`plain`, largeur 2, pieds à 0) — `ENEMY_CUBE_HULL`, rempli en noir avant
+les traits. Les calques étaient déjà triés par y (sol : `e.y` ; pont :
+tri local dans `drawBoatPassengers`), donc l'occlusion est correcte sans
+autre changement.
+
+Non vérifié : le site déployé (pierremillon.github.io) est injoignable
+depuis le bac à sable (proxy, `connect_rejected`), donc impossible de
+confirmer en ligne que les deux fichiers audio de v17.84 sont servis.
+À l'oreille de Pierre.

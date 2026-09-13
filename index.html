@@ -3056,6 +3056,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.94", text: "Les cubes d'ennemis ont une silhouette pleine, comme tout le reste du monde : quand ils se chevauchent (pont du bateau, funnel de la porte), ceux de devant cachent ceux de derrière au lieu de laisser leurs arêtes se traverser. Une masse de quarante se lit enfin comme une pile de cubes." },
   { v: "17.93", text: "Rééquilibrage mesuré après le prérequis Forge et le tir plus précis : le cheval de Troie de fin de partie a 20 % de PV en plus (×6 au lieu de ×5), pour qu'une défense sans catapulte y tombe bien vers la vague 19 comme prévu. Le simulateur respecte maintenant le prérequis (ses bots tiraient sans le vouloir à travers un bug, puis trichaient sur les achats)." },
   { v: "17.92", text: "Le modèle \"balles souples\" s'applique à tout le monde au sol : le joueur repousse et est repoussé par les ennemis et les soldats au lieu de les traverser, les soldats et les marchands descendus du chariot aussi. Dans le funnel de la porte, la répulsion cède : l'amas se resserre en passant et se détend derrière le mur." },
   { v: "17.91", text: "Les marchands voyagent DANS la caisse du chariot, pressés comme des balles souples (même modèle que le pont du bateau). Le chariot est maintenant ce qui roule sur le chemin ; un ennemi qui l'atteint blesse le marchand le plus exposé ; à la porte, le chariot s'arrête, ils descendent, se relâchent et entrent dans l'enceinte. La barre de vie d'un marchand n'apparaît qu'une fois blessé." },
@@ -4232,12 +4233,25 @@ const ENEMY_CUBE_MOTIFS = {
 // parfaitement lisible. Valeur choisie par Pierre sur comparatif.
 const ENEMY_LINE_W = 1.1;
 const ENEMY_LATTICE_LINE_W = 0.45;
+// v17.94 : silhouette pleine, comme le bateau (v17.46), la tour, la
+// forge, le mur, le cheval de Troie — le monde est opaque (Pierre,
+// v17.87 : "attention, le mur est opaque"). Les cubes d'ennemis étaient
+// les derniers en traits seuls : dès qu'ils se chevauchent (pont du
+// bateau, caisse, funnel de la porte — donc partout depuis v17.90-92),
+// les arêtes de ceux de derrière traversaient ceux de devant, et une
+// masse de 40 devenait un enchevêtrement illisible. L'enveloppe du cube
+// est le même hexagone pour les quatre motifs (sommets du motif `plain`).
+const ENEMY_CUBE_HULL = [{x:0,y:-2},{x:1,y:-1.5},{x:1,y:-0.5},{x:0,y:0},{x:-1,y:-0.5},{x:-1,y:-1.5}];
 function drawEnemyShape(cx, cy, hw, complexity){
   const m = ENEMY_CUBE_MOTIFS;
   const motif = complexity >= 3 ? m.lattice
               : complexity === 2 ? m.cross
               : complexity === 1 ? m.diag
               : m.plain;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ENEMY_CUBE_HULL.forEach((v, i) => i ? ctx.lineTo(cx + v.x*hw, cy + v.y*hw) : ctx.moveTo(cx + v.x*hw, cy + v.y*hw));
+  ctx.closePath(); ctx.fill();
   ctx.strokeStyle = PHOSPHOR_GREEN;
   ctx.lineWidth = complexity >= 3 ? ENEMY_LATTICE_LINE_W : ENEMY_LINE_W;
   ctx.beginPath();
