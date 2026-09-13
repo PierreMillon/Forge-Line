@@ -241,7 +241,7 @@
     <h3 data-i18n="h_autogold">Revenu automatique</h3>
     <p data-i18n="p_autogold">15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.</p>
     <h3 data-i18n="h_waves">Vagues et ennemis</h3>
-    <p data-i18n="p_waves1">5 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), le turquoise (bouclier : absorbe TOUT ton premier coup, sans dégât — vise-le deux fois), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Bleu, violet et turquoise arrivent progressivement à partir des vagues 9, 14 et 20, jusqu'à 15% des ennemis chacun.</p>
+    <p data-i18n="p_waves1">5 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), le turquoise (bouclier : absorbe TOUT ton premier coup, sans dégât — vise-le deux fois), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Bleu, violet et turquoise arrivent progressivement à partir des vagues 9, 12 et 15, jusqu'à 15% des ennemis chacun.</p>
     <p data-i18n="p_waves2">Le nombre d'ennemis grimpe vite les 8 premières vagues (+11/vague), puis se stabilise à +1/vague — la vague 3 est souvent le moment où une première tour devient utile.</p>
     <h3 data-i18n="h_merchants">Marchands (caravane)</h3>
     <p data-i18n="p_merchants">Reste 5 secondes sur le petit chemin près du château, SANS qu'aucun ennemi ne l'ait traversé cette vague-là : une caravane de 1 à 8 marchands apparaît et remonte vers le château. Si le premier marchand jamais touché arrive au bout : toute la caravane devient 4 soldats à ton service, qui réparent aussi tes tours gratuitement.</p>
@@ -251,6 +251,8 @@
     <p data-i18n="p_domino">À la mort d'un ennemi, ceux à moins de 40px perdent 1 PV de "onde de choc" — peut en tuer un autre fragile juste à côté, en chaîne. Les ennemis apprennent aussi à éviter de se regrouper là où ça vient d'arriver.</p>
     <h3 data-i18n="h_castle">Le château</h3>
     <p data-i18n="p_castle">10 créneaux, un détruit par ennemi qui atteint le mur (le cheval de Troie en détruit 10 d'un coup, breach immédiate). 10 brèches = défaite. Te tenir près du mur régénère ta vie.</p>
+    <h3 data-i18n="h_wall">Le mur</h3>
+    <p data-i18n="p_wall">Le mur est solide : on ne le traverse que par la porte. Monte dessus par l'escalier (pousse vers le mur au pied de l'escalier) ; pour redescendre, pousse vers le sol.</p>
     <h3 data-i18n="h_ads">Pubs &amp; progression</h3>
     <p data-i18n="p_ads1"><strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.</p>
     <p data-i18n="p_ads2"><strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.</p>
@@ -326,20 +328,21 @@ const I18N = {
     h_towers: "Tours",
     p_towers: "Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.",
     h_forge: "La Forge",
-    p_forge: "La construire coûte 100 or, seulement si tu es dans sa zone. Une fois bâtie : \"Tours d'élite\" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. \"Réparateurs\" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.",
+    p_forge: "C'est le prérequis de tout : tant qu'elle n'est pas bâtie, ni tour, ni catapulte, ni amélioration. La bâtir coûte 100 or, seulement si tu es dans sa zone (son emplacement vide est visible dès le début, derrière le mur). Une fois bâtie : \"Tours d'élite\" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. \"Réparateurs\" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.",
     h_autogold: "Revenu automatique",
     p_autogold: "15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.",
     h_waves: "Vagues et ennemis",
-    p_waves1: "4 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Les types bleu et violet arrivent progressivement à partir des vagues 5 et 10, jusqu'à 15% des ennemis chacun.",
+    p_waves1: "5 types : le rouge (base, 1 coup TOUJOURS, à n'importe quelle vague), le bleu clair (rapide, fragile : 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud), le turquoise (bouclier : absorbe TOUT ton premier coup — vise-le deux fois), l'orange (boss, rare, 4x plus de PV mais 2x plus lent, à partir de la vague 200 seulement). Bleu, violet et turquoise arrivent progressivement à partir des vagues 9, 12 et 15, jusqu'à 15% des ennemis chacun. À partir de la vague 17, les types autres que le rouge deviennent nettement plus résistants.",
     p_waves2: "Le nombre d'ennemis grimpe vite les 8 premières vagues (+11/vague), puis se stabilise à +1/vague — la vague 3 est souvent le moment où une première tour devient utile.",
     h_merchants: "Marchands (caravane)",
-    p_merchants: "Reste 5 secondes sur le petit chemin près du château, SANS qu'aucun ennemi ne l'ait traversé cette vague-là : une caravane de 1 à 8 marchands apparaît et remonte vers le château. Si le premier marchand jamais touché arrive au bout : toute la caravane devient 4 soldats à ton service, qui réparent aussi tes tours gratuitement.",
+    p_merchants: "Reste 5 secondes sur le petit chemin près du château, SANS qu'aucun ennemi ne l'ait traversé cette vague-là : un chariot apparaît au bout du chemin avec 1 à 8 marchands pressés dans sa caisse, et roule vers la porte. Un ennemi qui l'atteint blesse le marchand le plus exposé. À la porte, ils descendent et entrent dans l'enceinte : si le premier à entrer n'a jamais été touché, toute la caravane devient 4 soldats à ton service. Un marchand blessé entre quand même — il ne compte juste pas.",
     h_trojan: "Cheval de Troie",
     p_trojan: "Reste dans l'eau tout en haut de l'écran : un avertissement apparaît après 3 secondes, le cheval après 6. S'il atteint le château : défaite immédiate. Si tu le détruis à temps : 3 VRAIS ennemis costauds en sortent — un risque réel à assumer, pas un cadeau gratuit. Une fois géré, il ne peut pas revenir tout de suite (temps de recharge de plusieurs vagues).",
     h_domino: "Effet domino",
     p_domino: "À la mort d'un ennemi, ceux à moins de 40px perdent 1 PV de \"onde de choc\" — peut en tuer un autre fragile juste à côté, en chaîne. Les ennemis apprennent aussi à éviter de se regrouper là où ça vient d'arriver.",
     h_castle: "Le château",
-    p_castle: "10 créneaux, un détruit par ennemi qui atteint le mur (le cheval de Troie en détruit 10 d'un coup, breach immédiate). 10 brèches = défaite. Te tenir près du mur régénère ta vie.",
+    p_castle: "10 créneaux, un détruit par ennemi qui atteint le mur (le cheval de Troie en détruit 10 d'un coup, brèche immédiate). 10 brèches = défaite. L'enceinte est le seul endroit où l'on se soigne : toi près du mur, tes soldats derrière la porte.",
+    h_wall: "Le mur", p_wall: "Le mur est solide : on ne le traverse que par la porte. Tu peux monter dessus par l'escalier du tronçon gauche : place-toi au pied de l'escalier et pousse vers le mur (vers le bas). En haut, tu marches sur tout le tronçon, les ennemis ne peuvent pas t'atteindre et tu tires normalement — mais tu ne construis rien de là-haut. Pour redescendre, reviens au-dessus de l'escalier et pousse vers le sol (vers le haut de l'écran).",
     h_ads: "Pubs &amp; progression",
     p_ads1: "<strong>Pourquoi une pub ?</strong> Forge Line n'est pas pay-to-win : avec la bonne stratégie, tu n'as normalement jamais besoin de payer ni de regarder de pub. La pub récompensée existe juste pour soutenir le jeu si tu veux. Il peut y avoir d'autres façons de le soutenir plus tard (skins, etc.), mais rien de tout ça ne donne un avantage qu'on ne peut pas obtenir en jouant bien.",
     p_ads2: "<strong>Et si je suis vraiment bloqué ?</strong> Si une pub ne se charge pas ou que tu as perdu toute ta progression, un petit bonus d'or est là pour repartir (voir ci-dessous) — pas besoin d'avoir regardé quoi que ce soit pour l'utiliser.",
@@ -382,20 +385,21 @@ const I18N = {
     p_towers: "Building a tower costs 20 gold. Reinforcing it also costs 20 gold at the first tier (the same price as a new tower, on purpose: a reinforcement always stays at least as cost-effective as rebuilding), then 2.7% more each tier after that, with no cap.",
     p_catapult: "The catapult (30 gold, same reinforcement tiers as a tower) fires slower but deals splash damage: enemies near the impact take some damage too — great against a group, weaker against a lone target.",
     h_forge: "The Forge",
-    p_forge: "Building it costs 100 gold, only while you're in its zone. Once built: \"Elite Towers\" (40 gold for the first tier, +2.7%/tier) boosts all your towers at once. \"Repair crew\" (60 gold, one-time purchase) has your soldiers repair your towers for free, continuously.",
+    p_forge: "It is the prerequisite for everything: until it's built, no tower, no catapult, no upgrade. Building it costs 100 gold, only while you're in its zone (its empty plot is visible from the start, behind the wall). Once built: \"Elite Towers\" (40 gold for the first tier, +2.7%/tier) boosts all your towers at once. \"Repair crew\" (60 gold, one-time purchase) has your soldiers repair your towers for free, continuously.",
     h_autogold: "Auto income",
     p_autogold: "15 gold for the first tier (+2.7%/tier), pays out gold every 2 seconds. The payout per tick grows slowly (×1.05 per tier, rounded) — modest at first, but unlimited if you invest heavily.",
     h_waves: "Waves and enemies",
-    p_waves1: "5 types: red (base, always one hit), light blue (fast, fragile — 2x speed, half the HP), purple (fast AND tough — 2x speed, normal HP), turquoise (shielded: absorbs your entire first hit, no damage at all — aim for it twice), orange (boss, rare, 4x the HP but 2x slower — only appears from wave 200 onward). Blue, purple and turquoise phase in gradually starting at waves 9, 14 and 20, up to 15% of enemies each.",
+    p_waves1: "5 types: red (base, ALWAYS one hit, at any wave), light blue (fast, fragile: 2x speed, half the HP), purple (fast AND tough), turquoise (shielded: absorbs your entire first hit — aim for it twice), orange (boss, rare, 4x the HP but 2x slower, from wave 200 only). Blue, purple and turquoise phase in gradually from waves 9, 12 and 15, up to 15% of enemies each. From wave 17 on, every type except red gets markedly tougher.",
     p_waves2: "The enemy count ramps up fast for the first 8 waves (+11/wave), then settles to +1/wave — wave 3 is often when a first tower becomes worth it.",
     h_merchants: "Merchants (caravan)",
-    p_merchants: "Stand on the little path near the castle for 5 seconds, with NO enemy having crossed it that wave: a caravan of 1 to 8 merchants appears and heads up to the castle. If the first never-hit merchant reaches the end, the whole caravan becomes 4 soldiers in your service, who also repair your towers for free.",
+    p_merchants: "Stand on the little path near the castle for 5 seconds, with NO enemy having crossed it that wave: a cart appears at the end of the path with 1 to 8 merchants packed in its box, and rolls to the gate. An enemy reaching it wounds the most exposed merchant. At the gate they climb down and enter the enclosure: if the first one in was never hit, the whole caravan becomes 4 soldiers in your service. A wounded merchant still enters — he just doesn't count.",
     h_trojan: "Trojan Horse",
     p_trojan: "Linger in the water at the top of the screen: a warning appears after 3 seconds, the horse after 6. If it reaches the castle: instant defeat. If you destroy it in time: 3 REAL tough enemies come out of it — a genuine risk to take on, not a free gift. Once dealt with, it can't come back right away (a cooldown of several waves).",
     h_domino: "Domino effect",
     p_domino: "When an enemy dies, any others within 40px take 1 HP of \"shockwave\" damage — it can chain-kill another fragile one right next to it. Enemies also learn to avoid regrouping where this just happened.",
     h_castle: "The castle",
-    p_castle: "10 battlements, one destroyed per enemy that reaches the wall (the Trojan Horse destroys 10 at once — an instant breach). 10 breaches = defeat. Standing near the wall regenerates your health.",
+    p_castle: "10 battlements, one destroyed per enemy that reaches the wall (the Trojan Horse destroys 10 at once — an instant breach). 10 breaches = defeat. The enclosure is the only place anyone heals: you near the wall, your soldiers behind the gate.",
+    h_wall: "The wall", p_wall: "The wall is solid: the gate is the only way through. You can climb onto it via the stairs on the left section: stand at the foot of the stairs and push toward the wall (downward). On top you can walk the whole section, enemies can't reach you and you shoot normally — but you can't build from up there. To get down, come back above the stairs and push toward the ground (upward on screen).",
     h_ads: "Ads &amp; progress",
     p_ads1: "<strong>Why an ad?</strong> Forge Line isn't pay-to-win: with the right strategy, you should never actually need to pay or watch an ad. The rewarded ad just exists to support the game if you want to. There may be other ways to support it later (skins, etc.), but none of that gives an advantage you can't get by playing well.",
     p_ads2: "<strong>What if I'm really stuck?</strong> If an ad won't load or you've lost all your progress, a small gold bonus is there to get you going again (see below) — no need to have watched anything to use it.",
@@ -3056,6 +3060,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "17.95", text: "Astuces mises à jour : une entrée \"Le mur\" explique comment monter par l'escalier et redescendre ; la Forge y est décrite comme le prérequis de tout ; les marchands voyagent dans le chariot ; les seuils d'arrivée des types d'ennemis sont corrigés (9, 12 et 15 — le texte disait encore 9, 14 et 20, et 5 et 10 en français). Soldats et marchands ont une silhouette pleine, comme tout le reste." },
   { v: "17.94", text: "Les cubes d'ennemis ont une silhouette pleine, comme tout le reste du monde : quand ils se chevauchent (pont du bateau, funnel de la porte), ceux de devant cachent ceux de derrière au lieu de laisser leurs arêtes se traverser. Une masse de quarante se lit enfin comme une pile de cubes." },
   { v: "17.93", text: "Rééquilibrage mesuré après le prérequis Forge et le tir plus précis : le cheval de Troie de fin de partie a 20 % de PV en plus (×6 au lieu de ×5), pour qu'une défense sans catapulte y tombe bien vers la vague 19 comme prévu. Le simulateur respecte maintenant le prérequis (ses bots tiraient sans le vouloir à travers un bug, puis trichaient sur les achats)." },
   { v: "17.92", text: "Le modèle \"balles souples\" s'applique à tout le monde au sol : le joueur repousse et est repoussé par les ennemis et les soldats au lieu de les traverser, les soldats et les marchands descendus du chariot aussi. Dans le funnel de la porte, la répulsion cède : l'amas se resserre en passant et se détend derrière le mur." },
@@ -5426,7 +5431,8 @@ function draw(now){
         // bonhommes un peu bizarres") — retour à de simples billes, comme
         // avant, qui accompagnent le chariot (devant/à côté/derrière lui)
         ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.1;
-        ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2);
+        ctx.fillStyle = '#000'; ctx.fill(); ctx.stroke(); // v17.95 : silhouette pleine, comme tout le monde (pressés dans la caisse, ils se recouvrent)
       } else {
       ctx.beginPath(); ctx.arc(m.x, m.y-8, 7, 0, Math.PI*2);
       ctx.fillStyle = '#d9a441'; ctx.fill();
@@ -5456,7 +5462,7 @@ function draw(now){
   for (const s of soldiers){
     layers.push({ y: s.y, draw: () => {
       ctx.beginPath(); ctx.arc(s.x, s.y-8, 8, 0, Math.PI*2);
-      if (phosphorMode){ ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.2; ctx.stroke(); }
+      if (phosphorMode){ ctx.fillStyle = '#000'; ctx.fill(); ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.2; ctx.stroke(); } // v17.95 : silhouette pleine
       else {
         const grad = ctx.createRadialGradient(s.x-3, s.y-8-3, 1, s.x, s.y-8, 9);
         grad.addColorStop(0, '#a3e0c0');

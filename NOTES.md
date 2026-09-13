@@ -4582,3 +4582,26 @@ Non vérifié : le site déployé (pierremillon.github.io) est injoignable
 depuis le bac à sable (proxy, `connect_rejected`), donc impossible de
 confirmer en ligne que les deux fichiers audio de v17.84 sont servis.
 À l'oreille de Pierre.
+
+## v17.95 — FAQ remise à jour, silhouettes des alliés
+
+Déclencheur : Pierre n'a pas trouvé comment redescendre du mur (v17.83).
+La mécanique est corrigée (v17.87), mais rien ne l'expliquait en jeu. La
+FAQ est le seul endroit où le jeu se raconte : elle doit suivre.
+
+Trouvé en la relisant : `p_waves1` était faux DANS LES DEUX LANGUES, et
+pas de la même façon — le français disait encore "4 types… vagues 5 et
+10" (d'avant le bouclier), l'anglais "5 types… 9, 14 et 20" (d'avant la
+compression v17.77). Réel : 9, 12, 15 (`WAVE_TYPE*_START`), boss à 200
+(`BOSS_FIRST_WAVE`), PV renforcés dès 17 (`ENEMY_HP_EXP_WAVE_START`).
+Leçon : quand une constante de rythme change, grep la FAQ dans les deux
+langues — les deux textes ne dérivent pas ensemble.
+
+Ajouts : `h_wall`/`p_wall` (fr/en + élément HTML), prérequis dans
+`p_forge`, chariot et "le blessé entre mais ne compte pas" dans
+`p_merchants`, "l'enceinte est le seul endroit où l'on se soigne" dans
+`p_castle`. Vérifié dans le navigateur : les deux langues rendent toutes
+les clés, aucun `undefined`.
+
+Silhouettes : cercles soldat/marchand remplis en noir avant le trait —
+dernière exception au principe "le monde est opaque".
