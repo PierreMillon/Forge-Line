@@ -4669,3 +4669,32 @@ mauvais dépôt (le portfolio, cwd du bac à sable) et y a trouvé un vrai
 problème dans le commit d'une autre session — le hub désenregistre tous
 les service workers de l'origine pierremillon.github.io à chaque visite.
 Pas mon commit, pas touché ; signalé.
+
+## v18.01 — pivot 1 : le personnage ne tire plus
+
+Pierre : *"on va totalement supprimer le fait de pouvoir tirer avec le
+bonhomme principal qu'on dirige, tout doit être dans la gestion, soit des
+tours soit des soldats."* Quiz : il se déplace pour agir sur place,
+commande les soldats (à venir), reste vulnérable, le mur reste montable ;
+Dégâts → tours et soldats, Cadence → cadence des tours, Précision
+supprimée, Revenu auto gardé.
+
+Retiré : tap / appui maintenu (`pointerdown/up`, `isUiTarget`), tir
+automatique, `playerShoot()` et ses minuteurs, le palier Précision (bouton,
+coût, handler, bandeau, i18n), `autoFireInterval`. Redirigé :
+`towerRateMultiplier()` (palier Cadence) dans `towerShotInterval` et sur
+la catapulte ; `towerDamage` part de `effectivePlayerDmg()` (palier
+Dégâts) au lieu de `PLAYER_DMG` brut.
+
+**Or de départ 120** (`STARTING_GOLD`) : sans tir, aucun kill n'est
+possible avant la première tour, et la tour exige la Forge (100) — à 0
+or la partie était perdue d'avance. 120 = Forge + une tour dès la vague 1.
+Décision prise seul, à valider par Pierre. Pièges : `let gold = 0` est
+déclaré bien avant `resetGame` (TDZ → la constante remonte à côté), et le
+simulateur faisait `resetGame(0)`.
+
+Vieilles constantes de précision (`ACCURACY_*`, `PLAYER_RANGE_PX`,
+`MISS_*`, `hitChanceForDistance`, `distPointSegment`) laissées en place :
+plus appelées par le joueur, encore lues par la branche des projectiles
+perdus, qui ne sera plus jamais alimentée. À nettoyer quand la branche
+sautera.

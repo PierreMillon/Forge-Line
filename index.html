@@ -230,9 +230,9 @@
   </div>
   <div id="faq-panel">
     <h3 data-i18n="h_combat">Combat</h3>
-    <p data-i18n="p_combat1">Un tir à mains nues fait 12 dégâts. Un ennemi de base a 12 PV : un tir suffit TOUJOURS à le tuer, à n'importe quelle vague — la difficulté vient du nombre d'ennemis, pas de leurs PV qui grimperaient. Chaque palier de Dégâts multiplie tes dégâts par 1,05 (12 → 13 → 13… → 20 dégâts au 10ᵉ palier).</p>
-    <p data-i18n="p_combat2">Précision : à moins de 50px (25% de ta portée de 200px), tu touches toujours. Au-delà, la précision baisse par paliers jusqu'à 20% de chance à 200px et plus — jamais 0%, tu peux toujours tenter ta chance de loin. Le palier Précision referme 10% de l'écart restant à chaque achat.</p>
-    <p data-i18n="p_combat3">Les tours, elles, ont une précision parfaite et une portée fixe de 160px, mais ne bougent pas.</p>
+    <p data-i18n="p_combat1">Tu ne tires pas : tout passe par tes tours et tes soldats.</p>
+    <p data-i18n="p_combat2">Le palier Cadence accélère toutes tes tours.</p>
+    <p data-i18n="p_combat3">Ton personnage agit sur place : bâtir, renforcer, réparer, Forge, chemin des marchands.</p>
     <h3 data-i18n="h_towers">Tours</h3>
     <p data-i18n="p_towers">Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.</p>
     <p data-i18n="p_catapult">La catapulte (30 or, même palier de renfort qu'une tour) tire plus lentement mais inflige des dégâts de zone : les ennemis proches de l'impact encaissent aussi une part des dégâts — utile contre un groupe, moins bon contre une cible isolée.</p>
@@ -269,7 +269,6 @@
     <button id="autofire-btn"><span data-i18n="b_autofire">Cadence</span><span class="b-cost" id="autofire-cost"></span></button>
   </div>
   <div class="bonusbar-row">
-    <button id="precision-btn"><span data-i18n="b_precision">Précision</span><span class="b-cost" id="precision-cost"></span></button>
     <button id="forge-btn"><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
     <button id="soldier-repair-btn"><span id="soldier-repair-label"></span><span class="b-cost" id="soldier-repair-cost"></span></button>
     <button id="catapult-btn"><span id="catapult-label"></span><span class="b-cost" id="catapult-cost"></span></button>
@@ -320,11 +319,11 @@ const I18N = {
     repair_label: "Réparateurs", repair_acquired: "Acquis ✓",
     repair_go_forge: "Va à la Forge", repair_build_forge: "Construis la Forge",
     trojan_warning: "N'énervez pas les dieux...",
-    b_autogold: "Revenu auto", b_damage: "Dégâts", b_autofire: "Cadence", b_precision: "Précision",
+    b_autogold: "Revenu auto", b_damage: "Dégâts", b_autofire: "Cadence",
     h_combat: "Combat",
-    p_combat1: "Un tir à mains nues fait 12 dégâts. Un ennemi de base a 12 PV : un tir suffit TOUJOURS à le tuer, à n'importe quelle vague — la difficulté vient du nombre d'ennemis, pas de leurs PV qui grimperaient. Chaque palier de Dégâts multiplie tes dégâts par 1,05 (12 → 13 → 13… → 20 dégâts au 10ᵉ palier).",
-    p_combat2: "Précision : à moins de 50px (25% de ta portée de 200px), tu touches toujours. Au-delà, la précision baisse par paliers jusqu'à 20% de chance à 200px et plus — jamais 0%, tu peux toujours tenter ta chance de loin. Le palier Précision referme 10% de l'écart restant à chaque achat.",
-    p_combat3: "Les tours, elles, ont une précision parfaite et une portée fixe de 160px, mais ne bougent pas.",
+    p_combat1: "Tu ne tires pas : tout passe par tes tours et tes soldats. Un ennemi de base a 12 PV et une tour de niveau 1 fait 12 dégâts : un tir suffit TOUJOURS à le tuer, à n'importe quelle vague. Le palier Dégâts multiplie par 1,05 la base de toutes tes tours et de tes soldats.",
+    p_combat2: "Le palier Cadence accélère le tir de toutes tes tours (×1,05 par palier, catapultes comprises), en plus du renfort propre à chaque tour.",
+    p_combat3: "Ton personnage sert à agir sur place : bâtir ou renforcer une tour là où il est, bâtir la Forge, réparer au contact, se poster sur le chemin des marchands. Les ennemis peuvent le blesser : reste hors de leur portée ou dans l'enceinte.",
     h_towers: "Tours",
     p_towers: "Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.",
     h_forge: "La Forge",
@@ -376,11 +375,11 @@ const I18N = {
     repair_label: "Repair crew", repair_acquired: "Acquired ✓",
     repair_go_forge: "Go to the Forge", repair_build_forge: "Build the Forge first",
     trojan_warning: "Don't anger the gods...",
-    b_autogold: "Auto income", b_damage: "Damage", b_autofire: "Rate", b_precision: "Precision",
+    b_autogold: "Auto income", b_damage: "Damage", b_autofire: "Rate",
     h_combat: "Combat",
-    p_combat1: "An unarmed shot deals 12 damage. A base enemy has 12 HP: one shot ALWAYS kills it, at any wave — difficulty comes from the number of enemies, not from their HP going up. Each Damage tier multiplies your damage by 1.05 (12 → 13 → 13… → 20 damage at tier 10).",
-    p_combat2: "Accuracy: within 50px (25% of your 200px range), you always hit. Beyond that, accuracy drops in steps down to a 20% chance at 200px and beyond — never 0%, you can always try your luck from afar. The Precision tier closes 10% of the remaining gap each time you buy it.",
-    p_combat3: "Towers, on the other hand, have perfect accuracy and a fixed 160px range, but they don't move.",
+    p_combat1: "You don't shoot: everything goes through your towers and soldiers. A base enemy has 12 HP and a level-1 tower deals 12 damage: one shot ALWAYS kills it, at any wave. The Damage tier multiplies the base damage of all your towers and soldiers by 1.05.",
+    p_combat2: "The Rate tier speeds up every tower's fire (×1.05 per tier, catapults included), on top of each tower's own reinforcement.",
+    p_combat3: "Your character is there to act on the spot: build or reinforce a tower where he stands, build the Forge, repair by contact, stand on the merchants' path. Enemies can wound him: stay out of their reach or inside the enclosure.",
     h_towers: "Towers",
     p_towers: "Building a tower costs 20 gold. Reinforcing it also costs 20 gold at the first tier (the same price as a new tower, on purpose: a reinforcement always stays at least as cost-effective as rebuilding), then 2.7% more each tier after that, with no cap.",
     p_catapult: "The catapult (30 gold, same reinforcement tiers as a tower) fires slower but deals splash damage: enemies near the impact take some damage too — great against a group, weaker against a lone target.",
@@ -1659,7 +1658,8 @@ resizeCanvas();
 // script, spawnBoat seul suffisait avant mais plus maintenant)
 
 let towers = []; // {x, y, hp, maxHp, lastShotAt, flashUntil, lastHitSoundAt}
-let gold = 0, wave = 1, breaches = 0, gameOver = false;
+const STARTING_GOLD = 120; // v18.01 : sans tir du personnage, la première défense doit être possible dès la vague 1 — Forge (100) + une tour (20)
+let gold = STARTING_GOLD, wave = 1, breaches = 0, gameOver = false;
 let enemies = [];
 let projectiles = [];
 // v17.24 : le nombre total d'ennemis par vague à lui seul ne suffisait
@@ -1697,7 +1697,8 @@ const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 1.2; // tir des tours 20% plus
 // avec un plancher pour ne jamais devenir absurde (jamais plus de 4x la
 // cadence de départ)
 function towerShotInterval(t){
-  return Math.max(TOWER_SHOT_INTERVAL_MS / 4, TOWER_SHOT_INTERVAL_MS / Math.pow(UPGRADE_POWER_GROWTH, (t.level||1) - 1));
+  // v18.01 : le palier Cadence du bandeau (towerRateMultiplier) s'ajoute au renfort de la tour
+  return Math.max(TOWER_SHOT_INTERVAL_MS / 4, TOWER_SHOT_INTERVAL_MS / (Math.pow(UPGRADE_POWER_GROWTH, (t.level||1) - 1) * towerRateMultiplier()));
 }
 const PLAYER_DMG = 12;
 const BASE_ENEMY_HP = 12;
@@ -2435,6 +2436,7 @@ function autoGoldIncome(){ return Math.max(1, Math.round(Math.pow(UPGRADE_POWER_
 const DMG_COST_BASE = 8;
 let dmgLevel = 0;
 function dmgUpgradeCost(){ return Math.round(DMG_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, dmgLevel)); }
+// v18.01 : "dégâts de base" du camp du joueur — tours (towerDamage) et soldats (soldierDmg) en dérivent ; le joueur lui-même ne tire plus
 function effectivePlayerDmg(){ return Math.round(PLAYER_DMG * Math.pow(UPGRADE_POWER_GROWTH, dmgLevel)); }
 // 3. tour : construit une nouvelle tour, ou renforce celle déjà à portée
 //    (rajoute un "étage" — plus haute, plus de PV et de dégâts). Une
@@ -2465,7 +2467,8 @@ function towerUpgradeCost(t){ return Math.round(TOWER_UPGRADE_COST * Math.pow(UP
 // à parts égales, donc le ratio renfort/neuf (v17.13) ne bouge jamais,
 // quel que soit le niveau de Forge
 function towerMaxHpAtLevel(level){ return Math.round((TOWER_BASE_HP + TOWER_HP_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))) * forgeEliteMultiplier()); }
-function towerDamage(t){ const level = t.level || 1; return Math.round((PLAYER_DMG + TOWER_DMG_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))) * forgeEliteMultiplier()); }
+// v18.01 : le palier Dégâts du bandeau (effectivePlayerDmg) est la base des tours, plus le joueur
+function towerDamage(t){ const level = t.level || 1; return Math.round((effectivePlayerDmg() + TOWER_DMG_INCREMENT_BASE * geometricSum(Math.max(0, level - 1))) * forgeEliteMultiplier()); }
 
 // v17.62 (suggestion validée : "je valide tout" — 2e type de tour, rôle
 // distinct de dégâts de zone) : la catapulte. Même économie de PV/coût
@@ -2492,22 +2495,11 @@ const AUTO_FIRE_COST_BASE = 20;
 const AUTO_FIRE_MIN_INTERVAL_MS = 80; // plancher : au-delà, investir encore n'accélère quasiment plus
 let autoFireLevel = 0;
 function autoFireCost(){ return Math.round(AUTO_FIRE_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, autoFireLevel)); }
-function autoFireInterval(){ return Math.max(AUTO_FIRE_MIN_INTERVAL_MS, SHOT_INTERVAL_MS / Math.pow(UPGRADE_POWER_GROWTH, autoFireLevel)); }
+// v18.01 : le palier "Cadence" ne concerne plus le joueur (qui ne tire
+// plus) mais la cadence de TOUTES les tours — voir towerShotInterval
+function towerRateMultiplier(){ return Math.pow(UPGRADE_POWER_GROWTH, autoFireLevel); }
 
-// 5. précision : 3e dimension du combat, séparée de la puissance et de
-//    la cadence — chaque palier referme 10% de l'écart restant vers
-//    100% de précision, sans jamais l'atteindre (asymptote), comme
-//    demandé. S'applique par-dessus la précision par distance déjà
-//    existante (hitChanceForDistance) : ferme une partie du "tire un
-//    peu n'importe comment" de base, pas une précision indépendante.
-const PRECISION_COST_BASE = 15;
-const PRECISION_CLOSE_RATE = 0.9; // referme 10% de l'écart restant par palier
-let precisionLevel = 0;
-function precisionCost(){ return Math.round(PRECISION_COST_BASE * Math.pow(UPGRADE_COST_GROWTH, precisionLevel)); }
-// multiplie la chance de RATER (jamais la chance de réussir directement,
-// pour ne jamais atteindre 100% pile) — proche de 0 à très haut niveau,
-// jamais exactement 0
-function precisionMissFactor(){ return Math.pow(PRECISION_CLOSE_RATE, precisionLevel); }
+// (v18.01 : palier Précision retiré avec le tir du joueur)
 
 // --- cimetière des tours ---
 // quand une tour est détruite, il y avait des gens dedans — l'emplacement
@@ -2843,13 +2835,6 @@ document.getElementById('autofire-btn').addEventListener('click', () => {
   gold -= cost;
   autoFireLevel++;
 });
-document.getElementById('precision-btn').addEventListener('click', () => {
-  if (!forgeBuilt) return; // v17.86 : prérequis Forge
-  const cost = precisionCost();
-  if (gold < cost) return;
-  gold -= cost;
-  precisionLevel++;
-});
 // la Forge : contrairement aux autres boutons, n'agit que si le joueur
 // est physiquement dans la zone — sinon rien ne se passe (le bouton est
 // désactivé et l'affiche dans refreshBonusbar)
@@ -2898,7 +2883,7 @@ function refreshBonusbar(){
   // comme avant — c'est le sens de sa phrase "je dois encore dépenser de
   // l'argent pour créer d'autres tours et d'autres améliorations".
   if (!forgeBuilt){
-    for (const id of ['autogold', 'damage', 'tower', 'autofire', 'precision', 'catapult']){
+    for (const id of ['autogold', 'damage', 'tower', 'autofire', 'catapult']){
       document.getElementById(id + '-btn').disabled = true;
       document.getElementById(id + '-cost').textContent = t('needs_forge');
     }
@@ -2917,10 +2902,6 @@ function refreshBonusbar(){
   afBtn.disabled = disabledAll || gold < afCost;
   document.getElementById('autofire-cost').textContent = afCost + t('gold_suffix');
 
-  const pCost = precisionCost();
-  const pBtn = document.getElementById('precision-btn');
-  pBtn.disabled = disabledAll || gold < pCost;
-  document.getElementById('precision-cost').textContent = pCost + t('gold_suffix');
 
   const dCost = dmgUpgradeCost();
   const dBtn = document.getElementById('damage-btn');
@@ -3052,7 +3033,7 @@ applyLanguage();
 document.getElementById('menu-restart').addEventListener('click', e => {
   e.preventDefault();
   menuPanel.style.display = 'none';
-  resetGame(0);
+  resetGame(STARTING_GOLD);
 });
 const faqPanel = document.getElementById('faq-panel');
 document.getElementById('faq-toggle').addEventListener('click', e => {
@@ -3070,6 +3051,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.01", text: "Nouvelle direction : ton personnage ne tire plus. Tout passe par la gestion — tours, soldats, Forge. Le palier Précision disparaît ; Cadence accélère maintenant toutes les tours (catapultes comprises) ; Dégâts reste la base des tours et des soldats. Tu commences avec 120 or : de quoi bâtir la Forge et une première tour dès la vague 1. Astuces mises à jour." },
   { v: "18.00", text: "La caravane arrive plus vite : le chariot ne rampe plus sur les derniers crans (plancher de vitesse 15 % → 50 %, zone de ralentissement réduite), et les marchands descendus entrent d'un pas décidé (deux fois plus vite)." },
   { v: "17.99", text: "Relecture de code après la série : les marchands descendus du chariot n'étaient plus repoussés deux fois par frame ; un harceleur ne change plus de cible soixante fois par seconde entre un soldat et une tour ; aux vagues à boss, plus de passager oublié sur le pont ; la physique du pont ne s'emballe plus avec des dizaines de passagers. Sous le capot, un seul noyau de répulsion partagé par tout le jeu." },
   { v: "17.98", text: "Le mur descend de 16 px sur l'écran ; la Forge reste juste derrière lui, dans l'enceinte." },
@@ -3263,29 +3245,11 @@ joyzone.addEventListener('touchstart', e => { e.preventDefault(); const t = e.ch
 joyzone.addEventListener('touchmove', e => { e.preventDefault(); const t = e.changedTouches[0]; joyMove(t.clientX, t.clientY); });
 joyzone.addEventListener('touchend', e => { e.preventDefault(); joyEnd(); });
 
-// tir manuel : tant que le bonus "tir auto" n'est pas acheté, deux façons
-// de tirer, avec deux cadences différentes — répéter le tap va plus vite
-// (jusqu'à une limite anti-spam), rester appuyé donne un rythme fixe plus
-// lent. Évènements pointer (pas touch/click) pour unifier souris et
-// tactile sans risquer un double déclenchement.
-function isUiTarget(el){ return el && el.closest && el.closest('#topbar, #bottombar, #bonusbar, #menu-panel, #version-panel, #faq-panel, #over, #ad-error'); }
-const MANUAL_TAP_COOLDOWN_MS = 50;    // limite anti-spam d'un tap répété (20/s max) — en dessous, ignoré
-const MANUAL_HOLD_START_MS = 250;     // au-delà, un appui maintenu bascule en cadence fixe
-const MANUAL_HOLD_INTERVAL_MS = 500;  // rythme d'un tir toutes les 0,5s en restant appuyé
-let pointerIsDown = false, pointerDownAt = 0;
-document.addEventListener('pointerdown', e => {
-  if (isUiTarget(e.target)) return;
-  pointerIsDown = true;
-  pointerDownAt = Date.now();
-});
-document.addEventListener('pointerup', e => {
-  if (!pointerIsDown) return;
-  pointerIsDown = false;
-  if (playerDead) return;
-  const heldMs = Date.now() - pointerDownAt;
-  // relâché avant le seuil de maintien : un tap, cadence courte (répéter vite = tirer vite)
-  if (heldMs < MANUAL_HOLD_START_MS) playerShoot(performance.now(), MANUAL_TAP_COOLDOWN_MS);
-});
+// v18.01 (Pierre : "on va totalement supprimer le fait de pouvoir tirer
+// avec le bonhomme principal, tout doit être dans la gestion, soit des
+// tours soit des soldats") — le tir au tap / maintenu et le tir
+// automatique du joueur sont retirés. Le personnage se déplace pour agir
+// sur place (bâtir, renforcer, réparer, Forge, chemin des marchands).
 joyzone.addEventListener('touchcancel', e => { e.preventDefault(); joyEnd(); });
 
 function pickNearestTower(x, y){
@@ -3392,59 +3356,7 @@ function spawnEnemy(now){
   enemies.push(e);
 }
 
-// manualInterval : appelé depuis un tap/tenu du joueur (tir manuel, gratuit
-// dès le début) avec la cadence à utiliser (MANUAL_TAP_COOLDOWN_MS ou
-// MANUAL_HOLD_INTERVAL_MS) ; sans, c'est le tir auto (bonus acheté),
-// cadence habituelle réduite par les dégâts encaissés. Les deux ont leur
-// PROPRE minuteur de cadence (lastAutoShotAt / lastManualShotAt) : le tir
-// manuel continue de compter même une fois le tir auto acheté, les deux
-// se cumulent au lieu de se bloquer l'un l'autre. Les dégâts du tir
-// restent les mêmes dans tous les cas.
-let lastAutoShotAt = 0, lastManualShotAt = 0;
-function playerShoot(now, manualInterval){
-  const isManual = manualInterval !== undefined;
-  if (!isManual && autoFireLevel === 0) return;
-  let effectiveInterval = manualInterval;
-  if (!isManual){
-    // chaque palier de dégâts encaissé retire 5% à la cadence de tir (tir auto seulement)
-    const dmgStage = Math.round(PLAYER_MAX_HEALTH - playerHealth); // 0 (plein) à 10 (à bout)
-    effectiveInterval = autoFireInterval() / Math.max(0.5, 1 - dmgStage*0.05);
-  }
-  const lastShot = isManual ? lastManualShotAt : lastAutoShotAt;
-  if (now - lastShot < effectiveInterval) return;
-  // portée illimitée : on vise toujours l'ennemi le plus proche, quelle
-  // que soit la distance (pas de plafond ici — c'est la précision qui
-  // se charge de décourager le tir à très longue distance)
-  let target = null, best = Infinity;
-  for (const e of enemies){
-    const d = Math.hypot(e.x-player.x, e.y-player.y);
-    if (d < best){ best = d; target = e; }
-  }
-  if (!target) return;
-  if (isManual) lastManualShotAt = now; else lastAutoShotAt = now;
-  // la balle grossit visiblement à chaque palier de dégâts acheté — en
-  // racine carrée (pas linéaire) puisque la progression est infinie,
-  // sinon elle deviendrait énorme à très haut niveau
-  const r = 4 + Math.sqrt(dmgLevel) * 3;
-  const dmg = effectivePlayerDmg();
-  // le bonus précision referme une partie de la chance de rater — jamais
-  // toute (asymptote vers 100%, jamais pile) ; s'applique par-dessus la
-  // précision par distance déjà existante, pas à la place
-  const baseHitChance = hitChanceForDistance(best);
-  const effectiveHitChance = 1 - (1 - baseHitChance) * precisionMissFactor();
-  if (Math.random() < effectiveHitChance){
-    projectiles.push({ x: player.x, y: player.y, target, speed: SHOT_SPEED_PX, dmg, r, source: 'player' });
-  } else {
-    // raté : le tir part quand même, mais dévie nettement à côté — et
-    // peut, par hasard, toucher un autre ennemi sur son passage
-    const angle = Math.atan2(target.y-player.y, target.x-player.x)
-      + (Math.random()<0.5?-1:1) * (MISS_DEVIATION_MIN + Math.random()*(MISS_DEVIATION_MAX-MISS_DEVIATION_MIN));
-    const destX = player.x + Math.cos(angle) * (best + MISS_OVERSHOOT_PX);
-    const destY = player.y + Math.sin(angle) * (best + MISS_OVERSHOOT_PX);
-    projectiles.push({ x: player.x, y: player.y, destX, destY, wild: true, speed: SHOT_SPEED_PX, dmg, r, source: 'player' });
-  }
-  sfxShoot();
-}
+// (v18.01 : playerShoot() retiré — le personnage ne tire plus)
 
 function update(now){
   updateParticles(); // ambiance : continue même écran de mort/pause, purement décoratif
@@ -3513,18 +3425,7 @@ function update(now){
       }
     }
 
-    playerShoot(now);
-
-    // tir manuel en restant appuyé (au-delà du seuil de tap) : cadence
-    // fixe, plus lente qu'en tapant vite plusieurs fois de suite — reste
-    // actif même une fois le tir auto acheté (les deux se cumulent, pas
-    // besoin de le désactiver). Se déclenche qu'on soit en train de bouger
-    // le joueur via le joystick ou pas : rester appuyé tire, point final —
-    // ça permet de bouger et tirer en même temps avec un seul doigt.
-    if (pointerIsDown){
-      const heldMs = Date.now() - pointerDownAt;
-      if (heldMs >= MANUAL_HOLD_START_MS) playerShoot(now, MANUAL_HOLD_INTERVAL_MS);
-    }
+    // (v18.01 : plus de tir du joueur ici — ni automatique, ni maintenu)
 
     // revenu passif : formule géométrique, pas +1 par niveau (voir bonus 1)
     if (autoGoldLevel > 0 && now - lastAutoGoldAt >= AUTO_GOLD_INTERVAL_MS){
@@ -3549,7 +3450,7 @@ function update(now){
     // v17.62 : la catapulte tire à cadence FIXE (pas d'accélération avec
     // le niveau, contrairement à towerShotInterval) — son rôle, c'est la
     // zone, pas le harcèlement rapide
-    const shotInterval = t.kind === 'catapult' ? CATAPULT_SHOT_INTERVAL_MS : towerShotInterval(t);
+    const shotInterval = t.kind === 'catapult' ? CATAPULT_SHOT_INTERVAL_MS / towerRateMultiplier() : towerShotInterval(t); // v18.01 : Cadence vaut aussi pour la catapulte
     if (now - t.lastShotAt >= shotInterval){
       let target = null, best = TOWER_RANGE_PX;
       for (const e of enemies){
@@ -5632,20 +5533,19 @@ function showOverModal(reason){
 }
 function resetGame(startingGold){
   towers = []; enemies = []; projectiles = []; floatingTexts = []; waveBanner = null;
-  gold = startingGold || 0; wave = 1; breaches = 0; gameOver = false;
+  gold = startingGold === undefined ? STARTING_GOLD : startingGold; wave = 1; breaches = 0; gameOver = false;
   playerDead = false; spectating = false;
   spawned = 0; enemiesThisWave = enemiesForWave(1); spawnTimer = 0; spawnInterval = pickNextSpawnDelay(); bossSpawnedThisWave = false;
   repairingTower = null;
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
   playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; climbHoldSince = 0; // v17.83/v17.87
-  autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0; precisionLevel = 0;
+  autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0;
   forgeBuilt = false; forgeEliteLevel = 0; soldiersCanRepair = false;
   merchants = []; soldiers = []; activeCaravan = null;
   pathDisturbedThisWave = false; pathClearWaveStreak = 0; playerOnPathSince = null; lastCaravanWave = -Infinity;
   towerGraves = []; playerPrayingSince = null; playerPrayingAt = null;
   deathEffects = [];
-  lastAutoShotAt = 0; lastManualShotAt = 0;
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0, clusterRisk:0 })); recentSuccesses = [];
   playerInWaterSince = null; trojanWarningShown = false; trojanCooldownUntilWave = 0; trojanHorse = null; trojanCauseOfDefeat = false;
   // v17.32 (E) : REGEN_ZONE.y a bougé (le mur n'est plus collé au bord
@@ -5708,11 +5608,11 @@ document.getElementById('spectate-btn').addEventListener('click', () => {
 // page recharge ensuite, elle relit donc une sauvegarde déjà remise à
 // zéro — "recommencer" recommence vraiment, mise à jour ou pas.
 document.getElementById('restart-btn').addEventListener('click', () => {
-  resetGame(0);
+  resetGame(STARTING_GOLD);
   reloadIfUpdateAvailable();
 });
 document.getElementById('bonus-btn').addEventListener('click', () => {
-  resetGame(100);
+  resetGame(STARTING_GOLD + 100); // code bonus : +100 par rapport au départ normal
   faqPanel.style.display = 'none';
   reloadIfUpdateAvailable();
 });

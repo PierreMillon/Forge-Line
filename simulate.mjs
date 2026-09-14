@@ -121,11 +121,11 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
   // à la mesure de difficulté, seulement au simulateur, jamais au jeu
   // livré aux joueurs (le son y est allumé par défaut, comme prévu).
   sfxVolume = 0; musicVolume = 0;
-  const manualInterval = manualIntervalMs != null ? manualIntervalMs : MANUAL_TAP_COOLDOWN_MS;
-  const RNG_SPEND_OPTIONS = ['damage', 'autofire', 'precision', 'autogold'];
+  // (v18.01 : plus de tir du joueur, --manualIntervalMs n'a plus d'effet)
+  const RNG_SPEND_OPTIONS = ['damage', 'autofire', 'autogold']; // v18.01 : plus de précision (plus de tir du joueur)
 
   function runOne(policy){
-    resetGame(0);
+    resetGame(STARTING_GOLD); // v18.01 : même or de départ que le vrai jeu (sans tir, c'est la seule ressource avant la première tour)
     player.x = STAGE_W/2;
     player.y = REGEN_ZONE.y - 30;
     let builtTower = false;
@@ -178,16 +178,13 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       if (policy === 'naive'){
         // "fait n'importe quoi" : tir par à-coups, jamais de tour, dépense
         // au hasard sur un palier abordable dès qu'il se présente
-        if (frame % 4 === 0) playerShoot(now, manualInterval);
         if (frame % 60 === 0 && forgeBuilt){ // v17.93 : respecte le prérequis Forge comme le vrai bandeau (avant, il décrémentait `gold` directement et n'atteignait jamais 100 or)
           const choice = RNG_SPEND_OPTIONS[Math.floor(Math.random()*RNG_SPEND_OPTIONS.length)];
           if (choice === 'damage' && gold >= dmgUpgradeCost()){ gold -= dmgUpgradeCost(); dmgLevel++; }
           else if (choice === 'autofire' && gold >= autoFireCost()){ gold -= autoFireCost(); autoFireLevel++; }
-          else if (choice === 'precision' && gold >= precisionCost()){ gold -= precisionCost(); precisionLevel++; }
           else if (choice === 'autogold' && gold >= autoGoldCost()){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
         }
       } else {
-        playerShoot(now, manualInterval);
         if (frame % 30 === 0){
           if (policy === 'correct'){
             // v17.42 : ancienne logique corrigée — "renforcer la tour dès
@@ -209,14 +206,12 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
               if (canUpgrade) options.push({ cost: towerUpgradeCost(near), key: 'upgrade' });
               options.push({ cost: dmgUpgradeCost(), key: 'damage' });
               options.push({ cost: autoGoldCost(), key: 'autogold' });
-              options.push({ cost: precisionCost(), key: 'precision' });
               options.sort((a,b) => a.cost-b.cost);
               const pick = options.find(o => gold >= o.cost);
               if (pick){
                 if (pick.key === 'upgrade') tryTowerAction();
                 else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
                 else if (pick.key === 'autogold'){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
-                else if (pick.key === 'precision'){ gold -= precisionCost(); precisionLevel++; }
               }
             }
           } else if (policy === 'good'){
@@ -243,7 +238,6 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
               if (canUpgradeCatapult) options.push({ cost: towerUpgradeCost(nearCatapult), key: 'upgradeCatapult' });
               options.push({ cost: dmgUpgradeCost(), key: 'damage' });
               options.push({ cost: autoGoldCost(), key: 'autogold' });
-              options.push({ cost: precisionCost(), key: 'precision' });
               options.sort((a,b) => a.cost-b.cost);
               const pick = options.find(o => gold >= o.cost);
               if (pick){
@@ -251,7 +245,6 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
                 else if (pick.key === 'upgradeCatapult') tryCatapultAction();
                 else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
                 else if (pick.key === 'autogold'){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
-                else if (pick.key === 'precision'){ gold -= precisionCost(); precisionLevel++; }
               }
             }
           }
