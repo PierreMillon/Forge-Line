@@ -274,6 +274,7 @@
     <button id="forge-btn"><span id="forge-label"></span><span class="b-cost" id="forge-cost"></span></button>
     <button id="soldier-repair-btn"><span id="soldier-repair-label"></span><span class="b-cost" id="soldier-repair-cost"></span></button>
     <button id="catapult-btn"><span id="catapult-label"></span><span class="b-cost" id="catapult-cost"></span></button>
+    <button id="soldier-mode-btn"><span id="soldier-mode-label"></span><span class="b-cost" id="soldier-mode-cost"></span></button>
   </div>
 </div>
 
@@ -322,6 +323,7 @@ const I18N = {
     needs_forge: "Forge d’abord",
     forge_label: "Forge", forge_go: "Va à la Forge", forge_elite_label: "Tours d’élite",
     repair_label: "Réparateurs", repair_acquired: "Acquis ✓",
+    soldiers_label: "Soldats", soldiers_follow: "Suivent", soldiers_free: "Autonomes", soldiers_none: "aucun",
     repair_go_forge: "Va à la Forge", repair_build_forge: "Construis la Forge",
     trojan_warning: "N'énervez pas les dieux...",
     b_autogold: "Revenu auto", b_damage: "Dégâts", b_autofire: "Cadence",
@@ -332,7 +334,7 @@ const I18N = {
     h_towers: "Tours",
     p_towers: "Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.",
     h_forge: "La Forge",
-    p_forge: "C'est le prérequis de tout : tant qu'elle n'est pas bâtie, ni tour, ni catapulte, ni amélioration. La bâtir coûte 100 or, seulement si tu es dans sa zone (son emplacement vide est visible dès le début, derrière le mur). Une fois bâtie : \"Tours d'élite\" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. \"Réparateurs\" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.",
+    p_forge: "Tu commences avec de quoi bâtir une tour. La Forge (100 or, sur place — son emplacement vide est visible derrière le mur) se paie plus tard : elle débloque les améliorations du bandeau (Dégâts, Cadence, Revenu auto), puis \"Tours d'élite\" (40 or le premier palier, +2,7%/palier) qui renforce toutes tes tours, et \"Réparateurs\" (60 or, achat unique) qui fait réparer tes tours par tes soldats.",
     h_autogold: "Revenu automatique",
     p_autogold: "15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.",
     h_waves: "Vagues et ennemis",
@@ -381,6 +383,7 @@ const I18N = {
     needs_forge: "Forge first",
     forge_label: "Forge", forge_go: "Go to the Forge", forge_elite_label: "Elite Towers",
     repair_label: "Repair crew", repair_acquired: "Acquired ✓",
+    soldiers_label: "Soldiers", soldiers_follow: "Follow", soldiers_free: "On their own", soldiers_none: "none",
     repair_go_forge: "Go to the Forge", repair_build_forge: "Build the Forge first",
     trojan_warning: "Don't anger the gods...",
     b_autogold: "Auto income", b_damage: "Damage", b_autofire: "Rate",
@@ -392,7 +395,7 @@ const I18N = {
     p_towers: "Building a tower costs 20 gold. Reinforcing it also costs 20 gold at the first tier (the same price as a new tower, on purpose: a reinforcement always stays at least as cost-effective as rebuilding), then 2.7% more each tier after that, with no cap.",
     p_catapult: "The catapult (30 gold, same reinforcement tiers as a tower) fires slower but deals splash damage: enemies near the impact take some damage too — great against a group, weaker against a lone target.",
     h_forge: "The Forge",
-    p_forge: "It is the prerequisite for everything: until it's built, no tower, no catapult, no upgrade. Building it costs 100 gold, only while you're in its zone (its empty plot is visible from the start, behind the wall). Once built: \"Elite Towers\" (40 gold for the first tier, +2.7%/tier) boosts all your towers at once. \"Repair crew\" (60 gold, one-time purchase) has your soldiers repair your towers for free, continuously.",
+    p_forge: "You start with enough for one tower. The Forge (100 gold, on the spot — its empty plot is visible behind the wall) comes later: it unlocks the bar upgrades (Damage, Rate, Auto income), then \"Elite Towers\" (40 gold for the first tier, +2.7%/tier) boosting all your towers, and \"Repair crew\" (60 gold, one-time) having your soldiers repair your towers.",
     h_autogold: "Auto income",
     p_autogold: "15 gold for the first tier (+2.7%/tier), pays out gold every 2 seconds. The payout per tick grows slowly (×1.05 per tier, rounded) — modest at first, but unlimited if you invest heavily.",
     h_waves: "Waves and enemies",
@@ -552,8 +555,14 @@ function pickBoatCount(){
 // append=true : ajoute les nouveaux bateaux à ceux déjà en mer au lieu de
 // les remplacer (voir callWaveEarly — appeler la vague suivante empile,
 // elle n'annule pas la vague en cours). Renvoie les bateaux créés.
+// v18.06 (quiz carte 2 : "deux plages, deux flux") — à partir de la
+// carte 2, toujours deux bateaux, un à chaque bord (20 % / 80 % de la
+// largeur) ; chaque groupe préfère son côté (voir spawnEnemy) et ne
+// converge vers la porte qu'au dernier moment (voir le funnel) : la
+// défense doit se répartir.
+function twoBeaches(){ return mapOfWave(wave) >= 2; }
 function spawnBoat(now, append){
-  const count = pickBoatCount();
+  const count = twoBeaches() ? 2 : pickBoatCount();
   if (!append) boats = [];
   const created = [];
   const margin = BOAT_W*0.7;
@@ -568,7 +577,8 @@ function spawnBoat(now, append){
     // une garantie — la plage n'est pas infinie — juste le meilleur des
     // essais.
     let targetX = 0, bestGap = -1;
-    for (let tries = 0; tries < 6; tries++){
+    if (twoBeaches()) targetX = i === 0 ? STAGE_W*0.2 : STAGE_W*0.8; // v18.06 : une plage par bord
+    for (let tries = 0; tries < (twoBeaches() ? 0 : 6); tries++){
       const cand = Math.min(STAGE_W-margin, Math.max(margin,
         Math.random() < 0.7 ? pickPreferredX() : margin + Math.random() * Math.max(1, STAGE_W - margin*2)
       ));
@@ -1428,6 +1438,12 @@ const SOLDIER_SHOT_RADIUS = 2.5; // "des petits projectiles" : plus fins que ceu
 const SOLDIER_BEHAVIOR_REROLL_MS = 3000;
 const SOLDIER_REPAIR_RATE = 0.3; // PV/frame, gratuit (contrairement à la réparation du joueur, qui coûte de l'or)
 let soldiers = []; // { x, y, hp, maxHp, grade, behavior, behaviorUntil, lastShotAt, dead }
+// v18.06 (Pierre, quiz : "soit ils le suivent, soit ils sont en autonomie
+// avec l'IA") — une bascule : Suivent = tous restent près du personnage
+// (comportement `guard` forcé, ils tirent quand même sur ce qui passe à
+// portée) ; Autonomes = leur IA habituelle (combat / garde / soin /
+// réparation). Bouton dans le bandeau, actif dès qu'il y a des soldats.
+let soldiersFollow = false;
 // v17.79 : à quelle distance un harceleur "remarque" un soldat, et avec
 // quelle probabilité il le prend pour cible plutôt qu'une tour. Pas 100% :
 // Pierre dit "si c'est le choix qu'ils font" — ça doit rester un choix,
@@ -1482,7 +1498,8 @@ function pickSoldierBehavior(s){
 function updateSoldiers(now){
   for (const s of soldiers){
     if (s.dead) continue;
-    if (now >= s.behaviorUntil){
+    if (soldiersFollow && s.behavior !== 'guard'){ s.behavior = 'guard'; s.behaviorUntil = now + SOLDIER_BEHAVIOR_REROLL_MS; } // v18.06
+    if (!soldiersFollow && now >= s.behaviorUntil){
       s.behavior = pickSoldierBehavior(s);
       s.behaviorUntil = now + SOLDIER_BEHAVIOR_REROLL_MS + Math.random() * 1500;
     }
@@ -1693,11 +1710,12 @@ function applyMapTheme(){
 function startMap(mapIndex, now){
   towers = []; towerGraves = []; enemies = []; projectiles = []; boats = [];
   forgeBuilt = false; forgeEliteLevel = 0; soldiersCanRepair = false;
-  soldiers = []; merchants = []; activeCaravan = null;
+  soldiers = []; merchants = []; activeCaravan = null; soldiersFollow = false;
   playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; climbHoldSince = 0;
   playerInWaterSince = null; trojanWarningShown = false; trojanHorse = null; trojanCauseOfDefeat = false;
   playerHealth = PLAYER_MAX_HEALTH; player.x = STAGE_W/2; player.y = playerSpawnY();
   waveRallyAt = 0; // v18.05
+  gold = Math.max(gold, STARTING_GOLD); // v18.06 : au moins une tour au départ de chaque carte
   breaches = 0; // château neuf : chaque carte a ses 10 brèches (mesuré : sans ça, les brèches de la carte 1 tuaient au niveau 2 de la carte 2)
   applyMapTheme();
   waveBanner = { text: t('map_complete_banner')(mapIndex - 1), subtext: t('map_start_banner')(mapIndex), createdAt: now };
@@ -1710,7 +1728,8 @@ function showVictory(){
   document.getElementById('over').style.display = 'flex';
   try { localStorage.removeItem('forgeLineSave'); } catch (e) { /* ignore */ }
 }
-const STARTING_GOLD = 120; // v18.01 : sans tir du personnage, la première défense doit être possible dès la vague 1 — Forge (100) + une tour (20)
+const TOWER_BUILD_COST_START = 20; // = TOWER_BUILD_COST (déclaré plus bas ; cohérence vérifiée au chargement)
+const STARTING_GOLD = TOWER_BUILD_COST_START; // v18.06 (Pierre : "il faut suffisamment d'or pour créer une tour, et il faudra payer plus tard pour avoir la Forge") — de quoi bâtir UNE tour, rien de plus
 let gold = STARTING_GOLD, wave = 1, breaches = 0, gameOver = false;
 let enemies = [];
 let projectiles = [];
@@ -1743,7 +1762,7 @@ function pickNextSpawnDelay(){
 }
 let spawnTimer = 0, spawnInterval = pickNextSpawnDelay(), enemiesThisWave = 2, spawned = 0;
 const SHOT_INTERVAL_MS = 1000;
-const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 3; // v18.02 : 1.2 -> 3. Le tir du joueur a disparu (v18.01, ~1 tir/s à 12 dégâts, l'équivalent d'une tour et demie) ; sans ça, plus personne ne finissait la carte 1 (bots corrects et bons morts vague 9-10, balayé 1.2/2/3 : seul 3 fait passer la carte 1). Ancien commentaire : tir des tours 20% plus rapide que le joueur, au niveau 1
+const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 2; // v18.06 : 3 -> 2 (la première tour est immédiate, plus besoin de compenser deux minutes sans défense ; balayé 1.2/2/3, voir NOTES). v18.02 : 1.2 -> 3. Le tir du joueur a disparu (v18.01, ~1 tir/s à 12 dégâts, l'équivalent d'une tour et demie) ; sans ça, plus personne ne finissait la carte 1 (bots corrects et bons morts vague 9-10, balayé 1.2/2/3 : seul 3 fait passer la carte 1). Ancien commentaire : tir des tours 20% plus rapide que le joueur, au niveau 1
 // une tour renforcée doit aussi tirer plus vite, pas juste taper plus
 // fort — même taux que le reste de la progression infinie (+5%/palier),
 // avec un plancher pour ne jamais devenir absurde (jamais plus de 4x la
@@ -2536,6 +2555,7 @@ function effectivePlayerDmg(){ return Math.round(PLAYER_DMG * Math.pow(UPGRADE_P
 //    tour à pouvoir spécial (50 or) est une idée pour plus tard, pas
 //    encore faite.
 const TOWER_BUILD_COST = 20; // v17.25 : doublé (était 10)
+if (TOWER_BUILD_COST !== TOWER_BUILD_COST_START) console.error('TOWER_BUILD_COST_START doit valoir TOWER_BUILD_COST');
 const TOWER_BASE_HP = 30;
 const TOWER_UPGRADE_COST = 20; // doublé avec TOWER_BUILD_COST — même prix de départ qu'une tour neuve, garantie "renfort ≥ neuf" (v17.13) inchangée : ratio préservé par un facteur uniforme
 // renforcer une tour doit TOUJOURS rester garanti plus rentable que
@@ -2760,14 +2780,14 @@ function pickNearestTowerOfKind(x, y, kind){
 // le bouton "tour" du bandeau : renforce la tour à portée si on est déjà
 // collé à une, sinon en construit une nouvelle — jamais les deux à la fois
 function tryTowerAction(){
-  if (!forgeBuilt) return; // v17.86 : prérequis Forge (choix de Pierre en quiz)
+  // (v18.06 : plus de prérequis Forge pour bâtir — Pierre : "il faudra payer plus tard pour avoir la Forge")
   const near = pickNearestTowerOfKind(player.x, player.y, 'tower');
   if (near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX) tryUpgradeTower(near);
   else tryBuild('tower');
 }
 // même logique, pour la catapulte (v17.62)
 function tryCatapultAction(){
-  if (!forgeBuilt) return; // v17.86 : prérequis Forge (choix de Pierre en quiz)
+  // (v18.06 : plus de prérequis Forge pour bâtir — Pierre : "il faudra payer plus tard pour avoir la Forge")
   const near = pickNearestTowerOfKind(player.x, player.y, 'catapult');
   if (near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX) tryUpgradeTower(near);
   else tryBuild('catapult');
@@ -2980,6 +3000,7 @@ document.getElementById('forge-btn').addEventListener('click', () => {
 // 2e compétence de la Forge (v17.27) : achat unique, pas de progression
 // infinie — même contrainte que le reste de la Forge (dans la zone
 // seulement)
+document.getElementById('soldier-mode-btn').addEventListener('click', () => { soldiersFollow = !soldiersFollow; }); // v18.06
 document.getElementById('soldier-repair-btn').addEventListener('click', () => {
   if (!inForgeZone(player.x, player.y)) return;
   if (!forgeBuilt || soldiersCanRepair) return;
@@ -3003,12 +3024,11 @@ function refreshBonusbar(){
   // comme avant — c'est le sens de sa phrase "je dois encore dépenser de
   // l'argent pour créer d'autres tours et d'autres améliorations".
   if (!forgeBuilt){
-    for (const id of ['autogold', 'damage', 'tower', 'autofire', 'catapult']){
+    for (const id of ['autogold', 'damage', 'autofire']){ // v18.06 : les tours et la catapulte ne sont plus verrouillées
       document.getElementById(id + '-btn').disabled = true;
       document.getElementById(id + '-cost').textContent = t('needs_forge');
     }
-    document.getElementById('tower-label').textContent = t('btn_build');
-    document.getElementById('catapult-label').textContent = t('btn_build');
+    refreshTowerButtons(disabledAll); // v18.06 : tours/catapulte vivent sans la Forge
     refreshForgeButtons(disabledAll);
     return;
   }
@@ -3028,6 +3048,14 @@ function refreshBonusbar(){
   dBtn.disabled = disabledAll || gold < dCost;
   document.getElementById('damage-cost').textContent = dCost + t('gold_suffix');
 
+  refreshTowerButtons(disabledAll);
+  refreshForgeButtons(disabledAll);
+}
+// Forge : système à part, seulement utilisable depuis sa zone (pas à
+// distance comme les autres boutons). v17.86 : fonction séparée, appelée
+// aussi quand le reste du bandeau est verrouillé (prérequis).
+// v18.06 : boutons tour/catapulte, sortis de refreshBonusbar pour rester actifs quand le reste est verrouillé (prérequis Forge)
+function refreshTowerButtons(disabledAll){
   const near = pickNearestTowerOfKind(player.x, player.y, 'tower');
   const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
   const tBtn = document.getElementById('tower-btn');
@@ -3061,12 +3089,15 @@ function refreshBonusbar(){
     catCost.textContent = CATAPULT_BUILD_COST + t('gold_suffix');
   }
 
-  refreshForgeButtons(disabledAll);
 }
-// Forge : système à part, seulement utilisable depuis sa zone (pas à
-// distance comme les autres boutons). v17.86 : fonction séparée, appelée
-// aussi quand le reste du bandeau est verrouillé (prérequis).
+function refreshSoldierModeButton(disabledAll){ // v18.06
+  const alive = soldiers.filter(so => !so.dead).length;
+  document.getElementById('soldier-mode-label').textContent = t('soldiers_label');
+  document.getElementById('soldier-mode-cost').textContent = alive ? (soldiersFollow ? t('soldiers_follow') : t('soldiers_free')) : t('soldiers_none');
+  document.getElementById('soldier-mode-btn').disabled = disabledAll || !alive;
+}
 function refreshForgeButtons(disabledAll){
+  refreshSoldierModeButton(disabledAll);
   const fBtn = document.getElementById('forge-btn');
   const fLabel = document.getElementById('forge-label');
   const fCost = document.getElementById('forge-cost');
@@ -3171,6 +3202,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.06", text: "Trois décisions. Tu commences avec de quoi bâtir une tour, et tu peux bâtir tours et catapultes sans la Forge ; la Forge (100 or) se paie plus tard et débloque les améliorations du bandeau — à chaque nouvelle carte tu repars avec au moins une tour possible. Un bouton Soldats bascule tes soldats entre \"Suivent\" (ils restent près de toi) et \"Autonomes\" (leur IA). Carte 2 : deux plages, un bateau à chaque bord, chaque groupe tient son côté et ne converge vers la porte qu'au dernier moment." },
   { v: "18.05", text: "Les ennemis ont plus de jugeote. Ils débarquent tous à la chaîne en 2-3 secondes, se rassemblent sur la plage le temps de s'organiser (court aux premiers niveaux, plus long aux hauts niveaux — tes tours à portée peuvent tirer pendant ce temps), puis partent à l'assaut ensemble. Ils évitent les couloirs couverts par tes tours quand ils le peuvent, retiennent où ils sont morts, et les attaquants visent la tour la moins renforcée." },
   { v: "18.04", text: "Les tirs des tours se voient : à mesure que tu achètes Dégâts et Cadence, le projectile passe du mini carré au trait, au rectangle vide, au rectangle plein, puis s'allonge jusqu'au trait quasi continu. Les pierres de catapulte grossissent." },
   { v: "18.03", text: "Escalier du mur : la montée se déclenche plus facilement (zone d'approche élargie, délai réduit), et un petit chevron clignote au-dessus de l'escalier quand tu es dans sa zone — pousse vers le mur à cet endroit pour monter." },
@@ -3455,7 +3487,7 @@ function spawnEnemy(now){
     pacePhase: Math.random()*Math.PI*2,
     paceRate: 0.0006 + Math.random()*0.0006, // rad/ms — désynchronise les oscillations entre ennemis
     role, target: null,
-    preferredX: pickPreferredX(),
+    preferredX: (twoBeaches() && sourceBoat) ? sourceBoat.x + (Math.random()-0.5)*60 : pickPreferredX(), // v18.06 : sur deux plages, chacun tient son côté
     commitment,
     nextRerollAt: commitment < 0.35 ? now + 3000 + Math.random()*4000 : Infinity,
     spawnedAt: now,
@@ -3836,9 +3868,9 @@ function update(now){
     if (now >= e.landingUntil && !e.fleeing && e.waitFrames <= 0 &&
         !(e.role === 'attacker' && e.target && !e.siegeGaveUp)){
       const gateX = REGEN_ZONE.x + REGEN_ZONE.w/2;
-      const funnelStartY = REGEN_ZONE.y - 100;
+      const funnelStartY = REGEN_ZONE.y - (twoBeaches() ? 40 : 100); // v18.06 : convergence tardive sur deux plages
       if (e.y > funnelStartY){
-        const t = Math.min(1, (e.y - funnelStartY) / 100);
+        const t = Math.min(1, (e.y - funnelStartY) / (twoBeaches() ? 40 : 100));
         // v17.56 (trouvé en investiguant pourquoi plus personne ne meurt
         // au simulateur, même sur ~1500s de jeu simulé, quelle que soit
         // la stratégie — comparaison A/B commit par commit) : viser un

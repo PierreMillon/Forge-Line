@@ -186,7 +186,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       //              renfort / dégâts / revenu auto
       //  - good    : 4 tours + 1 catapulte à la porte, puis le moins cher
       //              parmi renfort tour/catapulte / dégâts / cadence / revenu
-      if (frame % 30 === 0 && forgeBuilt){
+      if (frame % 30 === 0){ // v18.06 : bâtir ne demande plus la Forge ; seuls les achats d'amélioration (ci-dessous) la demandent
         const W = wallScreen();
         const spots = [0, -48, 48, -96, 96, -144, 144].map(dx => ({ x: W.gateX + dx, y: playerSpawnY() - 30 }));
         const teleport = (x, y, fn) => { const px = player.x, py = player.y; player.x = x; player.y = y; fn(); player.x = px; player.y = py; };
@@ -197,7 +197,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
         const nTowers = towers.filter(t => t.kind !== 'catapult').length, nCat = towers.filter(t => t.kind === 'catapult').length;
         if (policy === 'naive'){
           if (gold >= TOWER_BUILD_COST && nTowers < 7) build('tower');
-          else if (frame % 60 === 0){
+          else if (frame % 60 === 0 && forgeBuilt){
             const choice = RNG_SPEND_OPTIONS[Math.floor(Math.random()*RNG_SPEND_OPTIONS.length)];
             if (choice === 'damage' && gold >= dmgUpgradeCost()){ gold -= dmgUpgradeCost(); dmgLevel++; }
             else if (choice === 'autofire' && gold >= autoFireCost()){ gold -= autoFireCost(); autoFireLevel++; }
@@ -207,7 +207,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
           if (nTowers < 3){ if (gold >= TOWER_BUILD_COST) build('tower'); }
           else {
             const t = cheapestUpgrade();
-            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }, { cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoGoldCost(), key: 'autogold' }].sort((a, b) => a.cost - b.cost);
+            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }].concat(forgeBuilt ? [{ cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoGoldCost(), key: 'autogold' }] : []).sort((a, b) => a.cost - b.cost);
             const pick = options.find(o => gold >= o.cost);
             if (pick){
               if (pick.key === 'upgrade') upgrade(t);
@@ -221,7 +221,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
           else if (nTowers < 4){ if (gold >= TOWER_BUILD_COST) build('tower'); }
           else {
             const t = cheapestUpgrade();
-            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }, { cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoFireCost(), key: 'autofire' }, { cost: autoGoldCost(), key: 'autogold' }].sort((a, b) => a.cost - b.cost);
+            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }].concat(forgeBuilt ? [{ cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoFireCost(), key: 'autofire' }, { cost: autoGoldCost(), key: 'autogold' }] : []).sort((a, b) => a.cost - b.cost);
             const pick = options.find(o => gold >= o.cost);
             if (pick){
               if (pick.key === 'upgrade') upgrade(t);

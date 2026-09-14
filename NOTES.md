@@ -4795,3 +4795,39 @@ tours peuvent tirer pendant ce temps.
 Simulation inchangée (correct/bon 13, naïf 9) : l'IA n'a pas déséquilibré
 le jeu, elle a changé la forme des assauts. À vérifier à l'œil par Pierre :
 la "masse" sur la plage et l'assaut groupé.
+
+## v18.06 — économie de départ, bascule Soldats, carte 2 à deux plages
+
+Quiz : *"il faut suffisamment d'or pour créer une tour, et il faudra
+payer plus tard pour avoir la Forge"* → départ 20 or, tours et catapultes
+sans Forge, la Forge (100) reste le verrou des améliorations du bandeau
+et de ses propres achats ; `startMap` ramène l'or à ≥ 20. Soldats :
+*"soit ils le suivent, soit ils sont en autonomie avec l'IA"* → bouton
+`Soldats : Suivent / Autonomes` (`soldiersFollow`, `guard` forcé). Carte 2 :
+*"deux plages, deux flux"* → `twoBeaches()` : deux bateaux à 20 %/80 %,
+`preferredX` = son bateau ±30, funnel sur les 40 derniers px au lieu de 100.
+
+**Accident évité de justesse** : l'extraction de `refreshTowerButtons`
+s'est d'abord ancrée sur la première occurrence de `const near =
+pickNearestTowerOfKind(...)` — dans `tryTowerAction`, pas dans
+`refreshBonusbar` — et a déplacé ~170 lignes (handlers du bandeau
+compris) dans une fonction appelée à chaque frame. Symptômes : or à 0 au
+chargement avec une tour déjà bâtie, `disabledAll is not defined`.
+`git checkout -- index.html`, réédition avec l'ancre `s.index(..., rb)`
+et une assertion `"addEventListener" not in block`. Leçon : toute
+extraction par index doit être ancrée sur son conteneur ET vérifiée par
+une assertion sur le contenu extrait.
+
+**Balayage de la cadence des tours**, économie nouvelle (6 parties) :
+
+| cadence | naïf | correct | bon |
+|---|---|---|---|
+| ×1,2 | 10 | 9 | 9 — personne ne finit la carte 1 |
+| **×2** | 20 (4 victoires) | 19 (2) | 14 (1) |
+| ×3 | 20 (5) | 20 (6) | 20 (6) — tout le monde gagne |
+
+Retenu ×2. **Constat de design à trancher avec Pierre** : le naïf (jusqu'à
+7 tours, jamais de renfort) bat les profils qui renforcent. Une tour
+neuve à 20 or (= un tireur de plus) vaut plus qu'un renfort à 20 or. Le
+spam de tours domine ; pistes : coût de tour croissant (règle Bloons),
+plafond de tours par carte, ou renfort plus rentable. Pas touché.
