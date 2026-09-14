@@ -4849,3 +4849,20 @@ une catapulte renchérie). Correct : 3 tours → Forge → améliorations ; bon 
 2 tours → Forge → catapulte → 4 tours → améliorations dont Cadence.
 Mesure (6 parties) :
     naive: moy 13.5 méd 16 min 10 max 19 {'breach': 6} | correct: moy 11.67 méd 10 min 9 max 18 {'breach': 6} | good: moy 11.67 méd 10 min 9 max 16 {'breach': 6}
+
+## v18.08 — Forge à 50 or (quiz : "Non : Forge moins chère (50 or)")
+Une seule variable : FORGE_BUILD_COST 100 → 50. Textes FAQ (fr/en, repli
+HTML) et commentaires alignés ; le "code bonus : recommencer avec 100 or"
+est un bonus distinct (+100 par rapport au départ), inchangé.
+Mesure (6 parties, échantillons de 5) :
+    naive: moy 10.33 méd 10 min 9 max 14 {'breach': 6} | correct: moy 11.33 méd 10 min 9 max 19 {'breach': 6} | good: moy 9 méd 9 min 9 max 9 {'breach': 6}
+Forge bâtie : naive 0/5 (ne l'économise jamais), correct 1/5 (3 tours =
+80 or avant d'économiser), good 5/5 vers la frame 8100-9000 (≈ niveau 6-7).
+Objectif atteint : la Forge est de nouveau un jalon de milieu de carte.
+Effet de bord côté simulateur, pas côté jeu : le bot "bon" (2 tours →
+Forge → catapulte) économise ensuite 51 or de catapulte (30 × 1,3²) avec
+2 tours seulement et meurt au niveau 9 à chaque partie — avant, il
+n'atteignait jamais la Forge et l'or thésaurisé ne faisait rien non plus
+(moy 11.67 = variance). Plan du bot à corriger avant la mesure suivante :
+acheter ce qu'il peut se payer (tour ou catapulte, la moins chère) plutôt
+que d'attendre la catapulte.

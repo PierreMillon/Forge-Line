@@ -160,7 +160,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       if (towers.length && firstTowerFrame < 0) firstTowerFrame = frame;
 
       // v17.86 : prérequis Forge (index.html) — sans elle, aucune tour ni
-      // amélioration. Tous les bots vont donc la bâtir dès 100 or (en se
+      // amélioration. Tous les bots vont donc la bâtir dès FORGE_BUILD_COST (en se
       // téléportant dans sa zone : on simule la décision, pas la marche),
       // puis reviennent devant la porte.
       if (!forgeBuilt){
@@ -205,7 +205,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
           }
         } else if (policy === 'correct'){
           if (nTowers < 3){ if (gold >= buildCost('tower')) build('tower'); }
-          else if (!forgeBuilt){ /* v18.07 : économise pour la Forge (bâtie par le bloc au-dessus dès 100 or) — avant, il dépensait tout en renforts et ne la bâtissait jamais */ }
+          else if (!forgeBuilt){ /* v18.07 : économise pour la Forge (bâtie par le bloc au-dessus dès FORGE_BUILD_COST) — avant, il dépensait tout en renforts et ne la bâtissait jamais */ }
           else {
             const t = cheapestUpgrade();
             const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }].concat(forgeBuilt ? [{ cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoGoldCost(), key: 'autogold' }] : []).sort((a, b) => a.cost - b.cost);

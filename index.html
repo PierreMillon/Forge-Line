@@ -237,7 +237,7 @@
     <p data-i18n="p_towers">Construire une tour coûte 20 or. La renforcer coûte aussi 20 or au premier palier (même prix qu'une tour neuve, volontaire : un renfort reste toujours au moins aussi rentable que reconstruire), puis 2,7% de plus à chaque palier suivant, sans plafond.</p>
     <p data-i18n="p_catapult">La catapulte (30 or, même palier de renfort qu'une tour) tire plus lentement mais inflige des dégâts de zone : les ennemis proches de l'impact encaissent aussi une part des dégâts — utile contre un groupe, moins bon contre une cible isolée.</p>
     <h3 data-i18n="h_forge">La Forge</h3>
-    <p data-i18n="p_forge">La construire coûte 100 or, seulement si tu es dans sa zone. Une fois bâtie : "Tours d'élite" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. "Réparateurs" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.</p>
+    <p data-i18n="p_forge">La construire coûte 50 or, seulement si tu es dans sa zone. Une fois bâtie : "Tours d'élite" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. "Réparateurs" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.</p>
     <h3 data-i18n="h_autogold">Revenu automatique</h3>
     <p data-i18n="p_autogold">15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.</p>
     <h3 data-i18n="h_maps">Cartes et niveaux</h3>
@@ -334,7 +334,7 @@ const I18N = {
     h_towers: "Tours",
     p_towers: "La première tour coûte 20 or, et chaque tour debout renchérit la suivante de 30 % (20, 26, 34, 44, 57…) — en perdre une rend la prochaine moins chère. La renforcer coûte 20 or au premier palier, puis 2,7 % de plus à chaque palier suivant, sans plafond : à partir de la 4e ou 5e tour, renforcer devient plus rentable que bâtir.",
     h_forge: "La Forge",
-    p_forge: "Tu commences avec de quoi bâtir une tour. La Forge (100 or, sur place — son emplacement vide est visible derrière le mur) se paie plus tard : elle débloque les améliorations du bandeau (Dégâts, Cadence, Revenu auto), puis \"Tours d'élite\" (40 or le premier palier, +2,7%/palier) qui renforce toutes tes tours, et \"Réparateurs\" (60 or, achat unique) qui fait réparer tes tours par tes soldats.",
+    p_forge: "Tu commences avec de quoi bâtir une tour. La Forge (50 or, sur place — son emplacement vide est visible derrière le mur) se paie plus tard : elle débloque les améliorations du bandeau (Dégâts, Cadence, Revenu auto), puis \"Tours d'élite\" (40 or le premier palier, +2,7%/palier) qui renforce toutes tes tours, et \"Réparateurs\" (60 or, achat unique) qui fait réparer tes tours par tes soldats.",
     h_autogold: "Revenu automatique",
     p_autogold: "15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.",
     h_waves: "Vagues et ennemis",
@@ -395,7 +395,7 @@ const I18N = {
     p_towers: "The first tower costs 20 gold, and every standing tower makes the next one 30% dearer (20, 26, 34, 44, 57…) — losing one makes the next cheaper. Reinforcing costs 20 gold at the first tier, then 2.7% more per tier, no cap: from the 4th or 5th tower on, reinforcing beats building.",
     p_catapult: "The catapult (30 gold, same reinforcement tiers as a tower) fires slower but deals splash damage: enemies near the impact take some damage too — great against a group, weaker against a lone target.",
     h_forge: "The Forge",
-    p_forge: "You start with enough for one tower. The Forge (100 gold, on the spot — its empty plot is visible behind the wall) comes later: it unlocks the bar upgrades (Damage, Rate, Auto income), then \"Elite Towers\" (40 gold for the first tier, +2.7%/tier) boosting all your towers, and \"Repair crew\" (60 gold, one-time) having your soldiers repair your towers.",
+    p_forge: "You start with enough for one tower. The Forge (50 gold, on the spot — its empty plot is visible behind the wall) comes later: it unlocks the bar upgrades (Damage, Rate, Auto income), then \"Elite Towers\" (40 gold for the first tier, +2.7%/tier) boosting all your towers, and \"Repair crew\" (60 gold, one-time) having your soldiers repair your towers.",
     h_autogold: "Auto income",
     p_autogold: "15 gold for the first tier (+2.7%/tier), pays out gold every 2 seconds. The payout per tick grows slowly (×1.05 per tier, rounded) — modest at first, but unlimited if you invest heavily.",
     h_waves: "Waves and enemies",
@@ -1578,7 +1578,7 @@ function updateSoldiers(now){
 // --- La Forge : système à part, EN PLUS du bandeau de bonus (tranché en
 // quiz) — le bandeau actuel ne change pas. Une zone délimitée près du
 // château (bas-droite) : il faut s'y RENDRE pour construire la Forge
-// (100 or, une fois) puis pour acheter ses compétences — contrairement
+// (50 or depuis v18.08, une fois) puis pour acheter ses compétences — contrairement
 // au bandeau, inaccessible à distance. 1re compétence : "Tours d'élite",
 // un multiplicateur global sur toutes les tours (PV et dégâts), en plus
 // de leur niveau individuel. Le multiplicateur s'applique aux DEUX
@@ -1586,7 +1586,11 @@ function updateSoldiers(now){
 // "renfort toujours plus rentable qu'une tour neuve" (v17.13) tient
 // toujours quel que soit le niveau de Forge.
 const FORGE_ZONE = { x: 0, y: 0, w: 64, h: 54 };
-const FORGE_BUILD_COST = 100;
+// v18.08 (Pierre, en quiz : "Non : Forge moins chère (50 or)") — à 100 or,
+// aucun bot du simulateur n'atteignait la Forge sur la carte 1 (tout
+// l'or partait dans les tours). Moitié prix : elle redevient un objectif
+// de milieu de carte, pas un mirage.
+const FORGE_BUILD_COST = 50;
 const FORGE_ELITE_COST_BASE = 40;
 let forgeBuilt = false;
 let forgeEliteLevel = 0;
@@ -3030,7 +3034,7 @@ function refreshBonusbar(){
   // v17.86 (Pierre, en quiz : "Oui, prérequis") — tant que la Forge n'est
   // pas bâtie, rien d'autre n'est achetable : ni tour, ni catapulte, ni
   // amélioration. Les six boutons affichent "Forge d'abord" à la place
-  // du coût, et le bouton Forge ("Va à la Forge" / "Construire 100 or")
+  // du coût, et le bouton Forge ("Va à la Forge" / "Construire 50 or")
   // reste le seul actif. Après construction, tout redevient payant
   // comme avant — c'est le sens de sa phrase "je dois encore dépenser de
   // l'argent pour créer d'autres tours et d'autres améliorations".
@@ -3213,6 +3217,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.08", text: "La Forge coûte 50 or au lieu de 100. Mesure du simulateur : à 100 or, aucun bot ne la bâtissait sur la carte 1 — tout l'or partait dans les tours. À moitié prix, elle redevient un objectif atteignable en milieu de carte, et les améliorations du bandeau avec elle." },
   { v: "18.07", text: "Chaque tour debout renchérit la suivante de 30 % (20, 26, 34, 44…) ; en perdre une rend la prochaine moins chère. Empiler des tours sans jamais les renforcer n'est plus la meilleure stratégie." },
   { v: "18.06", text: "Trois décisions. Tu commences avec de quoi bâtir une tour, et tu peux bâtir tours et catapultes sans la Forge ; la Forge (100 or) se paie plus tard et débloque les améliorations du bandeau — à chaque nouvelle carte tu repars avec au moins une tour possible. Un bouton Soldats bascule tes soldats entre \"Suivent\" (ils restent près de toi) et \"Autonomes\" (leur IA). Carte 2 : deux plages, un bateau à chaque bord, chaque groupe tient son côté et ne converge vers la porte qu'au dernier moment." },
   { v: "18.05", text: "Les ennemis ont plus de jugeote. Ils débarquent tous à la chaîne en 2-3 secondes, se rassemblent sur la plage le temps de s'organiser (court aux premiers niveaux, plus long aux hauts niveaux — tes tours à portée peuvent tirer pendant ce temps), puis partent à l'assaut ensemble. Ils évitent les couloirs couverts par tes tours quand ils le peuvent, retiennent où ils sont morts, et les attaquants visent la tour la moins renforcée." },
