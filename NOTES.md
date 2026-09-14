@@ -4895,3 +4895,23 @@ peu ; les médianes sont plus parlantes que les moyennes.
 Instrumentation ajoutée : maxTowerLevel par partie (pour vérifier qui
 renforce vraiment — le bot naïf, censé ne jamais renforcer, progresse
 aussi : à vérifier lors des tests automatiques, #58).
+
+## v18.10 — Tests automatiques (quiz : "Fiabiliser : tests automatiques")
+`node tests.mjs` (démarre son propre serveur local sur 9031, ou
+`--url=` pour en réutiliser un). Douze scénarios rejoués dans la page
+headless avec une horloge synthétique (même technique que simulate.mjs) :
+chargement sans erreur ; première tour sans Forge puis renfort sur
+place ; coût croissant 20/26/34/44 ; Forge à 50 or (refus à 49, bandeau
+verrouillé avant, déverrouillé après) ; bouton Vague ×3 = vagues
+empilées ; fin du niveau 10 → carte 2 neuve, fin du niveau 20 →
+victoire ; escalier montée/descente au clavier ; caravane → 4 soldats ;
+bascule Soldats ; Recommencer (menu et écran de fin, sauvegarde locale
+débloquée) ; renfort +12 % et garantie "renfort ≥ neuf" ; 3000 frames
+sans NaN. Sortie OK/ÉCHEC par ligne, code 1 si un échec.
+Deux pièges rencontrés en l'écrivant : la sauvegarde locale n'est écrite
+qu'une fois `forgeLineUnlocked` posé (après une pub) — le test le pose
+puis le retire ; le nombre de bateaux d'une vague est aléatoire
+(pickBoatCount), donc "3 appuis = 3 bateaux" se vérifie en "chaque appui
+ajoute au moins un bateau sans retirer les autres".
+RÈGLE : lancer `node tests.mjs` avant chaque commit (et le simulateur
+pour tout changement d'équilibrage).
