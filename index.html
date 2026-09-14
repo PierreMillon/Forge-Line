@@ -1697,6 +1697,7 @@ function startMap(mapIndex, now){
   playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; climbHoldSince = 0;
   playerInWaterSince = null; trojanWarningShown = false; trojanHorse = null; trojanCauseOfDefeat = false;
   playerHealth = PLAYER_MAX_HEALTH; player.x = STAGE_W/2; player.y = playerSpawnY();
+  waveRallyAt = 0; // v18.05
   breaches = 0; // château neuf : chaque carte a ses 10 brèches (mesuré : sans ça, les brèches de la carte 1 tuaient au niveau 2 de la carte 2)
   applyMapTheme();
   waveBanner = { text: t('map_complete_banner')(mapIndex - 1), subtext: t('map_start_banner')(mapIndex), createdAt: now };
@@ -1846,6 +1847,17 @@ const ENEMY_BASE_SPEED = 0.66; // px/frame, référence pour le type de base —
 // course groupée juste après avoir quitté le bateau, avant toute
 // décision de rôle/stratégie (voir spawnEnemy + la boucle d'ennemis)
 const LANDING_DASH_MS = 550;
+// v18.05 (Pierre : "quand les bateaux arrivent ils débarquent à la chaîne
+// en 2-3 s et s'organisent sur la plage pour réfléchir à la stratégie —
+// on doit être bluffé par la masse visuelle" ; quiz : durée
+// d'organisation variable selon le niveau, tours autorisées à tirer
+// pendant ce temps). Toute la vague descend en LANDING_CHAIN_MS quel que
+// soit son nombre, puis PERSONNE ne quitte la plage avant waveRallyAt =
+// dernier débarqué + rallyDurationMs(). L'assaut part groupé.
+const LANDING_CHAIN_MS = 2500;
+const BEACH_DEPTH_PX = 70;            // la plage : jusqu'à WATER_H + BEACH_DEPTH_PX
+let waveRallyAt = 0;
+function rallyDurationMs(){ return 1500 + 400 * levelOfWave(wave); } // niveau 1 : 1,9 s ; niveau 10 : 5,5 s
 const LANDING_SPEED_MULT = 2.4;
 const ENEMY_PACE_AMPLITUDE = 0.3; // +/- 30% de variation individuelle autour de la vitesse du type
 // v17.26 : certains ennemis peuvent "décider" d'attendre en groupe près de
@@ -2246,16 +2258,31 @@ function ensureColumnStats(){
 ensureColumnStats();
 let recentSuccesses = []; // {col, speed} derniers ennemis ayant atteint le château
 
+// v18.05 : "danger" d'une abscisse = somme des couvertures de tours
+// (1 au pied de la tour, 0 en limite de portée), pondérée par le renfort
+const DANGER_AVOID = 1.5;
+function towerDangerAtX(x){
+  let d = 0;
+  for (const t of towers){ const f = 1 - Math.abs(t.x - x) / TOWER_RANGE_PX; if (f > 0) d += f * (1 + 0.15 * ((t.level||1) - 1)); }
+  return d;
+}
 function pickPreferredX(){
   ensureColumnStats();
   if (recentSuccesses.length && Math.random() < 0.3){
     const pick = recentSuccesses[recentSuccesses.length - 1];
     return (pick.col + 0.5) * (STAGE_W/COLUMN_COUNT);
   }
-  const weights = columnStats.map(s => {
+  const weights = columnStats.map((s, i) => {
     const total = s.deaths + s.successes;
     let w = total === 0 ? 1 : 0.3 + (s.successes / total) * 2; // favorise ce qui a déjà "payé"
     w /= (1 + s.clusterRisk * 0.2); // évite en plus les endroits où se regrouper a coûté cher
+    // v18.05 (quiz : "éviter la portée des tours" + "apprendre de leurs
+    // morts") — une colonne couverte par des tours vaut d'autant moins
+    // qu'elles sont nombreuses et renforcées ; si tout est couvert, c'est
+    // la moins arrosée qui l'emporte. Et chaque mort dans une colonne la
+    // pénalise durablement, pas seulement en proportion des succès.
+    w /= (1 + DANGER_AVOID * towerDangerAtX((i + 0.5) * (STAGE_W/COLUMN_COUNT)));
+    w /= (1 + s.deaths * 0.25);
     return w;
   });
   const sum = weights.reduce((a,b)=>a+b, 0);
@@ -2283,7 +2310,7 @@ function pickTargetTower(x, y){
     if (d < fallbackD){ fallbackD = d; fallback = t; }
     if (d < NEAR_RANGE){
       const weakness = 1 - t.hp/t.maxHp; // 0 pleine vie -> 1 presque tombée
-      const score = weakness*2 - d/NEAR_RANGE;
+      const score = weakness*2 + 1.2/(t.level||1) - d/NEAR_RANGE; // v18.05 (quiz : "attaquer la défense la plus faible") : la moins renforcée d'abord
       if (score > bestScore){ bestScore = score; best = t; }
     }
   }
@@ -3144,6 +3171,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.05", text: "Les ennemis ont plus de jugeote. Ils débarquent tous à la chaîne en 2-3 secondes, se rassemblent sur la plage le temps de s'organiser (court aux premiers niveaux, plus long aux hauts niveaux — tes tours à portée peuvent tirer pendant ce temps), puis partent à l'assaut ensemble. Ils évitent les couloirs couverts par tes tours quand ils le peuvent, retiennent où ils sont morts, et les attaquants visent la tour la moins renforcée." },
   { v: "18.04", text: "Les tirs des tours se voient : à mesure que tu achètes Dégâts et Cadence, le projectile passe du mini carré au trait, au rectangle vide, au rectangle plein, puis s'allonge jusqu'au trait quasi continu. Les pierres de catapulte grossissent." },
   { v: "18.03", text: "Escalier du mur : la montée se déclenche plus facilement (zone d'approche élargie, délai réduit), et un petit chevron clignote au-dessus de l'escalier quand tu es dans sa zone — pousse vers le mur à cet endroit pour monter." },
   { v: "18.02", text: "Le jeu est découpé en CARTES de 10 niveaux (1 niveau = 1 vague). Carte 1 : la côte. Les 10 niveaux réussis → carte 2, la forêt : terrain neuf, or et paliers conservés, tout le reste à rebâtir, château neuf. Chaque carte repart sa montée en nombre d'ennemis (×1,5 sur la carte 2), les ennemis eux-mêmes devenant plus forts au fil des cartes ; le cheval de Troie est le climax du niveau 9. Après la dernière carte : victoire. Les tours tirent 2,5 fois plus vite de base — elles remplacent le tir du personnage. Le compteur affiche Carte · Niveau/10." },
@@ -3409,7 +3437,7 @@ function spawnEnemy(now){
   // v17.26 : certains attendent en groupe près de l'eau plutôt que
   // d'avancer dispersés — voir GROUP_WAIT_* et la boucle d'ennemis pour
   // la libération synchronisée
-  const groupWait = Math.random() < GROUP_WAIT_CHANCE;
+  const groupWait = false; // v18.05 : remplacé par le rassemblement de vague sur la plage (waveRallyAt)
   const e = {
     // x initial calculé avec la même formule que le mouvement (voir plus
     // bas) : sinon, au premier instant où l'ennemi bouge, il "saute" de
@@ -3436,7 +3464,7 @@ function spawnEnemy(now){
     // EN GROUPE (groupWait) ont une attente bien plus longue, mais coupée
     // court dès qu'assez de monde s'est rassemblé (voir plus bas)
     groupWait,
-    waitFrames: groupWait ? GROUP_WAIT_MAX_FRAMES : (Math.random() < 0.4 ? Math.floor(20 + Math.random()*70) : 0),
+    waitFrames: 0, // v18.05 : plus d'hésitation individuelle, voir waveRallyAt
     // un siège trop long (tour bien trop renforcée pour tomber vite) doit
     // pouvoir être abandonné — sinon un attacker peut camper indéfiniment
     // sur une "super-tour" et bloquer la fin de la vague (voir SIEGE_GIVEUP_MS)
@@ -3654,23 +3682,15 @@ function update(now){
     const anyPassengers = boats.some(b => b.passengers && b.passengers.length);
     if (boats.some(b => b.landed && (!anyPassengers || (b.passengers && b.passengers.length)))){
       spawnTimer++;
-      if (spawnTimer > spawnInterval){
-        const remaining = enemiesThisWave - spawned;
-        // v17.65 : les paquets groupés (déjà existants) deviennent un peu
-        // plus fréquents avec la vague — plus d'ennemis à la fois au
-        // contact du joueur/des tours en même temps, pas plus de PV
-        // chacun (même levier "nombre d'ennemis", juste concentré dans
-        // le temps plutôt qu'étalé) — plafonné pour ne jamais devenir
-        // absurde
-        const burstBonus = Math.min(0.35, wave * 0.01);
-        let burst = 1;
-        if (remaining > 1 && Math.random() < 0.35 + burstBonus) burst = 2;
-        if (remaining > 2 && Math.random() < 0.12 + burstBonus*0.5) burst = 3;
-        burst = Math.min(burst, remaining);
-        for (let i = 0; i < burst; i++) spawnEnemy(now);
-        spawned += burst;
+      // v18.05 : débarquement en chaîne — l'intervalle est calculé pour que
+      // toute la vague soit à terre en LANDING_CHAIN_MS (remplace les
+      // à-coups organiques d'avant, qui étalaient le débarquement)
+      const chainInterval = Math.max(1, Math.round((LANDING_CHAIN_MS / 16.67) / Math.max(1, enemiesThisWave)));
+      if (spawnTimer >= chainInterval){
+        spawnEnemy(now);
+        spawned += 1;
         spawnTimer = 0;
-        spawnInterval = pickNextSpawnDelay();
+        waveRallyAt = now + rallyDurationMs(); // l'assaut attend le dernier à terre + le temps de s'organiser
       }
     }
   } else if (enemies.length === 0){
@@ -3737,6 +3757,12 @@ function update(now){
         }
         e.fleeing = false; // reprend son rôle normal, redescend
       }
+    } else if (now < waveRallyAt && !e.isTrojan && e.y < WATER_H + BEACH_DEPTH_PX){
+      // v18.05 : rassemblement sur la plage — on s'organise (léger
+      // flottement), on ne s'avance pas ; les balles souples font la
+      // masse. Les tours à portée peuvent tirer pendant ce temps.
+      e.x += Math.sin(now*0.003 + e.pacePhase) * 0.35;
+      e.y = Math.min(WATER_H + BEACH_DEPTH_PX - 2, e.y + Math.cos(now*0.0025 + e.pacePhase) * 0.2);
     } else if (e.waitFrames > 0){
       // v17.26 : ceux qui attendent EN GROUPE (groupWait) scrutent les
       // autres ennemis en attente autour d'eux — assez de monde rassemblé
@@ -5666,6 +5692,7 @@ function resetGame(startingGold){
   playerAggroScore = 0;
   playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; climbHoldSince = 0; // v17.83/v17.87
   victory = false; applyMapTheme(); // v18.02
+  waveRallyAt = 0; // v18.05
   for (const id of ['continue-btn', 'revive-btn', 'spectate-btn']) document.getElementById(id).style.display = ''; // v18.02 : réaffichés après une victoire
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0;
   forgeBuilt = false; forgeEliteLevel = 0; soldiersCanRepair = false;

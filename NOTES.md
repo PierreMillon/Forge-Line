@@ -4765,3 +4765,33 @@ palier. Paliers : 0-1 carré 2 px, 2-3 trait 6 px, 4-6 rectangle vide
 60) sur 4 → 7 px. Orienté vers la cible (`atan2`). Catapulte : disque
 3 + 0,3·palier (plafond 9), plein dès 7. Planche rendue aux paliers
 0/2/5/8/12/20, envoyée à Pierre. Les soldats gardent leurs petits ronds.
+
+## v18.05 — pivot 4 : IA plus adaptative, débarquement en masse
+
+Pierre : *"il faut plus d'intelligence adaptative de la part des ennemis,
+ils continuent à être bourrins à foncer vers les tours"* et *"quand les
+bateaux arrivent ils débarquent à la chaîne en 2-3 s et s'organisent sur
+la plage pour réfléchir à la stratégie — on doit être bluffé par la masse
+visuelle"*. Quiz : les quatre intelligences (éviter la portée des tours,
+attaquer la défense la plus faible, se coordonner en groupe, apprendre de
+leurs morts) ; organisation sur la plage variable selon le niveau ; les
+tours peuvent tirer pendant ce temps.
+
+- **Chaîne** : `chainInterval = 150 frames / enemiesThisWave` → toute la
+  vague à terre en ~2,5 s (mesuré : 18 ennemis en 2,8 s). Remplace les
+  à-coups organiques (`burst`, `pickNextSpawnDelay` reste pour les
+  vagues empilées).
+- **Rassemblement** : `waveRallyAt = dernier débarqué + 1,5 s + 0,4 s ×
+  niveau` ; tant que `now < waveRallyAt`, personne ne quitte la plage
+  (`WATER_H + 70`), léger flottement, balles souples pour la masse. Mesuré :
+  17/18 sur la plage, plage vide 1,5 s après le signal. `groupWait` et
+  `waitFrames` individuels désactivés (remplacés).
+- **Éviter la portée** : `towerDangerAtX` = Σ couvertures (1 − |t.x−x|/160)
+  × (1 + 0,15·(niveau−1)) ; poids de colonne ÷ (1 + 1,5·danger). Tout
+  couvert → la moins arrosée gagne.
+- **Apprendre des morts** : poids ÷ (1 + 0,25·morts dans la colonne).
+- **Le plus faible** : `pickTargetTower` ajoute 1,2/niveau au score.
+
+Simulation inchangée (correct/bon 13, naïf 9) : l'IA n'a pas déséquilibré
+le jeu, elle a changé la forme des assauts. À vérifier à l'œil par Pierre :
+la "masse" sur la plage et l'assaut groupé.
