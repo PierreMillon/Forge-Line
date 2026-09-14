@@ -4751,3 +4751,17 @@ et on MONTRE : chevron pulsant au-dessus de l'escalier quand le joueur
 est au sol dans la zone — c'était le vrai manque, rien n'indiquait où ni
 comment. Si ça reste impossible chez lui, il faudra sa version de jeu et
 son geste exact.
+
+## v18.04 — projectiles des tours par palier
+
+Pierre : *"quand on améliore cadence et dégâts, les projectiles augmentent
+de taille : un mini carré, puis un trait, rectangle vide, rectangle plein,
+puis grossit et s'allonge jusqu'à être un trait quasi continu."*
+
+`projectileTier() = dmgLevel + autoFireLevel`, figé sur le projectile à
+sa création (`pr.tier`) — un tir en vol ne mute pas quand on achète un
+palier. Paliers : 0-1 carré 2 px, 2-3 trait 6 px, 4-6 rectangle vide
+8×3, 7-9 rectangle plein 10×4, ≥10 barre de 10 + 3·(palier−9) px (plafond
+60) sur 4 → 7 px. Orienté vers la cible (`atan2`). Catapulte : disque
+3 + 0,3·palier (plafond 9), plein dès 7. Planche rendue aux paliers
+0/2/5/8/12/20, envoyée à Pierre. Les soldats gardent leurs petits ronds.
