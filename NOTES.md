@@ -4930,3 +4930,21 @@ renforce jamais (le "correct" économise pour la Forge après 3 tours et
 ne l'atteint qu'1 fois sur 5). Le renfort +12 % n'est donc pas encore
 mesuré par de vraies parties de bots ; plan des bots à revoir si on
 veut mesurer ce levier.
+
+## Simulateur v18.12 — bots qui renforcent (quiz : "Bots qui renforcent vraiment")
+Plans réécrits : naïf = tours dès que possible, sinon renforce une tour au
+hasard une fois sur deux, jamais de Forge ; correct = 3 tours puis
+toujours le renfort le moins cher, jamais de Forge ; bon = 3 tours
+chacune au niveau 3, puis Forge, puis l'achat le moins cher (4e tour,
+catapulte, renfort, dégâts, cadence, revenu). Seul le bon connaît la Forge.
+Le jeu ne change pas (pas d'entrée CHANGELOG).
+Mesure A/B du renfort (12 parties chacune, copie d'index.html à 1,05) :
+    1,05 | naive: moy 16.58 méd 17 min 13 max 20 {breach 10, victory 2} | correct: moy 16.08 méd 16 min 10 max 20 {victory 3, breach 9} | good: moy 16.75 méd 17 min 13 max 20 {breach 10, victory 2}
+    1,12 | naive: moy 16.33 méd 20 min 10 max 20 {breach 6, victory 6} | correct: moy 16.42 méd 17 min 10 max 20 {breach 10, victory 2} | good: moy 17.08 méd 18 min 10 max 20 {breach 10, victory 2}
+Lecture : le levier +12 % est enfin exercé — le bot qui renforce le plus
+(naïf : tours niveau 6-9) finit les DEUX cartes 6 fois sur 12 contre 2.
+Correct et bon : écart dans le bruit (renfort niveau 2-5 seulement).
+Enseignement de jeu : 2-3 tours poussées haut battent 3-4 tours basses ;
+la Forge (bon bot, 2 fois sur 5) reste un détour coûteux.
+Question ouverte pour Pierre : un joueur "naïf" qui finit le jeu une
+fois sur deux, c'est le niveau visé ?

@@ -164,7 +164,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       // amélioration. Tous les bots vont donc la bâtir dès FORGE_BUILD_COST (en se
       // téléportant dans sa zone : on simule la décision, pas la marche),
       // puis reviennent devant la porte.
-      if (!forgeBuilt){
+      if (!forgeBuilt && policy === 'good'){ // v18.12 : seul le bot bon connaît la Forge
         if (gold >= FORGE_BUILD_COST){
           const px = player.x, py = player.y;
           player.x = FORGE_ZONE.x + FORGE_ZONE.w/2; player.y = FORGE_ZONE.y + FORGE_ZONE.h/2;
@@ -196,44 +196,46 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
         const upgrade = (t) => teleport(t.x, t.y + 22, () => t.kind === 'catapult' ? tryCatapultAction() : tryTowerAction());
         const cheapestUpgrade = () => towers.slice().sort((a, b) => towerUpgradeCost(a) - towerUpgradeCost(b))[0];
         const nTowers = towers.filter(t => t.kind !== 'catapult').length, nCat = towers.filter(t => t.kind === 'catapult').length;
+        // v18.12 (Pierre, en quiz : "Bots qui renforcent vraiment") — mesuré
+        // en v18.11 : maxTowerLevel = 1 pour les trois bots, aucun ne
+        // renforçait jamais (naive par design, correct et good parce qu'ils
+        // économisaient pour la Forge et n'y arrivaient pas). Le levier
+        // "renfort +12 %" (v18.09) n'était donc mesuré par personne.
+        //  - naive   : bâtit dès qu'il peut (jusqu'à 7 tours) ; sinon, une
+        //              fois sur deux, renforce une tour AU HASARD ; jamais
+        //              de Forge (il ne sait pas qu'elle existe)
+        //  - correct : 3 tours, puis renforce toujours la tour la moins
+        //              chère à renforcer ; jamais de Forge
+        //  - good    : 3 tours, chacune renforcée au niveau 3, PUIS
+        //              économise la Forge, puis l'achat le moins cher parmi
+        //              4e tour / catapulte / renfort / dégâts / cadence / revenu
+        const randomTower = () => towers[Math.floor(Math.random() * towers.length)];
         if (policy === 'naive'){
           if (gold >= buildCost('tower') && nTowers < 7) build('tower');
-          else if (frame % 60 === 0 && forgeBuilt){
-            const choice = RNG_SPEND_OPTIONS[Math.floor(Math.random()*RNG_SPEND_OPTIONS.length)];
-            if (choice === 'damage' && gold >= dmgUpgradeCost()){ gold -= dmgUpgradeCost(); dmgLevel++; }
-            else if (choice === 'autofire' && gold >= autoFireCost()){ gold -= autoFireCost(); autoFireLevel++; }
-            else if (choice === 'autogold' && gold >= autoGoldCost()){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
+          else if (frame % 60 === 0 && towers.length && Math.random() < 0.5){
+            const t = randomTower();
+            if (gold >= towerUpgradeCost(t)) upgrade(t);
           }
         } else if (policy === 'correct'){
           if (nTowers < 3){ if (gold >= buildCost('tower')) build('tower'); }
-          else if (!forgeBuilt){ /* v18.07 : économise pour la Forge (bâtie par le bloc au-dessus dès FORGE_BUILD_COST) — avant, il dépensait tout en renforts et ne la bâtissait jamais */ }
           else {
             const t = cheapestUpgrade();
-            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }].concat(forgeBuilt ? [{ cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoGoldCost(), key: 'autogold' }] : []).sort((a, b) => a.cost - b.cost);
-            const pick = options.find(o => gold >= o.cost);
-            if (pick){
-              if (pick.key === 'upgrade') upgrade(t);
-              else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
-              else { if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
-            }
+            if (gold >= towerUpgradeCost(t)) upgrade(t);
           }
         } else if (policy === 'good'){
-          if (nTowers < 2){ if (gold >= buildCost('tower')) build('tower'); }
-          else if (!forgeBuilt){ /* v18.07 : économise pour la Forge */ }
-          else if (nCat < 1 || nTowers < 4){
-            // v18.08 : achète ce qu'il peut se payer (tour ou catapulte, la
-            // moins chère d'abord) — avant, il attendait la catapulte (51 or
-            // avec 2 tours debout) et mourait au niveau 9 à chaque partie.
-            const wants = [].concat(nTowers < 4 ? [{ kind: 'tower', cost: buildCost('tower') }] : [], nCat < 1 ? [{ kind: 'catapult', cost: buildCost('catapult') }] : []).sort((a, b) => a.cost - b.cost);
-            const pick = wants.find(w => gold >= w.cost);
-            if (pick) build(pick.kind);
-          }
+          const weakest = towers.length ? towers.slice().sort((a, b) => (a.level||1) - (b.level||1))[0] : null;
+          if (nTowers < 3){ if (gold >= buildCost('tower')) build('tower'); }
+          else if (weakest && (weakest.level||1) < 3){ if (gold >= towerUpgradeCost(weakest)) upgrade(weakest); }
+          else if (!forgeBuilt){ /* économise la Forge (bâtie par le bloc au-dessus dès FORGE_BUILD_COST) */ }
           else {
             const t = cheapestUpgrade();
-            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }].concat(forgeBuilt ? [{ cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoFireCost(), key: 'autofire' }, { cost: autoGoldCost(), key: 'autogold' }] : []).sort((a, b) => a.cost - b.cost);
+            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }, { cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoFireCost(), key: 'autofire' }, { cost: autoGoldCost(), key: 'autogold' }]
+              .concat(nTowers < 4 ? [{ cost: buildCost('tower'), key: 'tower' }] : [], nCat < 1 ? [{ cost: buildCost('catapult'), key: 'catapult' }] : [])
+              .sort((a, b) => a.cost - b.cost);
             const pick = options.find(o => gold >= o.cost);
             if (pick){
               if (pick.key === 'upgrade') upgrade(t);
+              else if (pick.key === 'tower' || pick.key === 'catapult') build(pick.key);
               else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
               else if (pick.key === 'autofire'){ gold -= autoFireCost(); autoFireLevel++; }
               else { if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
