@@ -149,7 +149,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
     let frame = 0, endWave = 1, reason = 'maxFrames';
     let waveAtFrame0 = wave;
     let maxWaveReached = wave;
-    let forgeFrame = -1, firstTowerFrame = -1, maxTowers = 0; // v17.93 : instrumentation (prérequis Forge)
+    let forgeFrame = -1, firstTowerFrame = -1, maxTowers = 0, maxTowerLevel = 0; // v17.93 : instrumentation (prérequis Forge) ; v18.09 : niveau de renfort max
 
     for (; frame < maxFrames; frame++){
       const now = start + frame*16.67;
@@ -157,6 +157,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       if (wave > maxWaveReached) maxWaveReached = wave;
       if (forgeBuilt && forgeFrame < 0) forgeFrame = frame;
       if (towers.length > maxTowers) maxTowers = towers.length;
+      for (const t of towers) if ((t.level||1) > maxTowerLevel) maxTowerLevel = t.level||1;
       if (towers.length && firstTowerFrame < 0) firstTowerFrame = frame;
 
       // v17.86 : prérequis Forge (index.html) — sans elle, aucune tour ni
@@ -248,7 +249,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
     if (reason === 'maxFrames') endWave = wave;
     return {
       policy, endWave, reason, frames: frame, towersBuilt: towers.length, dmgLevel, goldLeft: gold,
-      forgeFrame, firstTowerFrame, maxTowers, trojanDefeat: !!trojanCauseOfDefeat, // v17.93
+      forgeFrame, firstTowerFrame, maxTowers, maxTowerLevel, trojanDefeat: !!trojanCauseOfDefeat, // v17.93
       // "vagues infinies : mesure sur les 100 premières" — a atteint (ou dépassé) le repère demandé ?
       reachedWaveTrack: maxWaveReached >= maxWaveTrack,
     };

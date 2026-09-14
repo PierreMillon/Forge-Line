@@ -4877,3 +4877,21 @@ automatique au niveau 9 + coût croissant des tours : personne ne dépasse
 3 tours). Le bon bot bâtit la Forge 5/5 mais n'a plus le temps d'en
 profiter. À trancher avec Pierre après la mesure du renfort +12 % : le
 niveau 9 est-il un mur voulu sur la carte 1 ?
+
+## v18.09 — Renfort de tour +12 % par palier (quiz : "Oui, renfort plus fort")
+Une seule variable : nouvelle constante TOWER_REINFORCE_GROWTH = 1.12 dans
+geometricSum (incrément de PV et de dégâts d'une tour par palier de
+renfort). Bandeau, soldats, Forge d'élite gardent UPGRADE_POWER_GROWTH
+(1,05). Mesure A/B, 12 parties chacune, même simulateur (copie temporaire
+d'index.html à 1,05 servie à côté) :
+    1,05 | naive: moy 10.42 méd 10 min 9 max 19 | correct: moy 10.92 méd 10 min 9 max 18 | good: moy 9.58 méd 9 min 9 max 16
+    1,12 | naive: moy 13.17 méd 15 min 9 max 19 | correct: moy 12.58 méd 10 min 9 max 19 | good: moy 9.17 méd 9 min 9 max 10
+Lecture : +2 à 3 niveaux pour les bots qui renforcent (naïf, correct) ;
+le bot "bon" reste bloqué au niveau 9 parce que son plan (2 tours puis
+Forge) le laisse avec 2 tours face au cheval de Troie du niveau 9 — c'est
+un enseignement de jeu : foncer sur la Forge avec 2 tours = mort.
+Variance forte (min 9 / max 19 dans tous les cas) : 12 parties restent
+peu ; les médianes sont plus parlantes que les moyennes.
+Instrumentation ajoutée : maxTowerLevel par partie (pour vérifier qui
+renforce vraiment — le bot naïf, censé ne jamais renforcer, progresse
+aussi : à vérifier lors des tests automatiques, #58).

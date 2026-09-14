@@ -2572,13 +2572,20 @@ const TOWER_UPGRADE_COST = 20; // doublé avec TOWER_BUILD_COST — même prix d
 // la base) — l'incrément du 1er renfort vaut 40 PV (repris tel quel de
 // v17.9, déjà validé : 40/10 = 4 PV/or > 3 PV/or), et grandit ensuite de
 // 5%/palier comme le reste de la progression. Comme cet incrément
-// grandit plus vite (5%) que le coût (2,7%), le ratio PV/or ne fait que
+// grandit plus vite (12% depuis v18.09, 5% avant) que le coût (2,7%), le ratio PV/or ne fait que
 // s'améliorer avec le niveau : garanti ≥ 4 PV/or pour toujours, jamais
 // pire qu'au palier 1. Même logique pour les dégâts (incrément de 6,
 // repris de v17.9).
 const TOWER_HP_INCREMENT_BASE = 40;
 const TOWER_DMG_INCREMENT_BASE = 6;
-function geometricSum(n){ return (Math.pow(UPGRADE_POWER_GROWTH, n) - 1) / (UPGRADE_POWER_GROWTH - 1); } // somme des paliers 1..n
+// v18.09 (Pierre, en quiz : "Oui, renfort plus fort") — l'incrément de
+// chaque palier de renfort grimpe de 12 % (au lieu des 5 % communs à
+// toute la progression). Constante propre aux tours : les paliers du
+// bandeau, les soldats et la Forge gardent UPGRADE_POWER_GROWTH.
+// Mesure avant : aucun bot ne dépassait le niveau 9-10 sur la carte 1,
+// et renforcer une tour restait à peine visible face au coût croissant.
+const TOWER_REINFORCE_GROWTH = 1.12;
+function geometricSum(n){ return (Math.pow(TOWER_REINFORCE_GROWTH, n) - 1) / (TOWER_REINFORCE_GROWTH - 1); } // somme des paliers 1..n (PV et dégâts d'une tour)
 function towerUpgradeCost(t){ return Math.round(TOWER_UPGRADE_COST * Math.pow(UPGRADE_COST_GROWTH, (t.level||1) - 1)); }
 // forgeEliteMultiplier() s'applique aux DEUX termes (base ET incrément)
 // à parts égales, donc le ratio renfort/neuf (v17.13) ne bouge jamais,
@@ -3217,6 +3224,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.09", text: "Renforcer une tour rapporte plus : chaque palier de renfort ajoute 12 % de plus que le précédent (PV et dégâts), au lieu de 5 %. Les paliers du bandeau, les soldats et la Forge ne changent pas." },
   { v: "18.08", text: "La Forge coûte 50 or au lieu de 100. Mesure du simulateur : à 100 or, aucun bot ne la bâtissait sur la carte 1 — tout l'or partait dans les tours. À moitié prix, elle redevient un objectif atteignable en milieu de carte, et les améliorations du bandeau avec elle." },
   { v: "18.07", text: "Chaque tour debout renchérit la suivante de 30 % (20, 26, 34, 44…) ; en perdre une rend la prochaine moins chère. Empiler des tours sans jamais les renforcer n'est plus la meilleure stratégie." },
   { v: "18.06", text: "Trois décisions. Tu commences avec de quoi bâtir une tour, et tu peux bâtir tours et catapultes sans la Forge ; la Forge (100 or) se paie plus tard et débloque les améliorations du bandeau — à chaque nouvelle carte tu repars avec au moins une tour possible. Un bouton Soldats bascule tes soldats entre \"Suivent\" (ils restent près de toi) et \"Autonomes\" (leur IA). Carte 2 : deux plages, un bateau à chaque bord, chaque groupe tient son côté et ne converge vers la porte qu'au dernier moment." },
