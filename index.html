@@ -1852,7 +1852,7 @@ function enemiesForLevel(w){
 // (mesuré : tous les bots y mouraient). Les PV et les types, eux,
 // suivent le compteur absolu : la carte 2 est plus dure aussi par la
 // qualité des ennemis, pas seulement par leur nombre.
-const MAP_COUNT_MULT = 0.5;
+const MAP_COUNT_MULT = 1.0; // v18.12 (Pierre, en quiz : "Trop facile : ennemis plus costauds sur la carte 2") — 0.5 -> 1.0 : deux fois plus d'ennemis par niveau sur la carte 2 (mesuré avant : un bot naïf qui renforce finissait les deux cartes 6 fois sur 12)
 function enemiesForWave(w){
   return Math.round(enemiesForLevel(levelOfWave(w)) * (1 + MAP_COUNT_MULT * (mapOfWave(w) - 1)));
 }
@@ -3224,6 +3224,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.12", text: "Carte 2 plus dure : deux fois plus d'ennemis par niveau que sur la carte 1 (au lieu de 1,5 fois). Mesure : avec des tours bien renforcées, même un joueur naïf finissait les deux cartes une fois sur deux." },
   { v: "18.11", text: "Le cheval de Troie arrive au niveau 10, le dernier de chaque carte, au lieu du 9. Mesure : au niveau 9, tous les bots du simulateur mouraient dessus avec 3 tours au plus. Un niveau de plus pour bâtir et renforcer avant le boss." },
   { v: "18.10", text: "Coulisses : tests automatiques (tests.mjs) qui rejouent les scénarios clés avant chaque mise en ligne — or de départ et première tour, Forge à 50 or, bouton Vague qui empile, passage à la carte 2 et victoire, escalier, caravane devenue soldats, bascule des soldats, Recommencer, renfort, 3000 frames de jeu sans erreur." },
   { v: "18.09", text: "Renforcer une tour rapporte plus : chaque palier de renfort ajoute 12 % de plus que le précédent (PV et dégâts), au lieu de 5 %. Les paliers du bandeau, les soldats et la Forge ne changent pas." },

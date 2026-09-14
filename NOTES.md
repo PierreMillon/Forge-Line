@@ -4948,3 +4948,14 @@ Enseignement de jeu : 2-3 tours poussées haut battent 3-4 tours basses ;
 la Forge (bon bot, 2 fois sur 5) reste un détour coûteux.
 Question ouverte pour Pierre : un joueur "naïf" qui finit le jeu une
 fois sur deux, c'est le niveau visé ?
+
+## v18.12 — Carte 2 : deux fois plus d'ennemis (quiz : "Trop facile : ennemis plus costauds sur la carte 2")
+Une seule variable : MAP_COUNT_MULT 0,5 → 1,0 (nombre d'ennemis par niveau
+sur la carte 2 : ×2 au lieu de ×1,5 ; PV et types inchangés, ils suivent
+déjà le compteur absolu). Mesure (12 parties, bots v18.12 qui renforcent),
+référence juste avant : naive 6 victoires, correct 2, good 2 sur 12.
+    naive: moy 14.58 méd 15 min 10 max 17 {'breach': 12} | correct: moy 14.92 méd 15 min 10 max 20 {'victory': 1, 'breach': 11} | good: moy 16.17 méd 16 min 13 max 20 {'breach': 12}
+Lecture : plus aucune victoire naïve (0/12), une seule pour correct ;
+tout le monde tombe entre les niveaux 13 et 17 de la carte 2. La carte 1
+se finit toujours (min 10). Si c'est trop sec, la valeur intermédiaire
+0,75 (×1,75) est la prochaine à essayer — à trancher avec Pierre.
