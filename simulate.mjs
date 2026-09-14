@@ -175,82 +175,65 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       // le TIR de tous les profils tant que la Forge n'était pas bâtie :
       // 0 kill, 0 or, jamais 100 or, brèche à la vague 4 pour tout le
       // monde. Mesuré avant correction, faux résultat de simulateur.)
-      if (policy === 'naive'){
-        // "fait n'importe quoi" : tir par à-coups, jamais de tour, dépense
-        // au hasard sur un palier abordable dès qu'il se présente
-        if (frame % 60 === 0 && forgeBuilt){ // v17.93 : respecte le prérequis Forge comme le vrai bandeau (avant, il décrémentait `gold` directement et n'atteignait jamais 100 or)
-          const choice = RNG_SPEND_OPTIONS[Math.floor(Math.random()*RNG_SPEND_OPTIONS.length)];
-          if (choice === 'damage' && gold >= dmgUpgradeCost()){ gold -= dmgUpgradeCost(); dmgLevel++; }
-          else if (choice === 'autofire' && gold >= autoFireCost()){ gold -= autoFireCost(); autoFireLevel++; }
-          else if (choice === 'autogold' && gold >= autoGoldCost()){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
-        }
-      } else {
-        if (frame % 30 === 0){
-          if (policy === 'correct'){
-            // v17.42 : ancienne logique corrigée — "renforcer la tour dès
-            // que ~abordable (uCost <= dCost*3)" perdait systématiquement
-            // contre 'naive' au simulateur (qui distribue au hasard sur
-            // dégâts/cadence/précision) : le joueur a une portée illimitée
-            // (voir tryUnlockAudio/effectivePlayerDmg dans index.html),
-            // une tour à portée fixe (160px) coûte cher pour ne couvrir
-            // qu'une fraction de la carte. "Correct" applique maintenant
-            // la même règle que "good" (l'option la moins chère d'abord
-            // parmi renfort/dégâts/revenu auto/précision) mais SANS se
-            // déplacer : une seule tour possible, jamais 2-3 comme "good".
-            if (!builtTower){
-              if (gold >= TOWER_BUILD_COST){ tryTowerAction(); builtTower = towers.length > 0; }
-            } else {
-              const near = pickNearestTower(player.x, player.y);
-              const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
-              const options = [];
-              if (canUpgrade) options.push({ cost: towerUpgradeCost(near), key: 'upgrade' });
-              options.push({ cost: dmgUpgradeCost(), key: 'damage' });
-              options.push({ cost: autoGoldCost(), key: 'autogold' });
-              options.sort((a,b) => a.cost-b.cost);
-              const pick = options.find(o => gold >= o.cost);
-              if (pick){
-                if (pick.key === 'upgrade') tryTowerAction();
-                else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
-                else if (pick.key === 'autogold'){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
-              }
+      // v18.02 : politiques réécrites pour le méta "gestion pure" (le
+      // joueur ne tire plus, v18.01). Le bot se téléporte sur un
+      // emplacement libre devant la porte pour BÂTIR (sinon
+      // tryTowerAction renforce la tour voisine), et à côté d'une tour
+      // pour la RENFORCER. On simule les décisions, pas la marche.
+      //  - naive   : bâtit une tour dès qu'il a 20 or, ne renforce jamais,
+      //              dépense le reste au hasard (dégâts/cadence/revenu)
+      //  - correct : jusqu'à 3 tours, puis l'achat le moins cher parmi
+      //              renfort / dégâts / revenu auto
+      //  - good    : 4 tours + 1 catapulte à la porte, puis le moins cher
+      //              parmi renfort tour/catapulte / dégâts / cadence / revenu
+      if (frame % 30 === 0 && forgeBuilt){
+        const W = wallScreen();
+        const spots = [0, -48, 48, -96, 96, -144, 144].map(dx => ({ x: W.gateX + dx, y: playerSpawnY() - 30 }));
+        const teleport = (x, y, fn) => { const px = player.x, py = player.y; player.x = x; player.y = y; fn(); player.x = px; player.y = py; };
+        const freeSpot = () => spots.find(sp => !towers.some(t => Math.hypot(t.x - sp.x, t.y - (sp.y - 24)) < 30));
+        const build = (kind) => { const sp = freeSpot(); if (!sp) return false; const n = towers.length; teleport(sp.x, sp.y, () => kind === 'catapult' ? tryCatapultAction() : tryTowerAction()); return towers.length > n; };
+        const upgrade = (t) => teleport(t.x, t.y + 22, () => t.kind === 'catapult' ? tryCatapultAction() : tryTowerAction());
+        const cheapestUpgrade = () => towers.slice().sort((a, b) => towerUpgradeCost(a) - towerUpgradeCost(b))[0];
+        const nTowers = towers.filter(t => t.kind !== 'catapult').length, nCat = towers.filter(t => t.kind === 'catapult').length;
+        if (policy === 'naive'){
+          if (gold >= TOWER_BUILD_COST && nTowers < 7) build('tower');
+          else if (frame % 60 === 0){
+            const choice = RNG_SPEND_OPTIONS[Math.floor(Math.random()*RNG_SPEND_OPTIONS.length)];
+            if (choice === 'damage' && gold >= dmgUpgradeCost()){ gold -= dmgUpgradeCost(); dmgLevel++; }
+            else if (choice === 'autofire' && gold >= autoFireCost()){ gold -= autoFireCost(); autoFireLevel++; }
+            else if (choice === 'autogold' && gold >= autoGoldCost()){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
+          }
+        } else if (policy === 'correct'){
+          if (nTowers < 3){ if (gold >= TOWER_BUILD_COST) build('tower'); }
+          else {
+            const t = cheapestUpgrade();
+            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }, { cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoGoldCost(), key: 'autogold' }].sort((a, b) => a.cost - b.cost);
+            const pick = options.find(o => gold >= o.cost);
+            if (pick){
+              if (pick.key === 'upgrade') upgrade(t);
+              else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
+              else { if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
             }
-          } else if (policy === 'good'){
-            if (!builtTower){
-              if (gold >= TOWER_BUILD_COST){ tryTowerAction(); builtTower = towers.length > 0; }
-            } else if (!goodBuiltCatapult){
-              // 2e défense au MÊME point (la porte), pas ailleurs sur
-              // la carte — voir la note plus haut. Sinon (pas encore
-              // assez d'or), continue de pousser la tour existante avec
-              // le surplus, jamais de l'or qui dort à attendre.
-              if (gold >= CATAPULT_BUILD_COST) { tryCatapultAction(); goodBuiltCatapult = towers.some(t => t.kind === 'catapult'); }
-              else {
-                const near = pickNearestTower(player.x, player.y);
-                const canUpgrade = near && Math.hypot(near.x-player.x, near.y-player.y) < CONTACT_RANGE_PX;
-                if (canUpgrade && gold >= towerUpgradeCost(near)) tryTowerAction();
-              }
-            } else {
-              const nearTower = pickNearestTowerOfKind(player.x, player.y, 'tower');
-              const nearCatapult = pickNearestTowerOfKind(player.x, player.y, 'catapult');
-              const canUpgradeTower = nearTower && Math.hypot(nearTower.x-player.x, nearTower.y-player.y) < CONTACT_RANGE_PX;
-              const canUpgradeCatapult = nearCatapult && Math.hypot(nearCatapult.x-player.x, nearCatapult.y-player.y) < CONTACT_RANGE_PX;
-              const options = [];
-              if (canUpgradeTower) options.push({ cost: towerUpgradeCost(nearTower), key: 'upgradeTower' });
-              if (canUpgradeCatapult) options.push({ cost: towerUpgradeCost(nearCatapult), key: 'upgradeCatapult' });
-              options.push({ cost: dmgUpgradeCost(), key: 'damage' });
-              options.push({ cost: autoGoldCost(), key: 'autogold' });
-              options.sort((a,b) => a.cost-b.cost);
-              const pick = options.find(o => gold >= o.cost);
-              if (pick){
-                if (pick.key === 'upgradeTower') tryTowerAction();
-                else if (pick.key === 'upgradeCatapult') tryCatapultAction();
-                else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
-                else if (pick.key === 'autogold'){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
-              }
+          }
+        } else if (policy === 'good'){
+          if (nTowers < 2){ if (gold >= TOWER_BUILD_COST) build('tower'); }
+          else if (nCat < 1){ if (gold >= CATAPULT_BUILD_COST) build('catapult'); }
+          else if (nTowers < 4){ if (gold >= TOWER_BUILD_COST) build('tower'); }
+          else {
+            const t = cheapestUpgrade();
+            const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }, { cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoFireCost(), key: 'autofire' }, { cost: autoGoldCost(), key: 'autogold' }].sort((a, b) => a.cost - b.cost);
+            const pick = options.find(o => gold >= o.cost);
+            if (pick){
+              if (pick.key === 'upgrade') upgrade(t);
+              else if (pick.key === 'damage'){ gold -= dmgUpgradeCost(); dmgLevel++; }
+              else if (pick.key === 'autofire'){ gold -= autoFireCost(); autoFireLevel++; }
+              else { if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
             }
           }
         }
       }
 
+      if (victory){ endWave = wave; reason = 'victory'; break; } // v18.02 : dernière carte terminée
       if (gameOver){ endWave = wave; reason = 'breach'; break; }
       if (playerHealth <= 0){ endWave = wave; reason = 'health'; break; }
     }

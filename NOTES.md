@@ -4698,3 +4698,46 @@ Vieilles constantes de précision (`ACCURACY_*`, `PLAYER_RANGE_PX`,
 plus appelées par le joueur, encore lues par la branche des projectiles
 perdus, qui ne sera plus jamais alimentée. À nettoyer quand la branche
 sautera.
+
+## v18.02 — pivot 2 : cartes de 10 niveaux
+
+Pierre : *"on va réduire drastiquement le nombre de niveaux, 10 niveaux
+maximum, et quand on a réussi les 10 niveaux on passe à la deuxième
+carte, qui a aussi 10 niveaux et un gameplay un peu différent... on pourra
+rajouter des difficultés beaucoup mieux, pour forcer les gens à passer du
+temps à optimiser ou à regarder des vidéos."* Quiz : 1 niveau = 1 vague ;
+carte 2 = structure seulement, règles plus tard.
+
+**Choix d'implémentation : le compteur `wave` reste continu** (1..20).
+Carte = ⌈wave/10⌉, niveau = (wave−1) mod 10 + 1. Toutes les formules de
+difficulté indexées sur `wave` restent valides ; seuls l'affichage, la
+transition et la victoire sont nouveaux. Beaucoup moins invasif qu'un
+`mapIndex` à propager partout.
+
+Transition (`startMap`) : thème forêt, tours/tombes/Forge/soldats/
+caravane/cheval remis à zéro, or et paliers conservés, **brèches à zéro**
+(château neuf — sans ça les brèches de la carte 1 tuaient au niveau 2 de
+la carte 2, mesuré). Victoire : carte `#over` avec seul "Recommencer",
+sauvegarde effacée.
+
+Seuils recalés en vagues absolues : types 5/8/13, PV exponentiels dès 8,
+cheval au niveau 9 de chaque carte (9 puis 19, recharge 10).
+
+**Ce que le simulateur a appris, dans l'ordre** (6 parties par point,
+bots réécrits pour le méta "tours seulement" : naïf bâtit sans renforcer,
+correct 3 tours, bon 4 + catapulte) :
+
+1. Tous morts vague 9-10, quel que soit le PV du cheval (×1/2/3/6) ou le
+   début des PV exponentiels (8/11/21). Donc ni l'un ni l'autre.
+2. `enemiesForWave` en vagues absolues : le niveau 1 de la carte 2 = 21
+   ennemis sur un terrain vide. → rampe **par carte** (`enemiesForLevel`
+   × (1 + 0,5·(carte−1))) : vague 11 = 2 ennemis.
+3. Brèches non remises à zéro → mort au niveau 2-3 de la carte 2.
+4. Cadence de base des tours ×1,2 / ×2 / ×3 : seul ×3 fait finir la
+   carte 1 aux profils correct et bon (vague 13 stable, ~4 min) ; le naïf
+   meurt au niveau 9. Une variable, et elle remplace exactement le tir du
+   joueur retiré en v18.01.
+
+Ouvert : la carte 2 tue les bons profils au niveau 3 (Forge à rebâtir
+avec peu d'or, bouclier dès 13, PV exponentiels). Ses règles sont "à
+définir" — ne pas équilibrer avant.

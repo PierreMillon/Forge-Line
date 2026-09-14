@@ -240,6 +240,8 @@
     <p data-i18n="p_forge">La construire coûte 100 or, seulement si tu es dans sa zone. Une fois bâtie : "Tours d'élite" (40 or le premier palier, +2,7%/palier) renforce toutes tes tours à la fois. "Réparateurs" (60 or, achat unique) fait réparer tes tours gratuitement par tes soldats, en continu.</p>
     <h3 data-i18n="h_autogold">Revenu automatique</h3>
     <p data-i18n="p_autogold">15 or le premier palier (+2,7%/palier), rapporte de l'or toutes les 2 secondes. Le gain par tic grimpe lentement (×1,05 par palier, arrondi) — modeste au début, mais illimité si tu investis beaucoup.</p>
+    <h3 data-i18n="h_maps">Cartes et niveaux</h3>
+    <p data-i18n="p_maps">Chaque carte compte 10 niveaux ; les 10 réussis, carte suivante.</p>
     <h3 data-i18n="h_waves">Vagues et ennemis</h3>
     <p data-i18n="p_waves1">5 types : le rouge (base, 1 coup toujours), le bleu clair (rapide, fragile, 2x plus rapide, moitié moins de PV), le violet (rapide ET costaud, 2x plus rapide, PV normaux), le turquoise (bouclier : absorbe TOUT ton premier coup, sans dégât — vise-le deux fois), l'orange (boss, rare, 4x plus de PV mais 2x plus lent — n'apparaît qu'à partir de la vague 200). Bleu, violet et turquoise arrivent progressivement à partir des vagues 9, 12 et 15, jusqu'à 15% des ennemis chacun.</p>
     <p data-i18n="p_waves2">Le nombre d'ennemis grimpe vite les 8 premières vagues (+11/vague), puis se stabilise à +1/vague — la vague 3 est souvent le moment où une première tour devient utile.</p>
@@ -299,6 +301,9 @@ const I18N = {
     over_title_generic: "Tu as perdu", over_title_combat: "Tu es tombé au combat",
     over_title_castle: "Le château est tombé", over_title_trojan: "Le cheval de Troie a atteint le château",
     over_wave: w => `Tu as tenu jusqu'à la vague ${w}`,
+    over_title_victory: "Victoire", victory_text: n => `Tu as tenu les ${n} cartes. Le jeu s'arrête là pour l'instant — d'autres cartes arrivent.`,
+    map_label: "Carte", map_complete_banner: m => `Carte ${m} terminée !`, map_start_banner: m => `Carte ${m}`,
+    h_maps: "Cartes et niveaux", p_maps: "Chaque carte compte 10 niveaux (1 niveau = 1 vague). Les 10 niveaux réussis, tu passes à la carte suivante : nouveau terrain, or et paliers conservés, tout le reste à rebâtir. Le cheval de Troie est le climax du niveau 9 de chaque carte.",
     wave_complete_banner: w => `Vague ${w} terminée !`,
     wave_called_banner: w => `Vague ${w} appelée !`,
     // v17.64 : annonce d'un nouveau type d'ennemi à sa toute première
@@ -358,6 +363,9 @@ const I18N = {
     over_title_generic: "You lost", over_title_combat: "You fell in battle",
     over_title_castle: "The castle has fallen", over_title_trojan: "The Trojan Horse reached the castle",
     over_wave: w => `You made it to wave ${w}`,
+    over_title_victory: "Victory", victory_text: n => `You held all ${n} maps. That's the end for now — more maps are coming.`,
+    map_label: "Map", map_complete_banner: m => `Map ${m} complete!`, map_start_banner: m => `Map ${m}`,
+    h_maps: "Maps and levels", p_maps: "Each map has 10 levels (1 level = 1 wave). Clear all 10 and you move to the next map: new terrain, gold and tiers kept, everything else to rebuild. The Trojan Horse is the climax of level 9 on every map.",
     wave_complete_banner: w => `Wave ${w} complete!`,
     wave_called_banner: w => `Wave ${w} called!`,
     new_enemy_incoming: name => `Watch out: ${name} incoming!`,
@@ -421,6 +429,23 @@ try { const saved = localStorage.getItem('fl_lang'); if (saved === 'fr' || saved
 // thème par défaut/historique.
 let mapTheme = 'coast'; // 'coast' | 'forest' | 'snow'
 const MAP_THEMES = ['coast', 'forest', 'snow'];
+// v18.02 (Pierre : "on va réduire drastiquement le nombre de niveaux, 10
+// niveaux maximum, et quand on a réussi les 10 niveaux on passe à la
+// deuxième carte, qui a aussi 10 niveaux et un gameplay un peu différent").
+// Quiz : 1 niveau = 1 vague. Le compteur `wave` reste CONTINU (1..20) —
+// toute la difficulté (types, PV, cheval) reste indexée dessus, ce qui
+// évite de toucher aux formules ; la carte et le niveau affichés en
+// dérivent. À la vague 11 : nouvelle carte (thème forêt), terrain, tours,
+// Forge et soldats remis à zéro, or et paliers conservés. Après la
+// dernière carte : victoire. Les règles propres à la carte 2 sont à
+// définir plus tard (quiz) — pour l'instant c'est la même carte, plus
+// dure parce que le compteur continue.
+const MAP_WAVES = 10;
+const MAP_COUNT = 2;
+const MAP_THEME_BY_INDEX = ['coast', 'forest'];
+function mapOfWave(w){ return Math.min(MAP_COUNT, Math.floor((w - 1) / MAP_WAVES) + 1); }
+function levelOfWave(w){ return (w - 1) % MAP_WAVES + 1; }
+let victory = false;
 try { const savedTheme = localStorage.getItem('fl_mapTheme'); if (MAP_THEMES.includes(savedTheme)) mapTheme = savedTheme; } catch (e) { /* ignore */ }
 function mapThemeLabel(theme){ return theme === 'forest' ? t('menu_theme_forest') : theme === 'snow' ? t('menu_theme_snow') : t('menu_theme_coast'); }
 function t(key){ const d = I18N[currentLang] || I18N.en; return (key in d) ? d[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key); }
@@ -621,6 +646,7 @@ function startWaveBoats(now){
 // trois bateaux, tous en même temps. Le bonus d'or est la contrepartie
 // du risque pris — c'est ça qui rend le bouton intéressant.
 function callWaveEarly(now){
+  if (levelOfWave(wave) >= MAP_WAVES) return 0; // v18.02 : on n'appelle pas la carte suivante en avance
   const added = enemiesForWave(wave + 1);
   wave++;
   enemiesThisWave += added;   // s'ADDITIONNE : `spawned` n'est pas remis à zéro, ce qui reste à faire débarquer inclut les deux vagues
@@ -1658,6 +1684,31 @@ resizeCanvas();
 // script, spawnBoat seul suffisait avant mais plus maintenant)
 
 let towers = []; // {x, y, hp, maxHp, lastShotAt, flashUntil, lastHitSoundAt}
+// v18.02 : le thème visuel suit la carte (côte, puis forêt)
+function applyMapTheme(){
+  mapTheme = MAP_THEME_BY_INDEX[mapOfWave(wave) - 1] || MAP_THEMES[0];
+  const tt = document.getElementById('theme-toggle'); if (tt && typeof mapThemeLabel === 'function') tt.textContent = mapThemeLabel(mapTheme);
+}
+// v18.02 : nouvelle carte — terrain neuf, or et paliers conservés
+function startMap(mapIndex, now){
+  towers = []; towerGraves = []; enemies = []; projectiles = []; boats = [];
+  forgeBuilt = false; forgeEliteLevel = 0; soldiersCanRepair = false;
+  soldiers = []; merchants = []; activeCaravan = null;
+  playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; climbHoldSince = 0;
+  playerInWaterSince = null; trojanWarningShown = false; trojanHorse = null; trojanCauseOfDefeat = false;
+  playerHealth = PLAYER_MAX_HEALTH; player.x = STAGE_W/2; player.y = playerSpawnY();
+  breaches = 0; // château neuf : chaque carte a ses 10 brèches (mesuré : sans ça, les brèches de la carte 1 tuaient au niveau 2 de la carte 2)
+  applyMapTheme();
+  waveBanner = { text: t('map_complete_banner')(mapIndex - 1), subtext: t('map_start_banner')(mapIndex), createdAt: now };
+}
+function showVictory(){
+  victory = true; gameOver = true;
+  document.getElementById('over-title').textContent = t('over_title_victory');
+  document.getElementById('over-wave').textContent = t('victory_text')(MAP_COUNT);
+  for (const id of ['continue-btn', 'revive-btn', 'spectate-btn']) document.getElementById(id).style.display = 'none';
+  document.getElementById('over').style.display = 'flex';
+  try { localStorage.removeItem('forgeLineSave'); } catch (e) { /* ignore */ }
+}
 const STARTING_GOLD = 120; // v18.01 : sans tir du personnage, la première défense doit être possible dès la vague 1 — Forge (100) + une tour (20)
 let gold = STARTING_GOLD, wave = 1, breaches = 0, gameOver = false;
 let enemies = [];
@@ -1691,7 +1742,7 @@ function pickNextSpawnDelay(){
 }
 let spawnTimer = 0, spawnInterval = pickNextSpawnDelay(), enemiesThisWave = 2, spawned = 0;
 const SHOT_INTERVAL_MS = 1000;
-const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 1.2; // tir des tours 20% plus rapide que le joueur, au niveau 1
+const TOWER_SHOT_INTERVAL_MS = SHOT_INTERVAL_MS / 3; // v18.02 : 1.2 -> 3. Le tir du joueur a disparu (v18.01, ~1 tir/s à 12 dégâts, l'équivalent d'une tour et demie) ; sans ça, plus personne ne finissait la carte 1 (bots corrects et bons morts vague 9-10, balayé 1.2/2/3 : seul 3 fait passer la carte 1). Ancien commentaire : tir des tours 20% plus rapide que le joueur, au niveau 1
 // une tour renforcée doit aussi tirer plus vite, pas juste taper plus
 // fort — même taux que le reste de la progression infinie (+5%/palier),
 // avec un plancher pour ne jamais devenir absurde (jamais plus de 4x la
@@ -1735,7 +1786,7 @@ const WAVE_HP_STEP = 6;
 // = false) reste 1 coup = 1 mort pour toujours, à n'importe quelle
 // vague — seuls les types qui montaient déjà en PV avec la vague sont
 // concernés ici.
-const ENEMY_HP_EXP_WAVE_START = 17; // v17.77 : ramené de 30 à 17 pour tenir dans une partie de 2-5 min (voir le bloc des seuils de types)
+const ENEMY_HP_EXP_WAVE_START = 8; // v18.02 : 17 -> 8 (carte 1 = 10 vagues) ; v17.77 : ramené de 30 à 17 pour tenir dans une partie de 2-5 min (voir le bloc des seuils de types)
 function scaledEnemyHpBase(wave){
   if (wave < ENEMY_HP_EXP_WAVE_START) return BASE_ENEMY_HP + WAVE_HP_STEP * (wave-1); // formule v17.23, inchangée
   const atThreshold = BASE_ENEMY_HP + WAVE_HP_STEP * (ENEMY_HP_EXP_WAVE_START-1);
@@ -1762,13 +1813,24 @@ const EARLY_RUSH_WAVES = 8;      // vagues 1 à 8 : période resserrée
 // raccordé sans à-coup à la valeur de la vague 4.
 const TUTORIAL_WAVE_COUNTS = [1, 3, 4, 6]; // vagues 1 à 4, dictées explicitement par Pierre
 const EARLY_RUSH_STEP = 3;       // pendant la ruée (vagues 5 à 8), +3 ennemis/vague au lieu de +1 — combiné à la cadence de spawn 2x (voir pickNextSpawnDelay)
-function enemiesForWave(w){
+function enemiesForLevel(w){
   if (w <= TUTORIAL_WAVE_COUNTS.length) return TUTORIAL_WAVE_COUNTS[w-1];
   if (w <= EARLY_RUSH_WAVES) return TUTORIAL_WAVE_COUNTS[TUTORIAL_WAVE_COUNTS.length-1] + EARLY_RUSH_STEP * (w - TUTORIAL_WAVE_COUNTS.length);
   // après la ruée, on repart du rythme normal SANS à-coup : on continue
   // depuis le total atteint à la fin de la ruée
   const atRushEnd = TUTORIAL_WAVE_COUNTS[TUTORIAL_WAVE_COUNTS.length-1] + EARLY_RUSH_STEP * (EARLY_RUSH_WAVES - TUTORIAL_WAVE_COUNTS.length);
   return atRushEnd + WAVE_ENEMY_COUNT_STEP * (w - EARLY_RUSH_WAVES);
+}
+// v18.02 : chaque carte a 10 niveaux et REPART sa rampe (1, 2, 4…
+// ennemis — enemiesForLevel, l'ancienne formule), multipliée par
+// MAP_COUNT_MULT par carte supplémentaire. Sinon le niveau 1 de la
+// carte 2 déversait 21 ennemis sur un terrain tout juste remis à zéro
+// (mesuré : tous les bots y mouraient). Les PV et les types, eux,
+// suivent le compteur absolu : la carte 2 est plus dure aussi par la
+// qualité des ennemis, pas seulement par leur nombre.
+const MAP_COUNT_MULT = 0.5;
+function enemiesForWave(w){
+  return Math.round(enemiesForLevel(levelOfWave(w)) * (1 + MAP_COUNT_MULT * (mapOfWave(w) - 1)));
 }
 // or gagné en tuant un ennemi (rien s'il atteint la ligne) — varie par
 // type depuis v17.16, voir ENEMY_TYPES.goldReward ci-dessous
@@ -1867,9 +1929,12 @@ const ENEMY_TYPES = [
 // Les fenêtres de montée passent de 15-20 vagues à 4 : sur une partie de
 // 20 vagues, un type qui met 20 vagues à atteindre sa proportion normale
 // n'existe pratiquement pas.
-const WAVE_TYPE2_START = 9,  WAVE_TYPE2_RAMP_WAVES = 4, TYPE2_MAX_RATE = 0.15; // rapide/fragile
-const WAVE_TYPE3_START = 12, WAVE_TYPE3_RAMP_WAVES = 4, TYPE3_MAX_RATE = 0.15; // rapide/costaud
-const WAVE_TYPE4_START = 15, WAVE_TYPE4_RAMP_WAVES = 4, TYPE4_MAX_RATE = 0.15; // bouclier (v17.63)
+const WAVE_TYPE2_START = 5,  WAVE_TYPE2_RAMP_WAVES = 3, // v18.02 : 9 -> 5 (10 vagues par carte)
+   TYPE2_MAX_RATE = 0.15; // rapide/fragile
+const WAVE_TYPE3_START = 8,  WAVE_TYPE3_RAMP_WAVES = 3, // v18.02 : 12 -> 8
+   TYPE3_MAX_RATE = 0.15; // rapide/costaud
+const WAVE_TYPE4_START = 13, WAVE_TYPE4_RAMP_WAVES = 3, // v18.02 : 15 -> 13 (carte 2, niveau 3)
+   TYPE4_MAX_RATE = 0.15; // bouclier (v17.63)
 // v17.64 (amélioration d'expérience de jeu, proposée et tranchée sans
 // attendre) : la seule fois où un joueur a vraiment besoin d'un
 // avertissement AVANT que ça n'arrive, c'est la toute première
@@ -1934,7 +1999,7 @@ function pickEnemyType(){
 // avec un temps de recharge en vagues pour ne pas devenir un piège
 // répétitif à chaque fois qu'on traîne un peu dans l'eau.
 const TROJAN_WARNING_MS = 3000, TROJAN_TRIGGER_MS = 6000; // court, avec avertissement (choisi)
-const TROJAN_COOLDOWN_WAVES = 6; // v17.77 : 15 vagues de recharge n'avait de sens qu'avec des parties très longues ; à 6, un joueur qui tient le coup le revoit
+const TROJAN_COOLDOWN_WAVES = 10; // v18.02 : un cheval par carte (9, puis 19) ; v17.77 : 15 vagues de recharge n'avait de sens qu'avec des parties très longues ; à 6, un joueur qui tient le coup le revoit
 const TROJAN_SOLDIER_COUNT = 3;
 // v17.74 (Pierre : "un mécanisme de fin de partie séparé") — passé un
 // certain point, plus aucun ennemi normal n'est une vraie menace (les
@@ -1952,7 +2017,7 @@ const TROJAN_SOLDIER_COUNT = 3;
 // risque), juste déclenché AUTOMATIQUEMENT en plus, passé cette
 // vague — le déclenchement par l'eau reste inchangé et continue de
 // marcher normalement avant ce point.
-const TROJAN_AUTO_START_WAVE = 19; // v17.77 : ramené de 40 à 19 — c'est le climax de la partie, il doit tomber DANS la fenêtre de jeu réelle
+const TROJAN_AUTO_START_WAVE = 9; // v18.02 : climax du niveau 9 de chaque carte ; v17.77 : ramené de 40 à 19 — c'est le climax de la partie, il doit tomber DANS la fenêtre de jeu réelle
 // Sans ce boost, même une défense minimale détruit le cheval ~4,8x plus
 // vite qu'il ne peut atteindre le mur (291 frames pour le tuer contre
 // 1399 pour le trajet) : aucun risque réel. Appliqué SEULEMENT à partir
@@ -2274,6 +2339,7 @@ function unlockAutoSave(){
   try { localStorage.setItem('forgeLineUnlocked', '1'); } catch(e) {}
 }
 loadProgress();
+applyMapTheme(); // v18.02 : le thème suit la carte reprise
 
 // --- petits bruitages synthétisés (aucun fichier audio, tout est généré) ---
 let audioCtx = null;
@@ -2820,6 +2886,7 @@ document.getElementById('skip-wave-btn').addEventListener('click', () => {
   if (gameOver || playerDead) return;
   const now = performance.now();
   const added = callWaveEarly(now);
+  if (!added) return; // v18.02 : dernier niveau de la carte, rien à empiler
   // le bonus est calculé sur la vague APPELÉE, pas sur l'état cumulé :
   // trois appuis = trois bonus, un par vague réellement invoquée
   const bonus = Math.round(added * 1.5);
@@ -3051,6 +3118,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.02", text: "Le jeu est découpé en CARTES de 10 niveaux (1 niveau = 1 vague). Carte 1 : la côte. Les 10 niveaux réussis → carte 2, la forêt : terrain neuf, or et paliers conservés, tout le reste à rebâtir, château neuf. Chaque carte repart sa montée en nombre d'ennemis (×1,5 sur la carte 2), les ennemis eux-mêmes devenant plus forts au fil des cartes ; le cheval de Troie est le climax du niveau 9. Après la dernière carte : victoire. Les tours tirent 2,5 fois plus vite de base — elles remplacent le tir du personnage. Le compteur affiche Carte · Niveau/10." },
   { v: "18.01", text: "Nouvelle direction : ton personnage ne tire plus. Tout passe par la gestion — tours, soldats, Forge. Le palier Précision disparaît ; Cadence accélère maintenant toutes les tours (catapultes comprises) ; Dégâts reste la base des tours et des soldats. Tu commences avec 120 or : de quoi bâtir la Forge et une première tour dès la vague 1. Astuces mises à jour." },
   { v: "18.00", text: "La caravane arrive plus vite : le chariot ne rampe plus sur les derniers crans (plancher de vitesse 15 % → 50 %, zone de ralentissement réduite), et les marchands descendus entrent d'un pas décidé (deux fois plus vite)." },
   { v: "17.99", text: "Relecture de code après la série : les marchands descendus du chariot n'étaient plus repoussés deux fois par frame ; un harceleur ne change plus de cible soixante fois par seconde entre un soldat et une tour ; aux vagues à boss, plus de passager oublié sur le pont ; la physique du pont ne s'emballe plus avec des dizaines de passagers. Sous le capot, un seul noyau de répulsion partagé par tout le jeu." },
@@ -3578,8 +3646,15 @@ function update(now){
       }
     }
   } else if (enemies.length === 0){
-    waveBanner = { text: t('wave_complete_banner')(wave), subtext: nextWaveAnnouncement(wave+1), createdAt: now };
-    wave++;
+    waveBanner = { text: t('wave_complete_banner')(levelOfWave(wave)), subtext: nextWaveAnnouncement(wave+1), createdAt: now };
+    // v18.02 : fin du niveau 10 d'une carte — carte suivante, ou victoire
+    if (levelOfWave(wave) === MAP_WAVES){
+      if (mapOfWave(wave) >= MAP_COUNT){ showVictory(); return; }
+      wave++;
+      startMap(mapOfWave(wave), now);
+    } else {
+      wave++;
+    }
     spawned = 0;
     enemiesThisWave = enemiesForWave(wave);
     bossSpawnedThisWave = false;
@@ -3835,7 +3910,8 @@ function update(now){
   }
 
   document.getElementById('gold').textContent = gold;
-  document.getElementById('wave').textContent = wave;
+  document.getElementById('wave').textContent = levelOfWave(wave) + '/' + MAP_WAVES; // v18.02
+  const wl = document.querySelector('#wave-label [data-i18n="wave_label"]'); if (wl) wl.textContent = t('map_label') + ' ' + mapOfWave(wave) + ' · ' + t('wave_label');
   // plus de compteur texte pour les brèches : le château (drawCastle) se
   // détruit tranche par tranche à la place, pas de DOM à mettre à jour
   refreshBonusbar();
@@ -5504,6 +5580,7 @@ function lerpColor(hexA, hexB, t){
 //    spectateur) : plus rien à proposer que recommencer
 function showOverModal(reason){
   document.getElementById('over-wave').textContent = t('over_wave')(wave);
+  for (const id of ['continue-btn', 'revive-btn', 'spectate-btn']) document.getElementById(id).style.display = ''; // v18.02
   const title = document.getElementById('over-title');
   const continueBtn = document.getElementById('continue-btn');
   const reviveBtn = document.getElementById('revive-btn');
@@ -5540,6 +5617,8 @@ function resetGame(startingGold){
   playerHealth = PLAYER_MAX_HEALTH; playerFlashUntil = 0; playerInvulnUntil = 0; lastRegenTickAt = 0;
   playerAggroScore = 0;
   playerOnWall = false; playerClimb = null; playerClimbCooldownUntil = 0; climbHoldSince = 0; // v17.83/v17.87
+  victory = false; applyMapTheme(); // v18.02
+  for (const id of ['continue-btn', 'revive-btn', 'spectate-btn']) document.getElementById(id).style.display = ''; // v18.02 : réaffichés après une victoire
   autoGoldLevel = 0; lastAutoGoldAt = 0; dmgLevel = 0; autoFireLevel = 0;
   forgeBuilt = false; forgeEliteLevel = 0; soldiersCanRepair = false;
   merchants = []; soldiers = []; activeCaravan = null;
