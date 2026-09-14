@@ -4831,3 +4831,13 @@ Retenu ×2. **Constat de design à trancher avec Pierre** : le naïf (jusqu'à
 neuve à 20 or (= un tireur de plus) vaut plus qu'un renfort à 20 or. Le
 spam de tours domine ; pistes : coût de tour croissant (règle Bloons),
 plafond de tours par carte, ou renfort plus rentable. Pas touché.
+
+## v18.07 — coût de tour croissant
+
+Quiz (constat v18.06 : le naïf qui spamme 7 tours bat ceux qui
+renforcent) → "coût de tour croissant". `buildCost(kind) = base ×
+1,3^(tours debout)` : 20, 26, 34, 44, 57… ; catapulte 30, 39, 51… La
+première reste à 20, donc `STARTING_GOLD` suffit toujours. Compter les
+tours DEBOUT (pas bâties) : en perdre une rend la suivante moins chère,
+ce qui aide à se relever après une percée. FAQ, bandeau et bots à jour.
+Résultat de simulation ci-dessous (6 parties).

@@ -196,7 +196,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
         const cheapestUpgrade = () => towers.slice().sort((a, b) => towerUpgradeCost(a) - towerUpgradeCost(b))[0];
         const nTowers = towers.filter(t => t.kind !== 'catapult').length, nCat = towers.filter(t => t.kind === 'catapult').length;
         if (policy === 'naive'){
-          if (gold >= TOWER_BUILD_COST && nTowers < 7) build('tower');
+          if (gold >= buildCost('tower') && nTowers < 7) build('tower');
           else if (frame % 60 === 0 && forgeBuilt){
             const choice = RNG_SPEND_OPTIONS[Math.floor(Math.random()*RNG_SPEND_OPTIONS.length)];
             if (choice === 'damage' && gold >= dmgUpgradeCost()){ gold -= dmgUpgradeCost(); dmgLevel++; }
@@ -204,7 +204,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
             else if (choice === 'autogold' && gold >= autoGoldCost()){ if (autoGoldLevel===0) lastAutoGoldAt = now; gold -= autoGoldCost(); autoGoldLevel++; }
           }
         } else if (policy === 'correct'){
-          if (nTowers < 3){ if (gold >= TOWER_BUILD_COST) build('tower'); }
+          if (nTowers < 3){ if (gold >= buildCost('tower')) build('tower'); }
           else {
             const t = cheapestUpgrade();
             const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }].concat(forgeBuilt ? [{ cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoGoldCost(), key: 'autogold' }] : []).sort((a, b) => a.cost - b.cost);
@@ -216,9 +216,9 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
             }
           }
         } else if (policy === 'good'){
-          if (nTowers < 2){ if (gold >= TOWER_BUILD_COST) build('tower'); }
-          else if (nCat < 1){ if (gold >= CATAPULT_BUILD_COST) build('catapult'); }
-          else if (nTowers < 4){ if (gold >= TOWER_BUILD_COST) build('tower'); }
+          if (nTowers < 2){ if (gold >= buildCost('tower')) build('tower'); }
+          else if (nCat < 1){ if (gold >= buildCost('catapult')) build('catapult'); }
+          else if (nTowers < 4){ if (gold >= buildCost('tower')) build('tower'); }
           else {
             const t = cheapestUpgrade();
             const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }].concat(forgeBuilt ? [{ cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoFireCost(), key: 'autofire' }, { cost: autoGoldCost(), key: 'autogold' }] : []).sort((a, b) => a.cost - b.cost);
