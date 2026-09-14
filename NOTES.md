@@ -4841,3 +4841,11 @@ première reste à 20, donc `STARTING_GOLD` suffit toujours. Compter les
 tours DEBOUT (pas bâties) : en perdre une rend la suivante moins chère,
 ce qui aide à se relever après une percée. FAQ, bandeau et bots à jour.
 Résultat de simulation ci-dessous (6 parties).
+
+Bots corrigés dans la foulée (ils ne bâtissaient jamais la Forge : tout
+partait en tours avant d'atteindre 100 or, donc les améliorations
+n'étaient jamais exercées et le "bon" mourait au niveau 9 en économisant
+une catapulte renchérie). Correct : 3 tours → Forge → améliorations ; bon :
+2 tours → Forge → catapulte → 4 tours → améliorations dont Cadence.
+Mesure (6 parties) :
+    naive: moy 13.5 méd 16 min 10 max 19 {'breach': 6} | correct: moy 11.67 méd 10 min 9 max 18 {'breach': 6} | good: moy 11.67 méd 10 min 9 max 16 {'breach': 6}
