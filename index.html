@@ -1094,7 +1094,7 @@ const WALL_NATIVE_FOOTPRINT_DEPTH = 20;         // emprise au sol : la base des 
 const WALL_NATIVE_STAIR_X = [5, 75];            // zone d'escalier (large) : marches de (22.5,-3.75) à (60,-45)
 const WALL_NATIVE_STAIR_TOP = { x: 60, y: -50 }; // point d'arrivée en haut, dans la bande praticable
 const WALL_NATIVE_TOP_BAND = [-56, -46];        // dessus praticable : sous le bord avant du sommet (-56.25), pieds plantés
-const CLIMB_HOLD_MS = 120;                      // la direction doit être tenue ce temps-là avant de monter/descendre (pas de déclenchement sur un frôlement)
+const CLIMB_HOLD_MS = 60; // v18.03 : 120 -> 60 ms (Pierre : "impossible de monter" — non reproduit, mais on tolère plus)                      // la direction doit être tenue ce temps-là avant de monter/descendre (pas de déclenchement sur un frôlement)
 let climbHoldSince = 0;
 const WALL_PLAYER_PAD = 6;                      // demi-encombrement du joueur contre le mur
 const CLIMB_MS = 380;                           // durée de la montée/descente interpolée
@@ -1148,7 +1148,7 @@ function updateWallClimb(now, prevX, prevY, pushDY){
   const held = climbHoldSince && now - climbHoldSince >= CLIMB_HOLD_MS;
   if (!playerOnWall){
     // au sol, dans la zone d'escalier, collé au mur, en poussant vers lui : on monte
-    if (canStart && held && player.y > bandTop - 40){
+    if (canStart && held && player.y > bandTop - 60){ // v18.03 : approche 40 -> 60 px
       playerClimb = { from: { x: player.x, y: player.y }, to: topPt, start: now, up: true }; climbHoldSince = 0;
       return true;
     }
@@ -3118,6 +3118,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.03", text: "Escalier du mur : la montée se déclenche plus facilement (zone d'approche élargie, délai réduit), et un petit chevron clignote au-dessus de l'escalier quand tu es dans sa zone — pousse vers le mur à cet endroit pour monter." },
   { v: "18.02", text: "Le jeu est découpé en CARTES de 10 niveaux (1 niveau = 1 vague). Carte 1 : la côte. Les 10 niveaux réussis → carte 2, la forêt : terrain neuf, or et paliers conservés, tout le reste à rebâtir, château neuf. Chaque carte repart sa montée en nombre d'ennemis (×1,5 sur la carte 2), les ennemis eux-mêmes devenant plus forts au fil des cartes ; le cheval de Troie est le climax du niveau 9. Après la dernière carte : victoire. Les tours tirent 2,5 fois plus vite de base — elles remplacent le tir du personnage. Le compteur affiche Carte · Niveau/10." },
   { v: "18.01", text: "Nouvelle direction : ton personnage ne tire plus. Tout passe par la gestion — tours, soldats, Forge. Le palier Précision disparaît ; Cadence accélère maintenant toutes les tours (catapultes comprises) ; Dégâts reste la base des tours et des soldats. Tu commences avec 120 or : de quoi bâtir la Forge et une première tour dès la vague 1. Astuces mises à jour." },
   { v: "18.00", text: "La caravane arrive plus vite : le chariot ne rampe plus sur les derniers crans (plancher de vitesse 15 % → 50 %, zone de ralentissement réduite), et les marchands descendus entrent d'un pas décidé (deux fois plus vite)." },
@@ -5197,6 +5198,25 @@ function draw(now){
         ctx.lineTo(bp.x-GRID_TW/2, bp.y);
         ctx.closePath();
         ctx.stroke();
+        ctx.restore();
+      }});
+    }
+  }
+
+  // v18.03 : chevron discret au-dessus de l'escalier quand le joueur est au
+  // sol dans sa zone — "pousse vers le mur ici". Pierre n'a pas trouvé
+  // comment monter sur son téléphone ; rien ne le montrait en jeu.
+  if (!playerOnWall && !playerClimb && !playerDead){
+    const W = wallScreen();
+    const zx0 = W.leftX + WALL_NATIVE_STAIR_X[0] * W.sX, zx1 = W.leftX + WALL_NATIVE_STAIR_X[1] * W.sX;
+    const bandTop = W.groundY - WALL_NATIVE_FOOTPRINT_DEPTH * W.sY - WALL_PLAYER_PAD;
+    if (player.x >= zx0 && player.x <= zx1 && player.y > bandTop - 120){
+      const cx = W.leftX + WALL_NATIVE_STAIR_TOP.x * W.sX, cy = W.groundY + WALL_NATIVE_TOP_BAND[0] * W.sY - 10;
+      const pulse = 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(now / 250));
+      layers.push({ y: W.groundY + 0.6, draw: () => {
+        ctx.save(); ctx.globalAlpha = pulse; ctx.strokeStyle = PHOSPHOR_GREEN; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(cx - 6, cy - 6); ctx.lineTo(cx, cy); ctx.lineTo(cx + 6, cy - 6); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - 6, cy - 13); ctx.lineTo(cx, cy - 7); ctx.lineTo(cx + 6, cy - 13); ctx.stroke();
         ctx.restore();
       }});
     }

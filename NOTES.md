@@ -4741,3 +4741,13 @@ correct 3 tours, bon 4 + catapulte) :
 Ouvert : la carte 2 tue les bons profils au niveau 3 (Forge à rebâtir
 avec peu d'or, bouclier dès 13, PV exponentiels). Ses règles sont "à
 définir" — ne pas équilibrer avant.
+
+## v18.03 — escalier : plus tolérant, et un chevron
+
+Pierre : "impossible de monter l'escalier" (téléphone). Non reproduit :
+le chemin tactile simulé (iPhone 13, joystick, `joyDY = 1`) monte. Faute
+de cause, on tolère plus (`CLIMB_HOLD_MS` 120 → 60, approche 40 → 60 px)
+et on MONTRE : chevron pulsant au-dessus de l'escalier quand le joueur
+est au sol dans la zone — c'était le vrai manque, rien n'indiquait où ni
+comment. Si ça reste impossible chez lui, il faudra sa version de jeu et
+son geste exact.
