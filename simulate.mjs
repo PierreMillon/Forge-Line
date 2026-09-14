@@ -219,8 +219,14 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
         } else if (policy === 'good'){
           if (nTowers < 2){ if (gold >= buildCost('tower')) build('tower'); }
           else if (!forgeBuilt){ /* v18.07 : économise pour la Forge */ }
-          else if (nCat < 1){ if (gold >= buildCost('catapult')) build('catapult'); }
-          else if (nTowers < 4){ if (gold >= buildCost('tower')) build('tower'); }
+          else if (nCat < 1 || nTowers < 4){
+            // v18.08 : achète ce qu'il peut se payer (tour ou catapulte, la
+            // moins chère d'abord) — avant, il attendait la catapulte (51 or
+            // avec 2 tours debout) et mourait au niveau 9 à chaque partie.
+            const wants = [].concat(nTowers < 4 ? [{ kind: 'tower', cost: buildCost('tower') }] : [], nCat < 1 ? [{ kind: 'catapult', cost: buildCost('catapult') }] : []).sort((a, b) => a.cost - b.cost);
+            const pick = wants.find(w => gold >= w.cost);
+            if (pick) build(pick.kind);
+          }
           else {
             const t = cheapestUpgrade();
             const options = [{ cost: towerUpgradeCost(t), key: 'upgrade' }].concat(forgeBuilt ? [{ cost: dmgUpgradeCost(), key: 'damage' }, { cost: autoFireCost(), key: 'autofire' }, { cost: autoGoldCost(), key: 'autogold' }] : []).sort((a, b) => a.cost - b.cost);

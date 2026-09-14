@@ -4866,3 +4866,14 @@ n'atteignait jamais la Forge et l'or thésaurisé ne faisait rien non plus
 (moy 11.67 = variance). Plan du bot à corriger avant la mesure suivante :
 acheter ce qu'il peut se payer (tour ou catapulte, la moins chère) plutôt
 que d'attendre la catapulte.
+
+## Simulateur — bot "bon" : achète tour ou catapulte, la moins chère (après v18.08)
+Après la Forge, le bot bon attendait 51 or de catapulte avec 2 tours. Il
+prend maintenant ce qu'il peut se payer (tour ou catapulte). Nouvelle
+référence (6 parties) :
+    naive: moy 9.5 méd 10 min 9 max 10 {'breach': 6} | correct: moy 10.5 méd 10 min 9 max 15 {'breach': 6} | good: moy 9 méd 9 min 9 max 9 {'breach': 6}
+Constat : tout le monde meurt aux niveaux 9-10 (cheval de Troie
+automatique au niveau 9 + coût croissant des tours : personne ne dépasse
+3 tours). Le bon bot bâtit la Forge 5/5 mais n'a plus le temps d'en
+profiter. À trancher avec Pierre après la mesure du renfort +12 % : le
+niveau 9 est-il un mur voulu sur la carte 1 ?
