@@ -1221,7 +1221,7 @@ const MERCHANT_MIN_PATH_IDX = 3;
 // normalement une fois convertis, sans rien à changer de ce côté.
 const MERCHANT_SPEED_IDX = 0.01;    // en "indices de chemin" par frame, vitesse DE CROISIÈRE (voir amortissement ci-dessous)
 const MERCHANT_ACCEL_RATE = 0.06;   // la vitesse réelle se rapproche de la cible de 6%/frame — démarrage/arrêt progressifs, pas un à-coup
-const MERCHANT_DECEL_ZONE = 3;      // en indices de chemin restants : ralentit à l'approche du château/demi-tour
+const MERCHANT_DECEL_ZONE = 2;      // v18.00 (Pierre : "arrivée finale trop lente") : 3 -> 2 crans de ralentissement, plancher 15% -> 50% (voir updateMerchants)
 const MERCHANT_HP = 20;
 const MERCHANT_CONTACT_DMG = 0.15;  // dégâts/frame d'un ennemi au contact
 // v17.88 : plus de MERCHANT_HEAL_FRACTION ni de retour au large — Pierre : "le seul endroit où il peut venir se soigner, c'est dans l'enceinte du château". Un marchand blessé continue jusqu'au château et y entre comme les autres (sans déclencher la conversion en soldats, réservée au premier marchand jamais touché).
@@ -1320,7 +1320,7 @@ function updateMerchants(now){
   // le chariot roule (amortissement v17.25, inchangé, juste porté sur le chariot)
   if (!activeCaravan.arrived){
     const remaining = activeCaravan.pathIdx;
-    const targetSpeed = MERCHANT_SPEED_IDX * Math.min(1, Math.max(0.15, remaining / MERCHANT_DECEL_ZONE));
+    const targetSpeed = MERCHANT_SPEED_IDX * Math.min(1, Math.max(0.5, remaining / MERCHANT_DECEL_ZONE)); // v18.00 : plancher 0.15 -> 0.5
     activeCaravan.speed += (targetSpeed - activeCaravan.speed) * MERCHANT_ACCEL_RATE;
     activeCaravan.pathIdx = Math.max(0, activeCaravan.pathIdx - activeCaravan.speed);
     if (activeCaravan.pathIdx <= 0){
@@ -1360,7 +1360,7 @@ function updateMerchants(now){
   const tx = W.gateX, ty = W.groundY + 20;
   for (const m of ground){
     const d = Math.hypot(tx-m.x, ty-m.y);
-    if (d > 2){ m.x += (tx-m.x)/d*0.6; m.y += (ty-m.y)/d*0.6; }
+    if (d > 2){ m.x += (tx-m.x)/d*1.2; m.y += (ty-m.y)/d*1.2; } // v18.00 : 0.6 -> 1.2 px/frame, ils entrent d'un pas décidé
     for (const e of enemies){
       if (Math.hypot(e.x-m.x, e.y-m.y) < 20){ m.hp -= MERCHANT_CONTACT_DMG; m.wounded = true; m.everWounded = true; }
     }
@@ -3070,6 +3070,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.00", text: "La caravane arrive plus vite : le chariot ne rampe plus sur les derniers crans (plancher de vitesse 15 % → 50 %, zone de ralentissement réduite), et les marchands descendus entrent d'un pas décidé (deux fois plus vite)." },
   { v: "17.99", text: "Relecture de code après la série : les marchands descendus du chariot n'étaient plus repoussés deux fois par frame ; un harceleur ne change plus de cible soixante fois par seconde entre un soldat et une tour ; aux vagues à boss, plus de passager oublié sur le pont ; la physique du pont ne s'emballe plus avec des dizaines de passagers. Sous le capot, un seul noyau de répulsion partagé par tout le jeu." },
   { v: "17.98", text: "Le mur descend de 16 px sur l'écran ; la Forge reste juste derrière lui, dans l'enceinte." },
   { v: "17.97", text: "Le personnage apparaissait ~26 px plus bas que prévu par rapport au mur (le bandeau du bas change de hauteur juste après le placement, et le mur remontait sans lui). Il suit maintenant le sol à chaque redimensionnement — y compris si tu tournes l'écran en cours de partie." },
