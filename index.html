@@ -304,7 +304,7 @@ const I18N = {
     over_wave: w => `Tu as tenu jusqu'à la vague ${w}`,
     over_title_victory: "Victoire", victory_text: n => `Tu as tenu les ${n} cartes. Le jeu s'arrête là pour l'instant — d'autres cartes arrivent.`,
     map_label: "Carte", map_complete_banner: m => `Carte ${m} terminée !`, map_start_banner: m => `Carte ${m}`,
-    h_maps: "Cartes et niveaux", p_maps: "Chaque carte compte 10 niveaux (1 niveau = 1 vague). Les 10 niveaux réussis, tu passes à la carte suivante : nouveau terrain, or et paliers conservés, tout le reste à rebâtir. Le cheval de Troie est le climax du niveau 9 de chaque carte.",
+    h_maps: "Cartes et niveaux", p_maps: "Chaque carte compte 10 niveaux (1 niveau = 1 vague). Les 10 niveaux réussis, tu passes à la carte suivante : nouveau terrain, or et paliers conservés, tout le reste à rebâtir. Le cheval de Troie est le boss du niveau 10, le dernier de chaque carte.",
     wave_complete_banner: w => `Vague ${w} terminée !`,
     wave_called_banner: w => `Vague ${w} appelée !`,
     // v17.64 : annonce d'un nouveau type d'ennemi à sa toute première
@@ -367,7 +367,7 @@ const I18N = {
     over_wave: w => `You made it to wave ${w}`,
     over_title_victory: "Victory", victory_text: n => `You held all ${n} maps. That's the end for now — more maps are coming.`,
     map_label: "Map", map_complete_banner: m => `Map ${m} complete!`, map_start_banner: m => `Map ${m}`,
-    h_maps: "Maps and levels", p_maps: "Each map has 10 levels (1 level = 1 wave). Clear all 10 and you move to the next map: new terrain, gold and tiers kept, everything else to rebuild. The Trojan Horse is the climax of level 9 on every map.",
+    h_maps: "Maps and levels", p_maps: "Each map has 10 levels (1 level = 1 wave). Clear all 10 and you move to the next map: new terrain, gold and tiers kept, everything else to rebuild. The Trojan Horse is the boss of level 10, the last one on every map.",
     wave_complete_banner: w => `Wave ${w} complete!`,
     wave_called_banner: w => `Wave ${w} called!`,
     new_enemy_incoming: name => `Watch out: ${name} incoming!`,
@@ -2034,7 +2034,7 @@ function pickEnemyType(){
 // avec un temps de recharge en vagues pour ne pas devenir un piège
 // répétitif à chaque fois qu'on traîne un peu dans l'eau.
 const TROJAN_WARNING_MS = 3000, TROJAN_TRIGGER_MS = 6000; // court, avec avertissement (choisi)
-const TROJAN_COOLDOWN_WAVES = 10; // v18.02 : un cheval par carte (9, puis 19) ; v17.77 : 15 vagues de recharge n'avait de sens qu'avec des parties très longues ; à 6, un joueur qui tient le coup le revoit
+const TROJAN_COOLDOWN_WAVES = 10; // v18.02 : un cheval par carte (10, puis 20 depuis v18.11) ; v17.77 : 15 vagues de recharge n'avait de sens qu'avec des parties très longues ; à 6, un joueur qui tient le coup le revoit
 const TROJAN_SOLDIER_COUNT = 3;
 // v17.74 (Pierre : "un mécanisme de fin de partie séparé") — passé un
 // certain point, plus aucun ennemi normal n'est une vraie menace (les
@@ -2052,7 +2052,7 @@ const TROJAN_SOLDIER_COUNT = 3;
 // risque), juste déclenché AUTOMATIQUEMENT en plus, passé cette
 // vague — le déclenchement par l'eau reste inchangé et continue de
 // marcher normalement avant ce point.
-const TROJAN_AUTO_START_WAVE = 9; // v18.02 : climax du niveau 9 de chaque carte ; v17.77 : ramené de 40 à 19 — c'est le climax de la partie, il doit tomber DANS la fenêtre de jeu réelle
+const TROJAN_AUTO_START_WAVE = 10; // v18.11 (Pierre, en quiz : "Cheval de Troie au niveau 10") — boss de FIN de carte : mesuré au niveau 9, tous les bots mouraient dessus (3 tours max avec le coût croissant) ; un niveau de plus pour bâtir et renforcer avant lui. v18.02 : climax du niveau 9 de chaque carte ; v17.77 : ramené de 40 à 19 — c'est le climax de la partie, il doit tomber DANS la fenêtre de jeu réelle
 // Sans ce boost, même une défense minimale détruit le cheval ~4,8x plus
 // vite qu'il ne peut atteindre le mur (291 frames pour le tuer contre
 // 1399 pour le trajet) : aucun risque réel. Appliqué SEULEMENT à partir
@@ -3224,6 +3224,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.11", text: "Le cheval de Troie arrive au niveau 10, le dernier de chaque carte, au lieu du 9. Mesure : au niveau 9, tous les bots du simulateur mouraient dessus avec 3 tours au plus. Un niveau de plus pour bâtir et renforcer avant le boss." },
   { v: "18.10", text: "Coulisses : tests automatiques (tests.mjs) qui rejouent les scénarios clés avant chaque mise en ligne — or de départ et première tour, Forge à 50 or, bouton Vague qui empile, passage à la carte 2 et victoire, escalier, caravane devenue soldats, bascule des soldats, Recommencer, renfort, 3000 frames de jeu sans erreur." },
   { v: "18.09", text: "Renforcer une tour rapporte plus : chaque palier de renfort ajoute 12 % de plus que le précédent (PV et dégâts), au lieu de 5 %. Les paliers du bandeau, les soldats et la Forge ne changent pas." },
   { v: "18.08", text: "La Forge coûte 50 or au lieu de 100. Mesure du simulateur : à 100 or, aucun bot ne la bâtissait sur la carte 1 — tout l'or partait dans les tours. À moitié prix, elle redevient un objectif atteignable en milieu de carte, et les améliorations du bandeau avec elle." },

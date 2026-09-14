@@ -4915,3 +4915,18 @@ puis le retire ; le nombre de bateaux d'une vague est aléatoire
 ajoute au moins un bateau sans retirer les autres".
 RÈGLE : lancer `node tests.mjs` avant chaque commit (et le simulateur
 pour tout changement d'équilibrage).
+
+## v18.11 — Cheval de Troie au niveau 10 (quiz : "Cheval de Troie au niveau 10")
+Une seule variable : TROJAN_AUTO_START_WAVE 9 → 10 (recharge 10 inchangée :
+un cheval par carte, niveaux 10 et 20). FAQ p_maps fr/en alignée.
+Mesure (12 parties), à comparer à la référence v18.09 (naive 13.17 /
+correct 12.58 / good 9.17) :
+    naive: moy 17.25 méd 18 min 10 max 20 {'breach': 12} | correct: moy 13.83 méd 14 min 10 max 20 {'breach': 12} | good: moy 12.25 méd 10 min 10 max 17 {'breach': 12}
+La carte 1 se finit maintenant souvent (max 20 = dernier niveau de la
+carte 2 atteint par des bots naïf et correct). Le niveau 10 reste le
+point de chute principal (le boss tue encore ~2 parties sur 5).
+Constat pour plus tard : maxTowerLevel = 1 partout — aucun bot ne
+renforce jamais (le "correct" économise pour la Forge après 3 tours et
+ne l'atteint qu'1 fois sur 5). Le renfort +12 % n'est donc pas encore
+mesuré par de vraies parties de bots ; plan des bots à revoir si on
+veut mesurer ce levier.
