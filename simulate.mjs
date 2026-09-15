@@ -8,121 +8,33 @@
 // résumé JSON renvoyé au bout.
 //
 // Usage :
-//   node simulate.mjs [--trials=30] [--maxFrames=60000] [--manualIntervalMs=50] [--url=http://localhost:PORT/index.html]
+//   node simulate.mjs [--trials=30] [--maxFrames=60000] [--url=http://localhost:PORT/index.html]
 //
 // Nécessite un serveur local sur le fichier (ex: python3 -m http.server)
 // et Playwright installé globalement (voir NOTES.md pour le NODE_PATH).
 //
-// v17.40 (Partie 3, point b — consigne : "complète le simulateur avec
-// 2-3 politiques de joueur") : remplace les anciennes politiques
-// 'solo'/'towers' par 3 profils demandés explicitement :
-//   - 'naive'   : joueur qui "fait n'importe quoi" — tire par à-coups
-//                 (1 frame sur 4, façon joueur distrait/inconstant), ne
-//                 construit JAMAIS de tour, dépense son or sans
-//                 stratégie sur un palier au hasard parmi
-//                 dégâts/cadence/précision/revenu auto dès que l'un
-//                 d'eux devient abordable (pas de plan, juste ce qui
-//                 tombe sous la main).
-//   - 'correct' : joueur raisonnable — construit sa tour dès que
-//                 possible à son point fixe, puis alterne renfort de
-//                 tour / dégâts avec le surplus d'or (reprend
-//                 l'ancienne politique 'towers').
-//   - 'good'    : joueur qui joue bien — reste au MÊME point que
-//                 'correct' (la porte, où le funnel concentre tout le
-//                 flux — voir WALL_GATE_HALF_W dans index.html), mais
-//                 diversifie le TYPE de défense (tour à flèches PUIS
-//                 catapulte, toutes deux au même endroit) au lieu de
-//                 disperser sur plusieurs positions (v17.68 : une
-//                 v17.40 dispersait sur 3 points à ±90px, dont deux
-//                 hors du couloir réel des ennemis — quasi inutiles —
-//                 ET diluait le même or sur 3 tours basses au lieu
-//                 d'une poussée à fond, moins bon dans cette économie
-//                 où le coût de renfort grandit plus lentement — 2,7%/
-//                 palier — que la puissance — 5%/palier ; résultat
-//                 mesuré : 'good' perdait PLUS TÔT que 'naive', signal
-//                 que le bot testait une mauvaise heuristique, pas que
-//                 le jeu récompensait mal la défense répartie), puis
-//                 investit dans l'option la moins chère parmi renfort
-//                 (tour ou catapulte) / dégâts / revenu auto /
-//                 précision à chaque décision.
+// Trois profils de joueur (plans détaillés à côté du code, bloc v18.12) :
+//   - 'naive'   : bâtit dès qu'il peut, sinon renforce une tour au hasard
+//                 une fois sur deux, ignore la Forge
+//   - 'correct' : 3 tours, puis toujours le renfort le moins cher, ignore
+//                 la Forge
+//   - 'good'    : 2 tours au niveau 3, puis la Forge, puis l'achat le
+//                 moins cher (tour jusqu'à 4, catapulte, renfort, bandeau)
+// Aucun bot ne bouge (il se téléporte pour bâtir : on simule la décision,
+// pas la marche), aucun ne relève après une mort — la partie s'arrête au
+// premier échec, ce qui donne directement "à quel niveau ça casse".
 //
-// --manualIntervalMs : intervalle entre deux tirs manuels du bot. Par
-// défaut MANUAL_TAP_COOLDOWN_MS (50ms = 20 tirs/s) : c'est le plancher
-// anti-spam du jeu, PAS un rythme humain réaliste — aucun joueur ne tape
-// 20x/s en continu. Pour une mesure représentative d'un vrai joueur,
-// passer quelque chose comme 220-300ms (≈3-4,5 tirs/s), plus proche d'un
-// tap répété soutenu à la main sur mobile.
-//
-// Simplification assumée : aucun des 3 bots ne bouge du point fixe near
-// du château (v17.68 : 'good' aussi, depuis qu'il ne disperse plus sur
-// plusieurs positions — voir plus haut), jamais pour esquiver ou réagir
-// à une menace précise — aucun des 3 bots ne relève après une mort (pas
-// de pub/revivre simulée), la partie s'arrête au premier échec (10
-// brèches ou santé à 0), ce qui donne directement "à quelle vague ça
-// casse".
-
-import { chromium } from 'playwright';
-
-function argVal(name, def){
-  const m = process.argv.find(a => a.startsWith(`--${name}=`));
-  return m ? m.split('=').slice(1).join('=') : def;
-}
+import { argVal, openGamePage } from './harness.mjs';
 
 const TRIALS = parseInt(argVal('trials', '30'), 10);
 const MAX_FRAMES = parseInt(argVal('maxFrames', '60000'), 10); // ~1000s de jeu simulé, garde-fou
-const MANUAL_INTERVAL_MS = argVal('manualIntervalMs', null); // null = utilise le cooldown du jeu (MANUAL_TAP_COOLDOWN_MS)
 const URL = argVal('url', 'http://localhost:8930/index.html');
 const MAX_WAVE_TRACK = parseInt(argVal('maxWaveTrack', '100'), 10); // "vagues infinies : mesure sur les 100 premières" (consigne)
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-// v17.41 — trouvé en creusant pourquoi TOUTES les stratégies mouraient
-// pareil (naive quasi = correct = good) : sans viewport précisé,
-// Playwright ouvre une page de bureau (~1280px de large). Une tour
-// (portée 160px) n'en couvre alors qu'un quart — la plupart des
-// ennemis marchent hors de portée quoi qu'on achète, ce qui écrasait
-// toute différence entre les stratégies. Un vrai joueur est sur mobile
-// (Pierre : iPhone 16) — viewport resserré pour que le simulateur
-// mesure la même largeur de carte qu'en vrai.
-const page = await browser.newPage({ viewport: { width: 420, height: 800 } });
-// La page a sa propre boucle requestAnimationFrame (temps réel, horloge
-// système) qui tournerait EN PLUS de nos appels manuels à update() avec des
-// timestamps synthétiques -- les deux horloges se marchent dessus et
-// corrompent l'état (vagues bloquées, NaN, crash de rendu). On la neutralise
-// avant que le moindre script de la page ne s'exécute.
-await page.addInitScript(() => { window.requestAnimationFrame = () => 0; });
-const pageErrors = [];
-page.on('pageerror', e => pageErrors.push(String(e)));
-await page.goto(URL);
-await page.waitForTimeout(300);
+const { browser, page, pageErrors } = await openGamePage(URL); // v18.14 : harnais commun (voir harness.mjs)
 
-const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWaveTrack }) => {
-  // v17.72 — fuite mémoire trouvée en relançant les tests de difficulté
-  // ("relance tous les tests") : sfxShoot/sfxHit (et tous les autres
-  // bruitages, playTone/playNoiseBurst dans index.html) créent un
-  // nouveau OscillatorNode/AudioBufferSourceNode/GainNode par son. Sur
-  // un vrai appareil, une fois joué (~25-50ms), le nœud atteint l'état
-  // "finished" et devient éligible au ramassage automatique du Web
-  // Audio API — mais dans CE contexte headless (--mute-audio, page
-  // jamais visible, requestAnimationFrame neutralisé), l'horloge audio
-  // ne semble jamais avancer : aucun nœud n'atteint jamais "finished",
-  // donc AUCUN n'est jamais collecté — une vraie fuite qui grandit avec
-  // le nombre de sons joués (donc avec le nombre de frames simulées).
-  // Diagnostiqué par comparaison : identique sur un ancien commit (pas
-  // introduit par les changements récents), confirmé par une fuite
-  // linéaire mesurée même avec gc() forcé entre les essais (donc de
-  // vraies références retenues, pas juste un GC qui traîne), et
-  // ÉLIMINÉE À 100% en coupant sfxVolume/musicVolume avant de lancer
-  // les essais (voir NOTES.md v17.72 pour le détail complet de la
-  // démarche). Sans ce correctif, une session de 90000 frames tourne
-  // la mémoire du renderer Chrome jusqu'à plusieurs Go et se fait tuer
-  // par le limiteur mémoire du conteneur avant la fin — voilà pourquoi
-  // les runs longs du simulateur ne terminaient jamais. Les bots n'ont
-  // de toute façon aucun intérêt à entendre le jeu : ça ne change rien
-  // à la mesure de difficulté, seulement au simulateur, jamais au jeu
-  // livré aux joueurs (le son y est allumé par défaut, comme prévu).
-  sfxVolume = 0; musicVolume = 0;
-  // (v18.01 : plus de tir du joueur, --manualIntervalMs n'a plus d'effet)
-  const RNG_SPEND_OPTIONS = ['damage', 'autofire', 'autogold']; // v18.01 : plus de précision (plus de tir du joueur)
+const result = await page.evaluate(({ trials, maxFrames, maxWaveTrack }) => {
+  // (son coupé et rAF neutralisé par harness.mjs — voir v17.72 dans NOTES.md pour la fuite mémoire audio)
 
   function runOne(policy){
     resetGame(STARTING_GOLD); // v18.01 : même or de départ que le vrai jeu (sans tir, c'est la seule ressource avant la première tour)
@@ -164,33 +76,28 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
       // amélioration. Tous les bots vont donc la bâtir dès FORGE_BUILD_COST (en se
       // téléportant dans sa zone : on simule la décision, pas la marche),
       // puis reviennent devant la porte.
-      if (!forgeBuilt && policy === 'good'){ // v18.12 : seul le bot bon connaît la Forge
+      // v18.14 (revue de code) : ce bloc tournait à chaque frame, avant le
+      // tick de décision, et bâtissait la Forge dès 50 or même avec 2
+      // tours — court-circuitant le plan "3 tours au niveau 3 PUIS la
+      // Forge" (et à l'entrée de la carte 2, avant la moindre tour).
+      // v18.14 bis : 2 tours (pas 3) — mesuré : la 3e tour (34 or) affamait le bot, deux tours au niveau 1 à la vague 8, jamais de Forge
+      const goodReadyForForge = towers.filter(t => t.kind !== 'catapult').length >= 2 && towers.every(t => (t.level||1) >= 3);
+      if (!forgeBuilt && policy === 'good' && goodReadyForForge){ // v18.12 : seul le bot bon connaît la Forge
         if (gold >= FORGE_BUILD_COST){
-          const px = player.x, py = player.y;
-          player.x = FORGE_ZONE.x + FORGE_ZONE.w/2; player.y = FORGE_ZONE.y + FORGE_ZONE.h/2;
-          tryBuildForge();
-          player.x = px; player.y = py;
+          __H.teleport(FORGE_ZONE.x + FORGE_ZONE.w/2, FORGE_ZONE.y + FORGE_ZONE.h/2, () => tryBuildForge());
         }
       }
       // (v17.93 : `if` autonome, plus de `else` — un `else if` ici coupait
       // le TIR de tous les profils tant que la Forge n'était pas bâtie :
       // 0 kill, 0 or, jamais 100 or, brèche à la vague 4 pour tout le
       // monde. Mesuré avant correction, faux résultat de simulateur.)
-      // v18.02 : politiques réécrites pour le méta "gestion pure" (le
-      // joueur ne tire plus, v18.01). Le bot se téléporte sur un
-      // emplacement libre devant la porte pour BÂTIR (sinon
-      // tryTowerAction renforce la tour voisine), et à côté d'une tour
-      // pour la RENFORCER. On simule les décisions, pas la marche.
-      //  - naive   : bâtit une tour dès qu'il a 20 or, ne renforce jamais,
-      //              dépense le reste au hasard (dégâts/cadence/revenu)
-      //  - correct : jusqu'à 3 tours, puis l'achat le moins cher parmi
-      //              renfort / dégâts / revenu auto
-      //  - good    : 4 tours + 1 catapulte à la porte, puis le moins cher
-      //              parmi renfort tour/catapulte / dégâts / cadence / revenu
+      // (plans des bots : bloc v18.12 ci-dessous ; les bots se téléportent
+      // sur une case libre devant la porte pour BÂTIR, à côté d'une tour
+      // pour la RENFORCER — on simule les décisions, pas la marche)
       if (frame % 30 === 0){ // v18.06 : bâtir ne demande plus la Forge ; seuls les achats d'amélioration (ci-dessous) la demandent
         const W = wallScreen();
         const spots = [0, -48, 48, -96, 96, -144, 144].map(dx => ({ x: W.gateX + dx, y: playerSpawnY() - 30 }));
-        const teleport = (x, y, fn) => { const px = player.x, py = player.y; player.x = x; player.y = y; fn(); player.x = px; player.y = py; };
+        const teleport = (x, y, fn) => __H.teleport(x, y, fn); // v18.14 : harness.mjs
         const freeSpot = () => spots.find(sp => !towers.some(t => Math.hypot(t.x - sp.x, t.y - (sp.y - 24)) < 30));
         const build = (kind) => { const sp = freeSpot(); if (!sp) return false; const n = towers.length; teleport(sp.x, sp.y, () => kind === 'catapult' ? tryCatapultAction() : tryTowerAction()); return towers.length > n; };
         const upgrade = (t) => teleport(t.x, t.y + 22, () => t.kind === 'catapult' ? tryCatapultAction() : tryTowerAction());
@@ -206,9 +113,9 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
         //              de Forge (il ne sait pas qu'elle existe)
         //  - correct : 3 tours, puis renforce toujours la tour la moins
         //              chère à renforcer ; jamais de Forge
-        //  - good    : 3 tours, chacune renforcée au niveau 3, PUIS
+        //  - good    : 2 tours, chacune renforcée au niveau 3, PUIS
         //              économise la Forge, puis l'achat le moins cher parmi
-        //              4e tour / catapulte / renfort / dégâts / cadence / revenu
+        //              tour (jusqu'à 4) / catapulte / renfort / dégâts / cadence / revenu
         const randomTower = () => towers[Math.floor(Math.random() * towers.length)];
         if (policy === 'naive'){
           if (gold >= buildCost('tower') && nTowers < 7) build('tower');
@@ -224,7 +131,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
           }
         } else if (policy === 'good'){
           const weakest = towers.length ? towers.slice().sort((a, b) => (a.level||1) - (b.level||1))[0] : null;
-          if (nTowers < 3){ if (gold >= buildCost('tower')) build('tower'); }
+          if (nTowers < 2){ if (gold >= buildCost('tower')) build('tower'); } // v18.14 : 2 tours (voir goodReadyForForge)
           else if (weakest && (weakest.level||1) < 3){ if (gold >= towerUpgradeCost(weakest)) upgrade(weakest); }
           else if (!forgeBuilt){ /* économise la Forge (bâtie par le bloc au-dessus dès FORGE_BUILD_COST) */ }
           else {
@@ -296,7 +203,7 @@ const result = await page.evaluate(({ trials, maxFrames, manualIntervalMs, maxWa
     correctSample: runs.correct.slice(0, 5),
     goodSample: runs.good.slice(0, 5),
   };
-}, { trials: TRIALS, maxFrames: MAX_FRAMES, manualIntervalMs: MANUAL_INTERVAL_MS != null ? parseInt(MANUAL_INTERVAL_MS, 10) : null, maxWaveTrack: MAX_WAVE_TRACK });
+}, { trials: TRIALS, maxFrames: MAX_FRAMES, maxWaveTrack: MAX_WAVE_TRACK });
 
 console.log(JSON.stringify(result, null, 2));
 if (pageErrors.length) console.log('Erreurs JS pendant la simulation:', pageErrors);

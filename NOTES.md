@@ -4968,3 +4968,33 @@ Mesure (12 parties, bots qui renforcent) :
 Repères : ×1,5 → naïf 6 victoires/12 ; ×2 → 0-1 victoire ; ×1,75 → naïf 1,
 correct 4, bon 0 (toujours freiné par son détour Forge). Le boss du
 niveau 10 reste intouché (quiz : "on mesure à la main d'abord").
+
+## v18.14 — Relecture du code (quiz : "Relire et nettoyer le code")
+Passe de revue (code-review, niveau high) sur index.html, simulate.mjs,
+tests.mjs : 7 constats, tous traités.
+Jeu :
+- Boss de fin de carte garanti : `levelOfWave(wave) === MAP_WAVES` et une
+  variable trojanBossWave (un boss par carte), au lieu du compteur absolu
+  + recharge partagée — un cheval appelé par l'eau au niveau 3 posait
+  une recharge jusqu'à 13, le boss du niveau 10 sautait, et un cheval
+  surgissait au niveau 3 de la carte 2 (puis plus rien au niveau 20).
+  TROJAN_AUTO_START_WAVE ne sert plus qu'au multiplicateur de PV.
+- resetGame remet soldiersFollow à false (startMap le faisait, pas
+  Recommencer).
+Outils :
+- harness.mjs : ouverture du navigateur, viewport mobile, rAF neutralisé,
+  son coupé, __H.teleport/__H.buildAt — partagé par simulate.mjs et
+  tests.mjs (avant dupliqué mot pour mot).
+- simulate.mjs : le bloc Forge du bot bon ne court-circuite plus son plan
+  (il tournait à chaque frame, avant le tick, dès 50 or) ; option morte
+  --manualIntervalMs et RNG_SPEND_OPTIONS retirés ; en-tête réécrit.
+  Plan du bon ramené à 2 tours au niveau 3 (mesuré : la 3e tour à 34 or
+  l'affamait — deux tours niveau 1 à la vague 8, jamais de Forge).
+- tests.mjs : le scénario niveau 10 vérifie maintenant le boss (1 cheval
+  au niveau 10, aucun au niveau 1 de la carte 2, 1 au niveau 20) ; le
+  serveur local est libéré même si le navigateur plante (try/finally,
+  écoute de l'erreur du processus) ; Recommencer vérifie soldiersFollow.
+Mesure après (12 parties, boss inchangé pour les bots — ils ne vont
+jamais dans l'eau) :
+    naive: moy 17.33 méd 17 min 16 max 20 {'victory': 2, 'breach': 10} | correct: moy 16.25 méd 16 min 13 max 20 {'breach': 10, 'victory': 2} | good: moy 15.92 méd 18 min 10 max 20 {'breach': 12}
+Le bon bâtit enfin la Forge 3 fois sur 5 (vers le niveau 14, carte 2).

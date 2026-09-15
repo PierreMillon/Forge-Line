@@ -18,54 +18,45 @@
 // marchands qui ne devenaient pas soldats) sont exactement les
 // scénarios rejoués ici.
 
-import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { argVal, openGamePage } from './harness.mjs'; // v18.14 : harnais commun avec simulate.mjs
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-function argVal(name, def){
-  const m = process.argv.find(a => a.startsWith(`--${name}=`));
-  return m ? m.split('=').slice(1).join('=') : def;
-}
 const PORT = 9031;
 let URL = argVal('url', null);
 let server = null;
 if (!URL){
+  // v18.14 (revue de code) : un serveur orphelin sur 9031 (lancement
+  // précédent planté avant le kill) répondrait au HEAD et masquerait un
+  // spawn mort "address in use" — on surveille l'erreur du processus et on
+  // ne sonde qu'après un petit délai
   server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], { cwd: here, stdio: 'ignore' });
+  let serverError = null;
+  server.on('error', e => { serverError = e; });
+  server.on('exit', code => { if (code !== null && code !== 0) serverError = new Error(`serveur local terminé (code ${code})`); });
   URL = `http://127.0.0.1:${PORT}/index.html`;
   let up = false;
-  for (let i = 0; i < 50 && !up; i++){
-    try { const r = await fetch(URL, { method: 'HEAD' }); up = r.ok; } catch (e) { await new Promise(r => setTimeout(r, 200)); }
+  for (let i = 0; i < 50 && !up && !serverError; i++){
+    await new Promise(r => setTimeout(r, 200));
+    try { const r = await fetch(URL, { method: 'HEAD' }); up = r.ok; } catch (e) { /* pas encore prêt */ }
   }
-  if (!up){ console.error('ÉCHEC  serveur local injoignable'); server.kill(); process.exit(1); }
+  if (!up){ console.error('ÉCHEC  serveur local injoignable' + (serverError ? ' : ' + serverError.message : '')); server.kill(); process.exit(1); }
 }
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-const page = await browser.newPage({ viewport: { width: 420, height: 800 } }); // même largeur que le simulateur (mobile)
-await page.addInitScript(() => { window.requestAnimationFrame = () => 0; });
-const pageErrors = [];
-page.on('pageerror', e => pageErrors.push(String(e)));
-await page.goto(URL);
-await page.waitForTimeout(400);
+let browser = null, page = null, pageErrors = [];
+let failures = 0;
+try {
+({ browser, page, pageErrors } = await openGamePage(URL));
 
-// horloge synthétique partagée par tous les scénarios
+// horloge synthétique partagée par tous les scénarios (__H.buildAt vient de harness.mjs)
 await page.evaluate(() => {
-  sfxVolume = 0; musicVolume = 0; // (fuite mémoire audio en headless, voir simulate.mjs v17.72)
   window.__T = {
     t: performance.now() + 1000,
     advance(n){ for (let i = 0; i < n; i++){ this.t += 16.67; update(this.t); } return this.t; },
     fresh(){ resetGame(STARTING_GOLD); this.t = performance.now() + 1000; player.x = STAGE_W/2; player.y = playerSpawnY(); },
-    // se placer sur une case libre devant la porte et bâtir (comme les bots du simulateur)
-    buildAt(dx, kind){
-      const W = wallScreen();
-      const px = player.x, py = player.y;
-      player.x = W.gateX + dx; player.y = playerSpawnY() - 30;
-      const n = towers.length;
-      if (kind === 'catapult') tryCatapultAction(); else tryTowerAction();
-      player.x = px; player.y = py;
-      return towers.length > n;
-    },
+    buildAt(dx, kind){ return __H.buildAt(dx, kind); },
   };
 });
 
@@ -113,16 +104,19 @@ const scenarios = [
     const ok = wave === 4 && added.every(a => a >= 1) && enemiesThisWave === expected && gold > STARTING_GOLD && enemies.length === 0;
     return { ok, detail: `vague ${wave}, bateaux ajoutés par appui ${added.join('/')}, ennemis attendus ${enemiesThisWave}/${expected}, or ${gold}` };
   }],
-  ['fin du niveau 10 : carte 2 neuve ; fin du niveau 20 : victoire', () => {
+  ['niveau 10 : boss garanti ; puis carte 2 neuve sans cheval ; niveau 20 : boss puis victoire', () => {
     __T.fresh(); __T.buildAt(0, 'tower'); breaches = 5;
-    wave = 10; enemiesThisWave = enemiesForWave(10); spawned = enemiesThisWave; enemies = [];
-    __T.advance(1);
-    const map2 = { wave, map: mapOfWave(wave), level: levelOfWave(wave), towers: towers.length, gold, breaches, gameOver };
-    wave = 20; enemiesThisWave = enemiesForWave(20); spawned = enemiesThisWave; enemies = [];
-    __T.advance(1);
+    // un cheval appelé par l'eau plus tôt (recharge posée) ne doit pas faire sauter le boss (v18.14)
+    trojanCooldownUntilWave = 13;
+    const bossAt = (w) => { wave = w; enemiesThisWave = 5; spawned = 0; boats = []; enemies = []; __T.advance(1); return enemies.filter(e => e.isTrojan).length; };
+    const boss10 = bossAt(10);
+    enemies = []; spawned = enemiesThisWave; __T.advance(1); // fin du niveau 10 → carte 2
+    const map2 = { wave, map: mapOfWave(wave), level: levelOfWave(wave), towers: towers.length, gold, breaches, gameOver, horses: enemies.filter(e => e.isTrojan).length };
+    const boss20 = bossAt(20);
+    enemies = []; spawned = enemiesThisWave; __T.advance(1); // fin du niveau 20 → victoire
     const over = document.getElementById('over').style.display;
-    const ok = map2.wave === 11 && map2.map === 2 && map2.level === 1 && map2.towers === 0 && map2.gold >= STARTING_GOLD && map2.breaches === 0 && !map2.gameOver && victory && gameOver && over === 'flex';
-    return { ok, detail: `après niv.10 : vague ${map2.wave} (carte ${map2.map}, niveau ${map2.level}), tours ${map2.towers}, brèches ${map2.breaches} ; après niv.20 : victoire ${victory}, écran ${over}` };
+    const ok = boss10 === 1 && map2.wave === 11 && map2.map === 2 && map2.level === 1 && map2.towers === 0 && map2.gold >= STARTING_GOLD && map2.breaches === 0 && !map2.gameOver && map2.horses === 0 && boss20 === 1 && victory && gameOver && over === 'flex';
+    return { ok, detail: `boss niv.10 ${boss10} ; après : vague ${map2.wave} (carte ${map2.map}, niveau ${map2.level}), tours ${map2.towers}, brèches ${map2.breaches}, chevaux ${map2.horses} ; boss niv.20 ${boss20} ; victoire ${victory}, écran ${over}` };
   }],
   ['escalier : pousser vers le mur monte, pousser vers le sol descend', () => {
     __T.fresh();
@@ -154,10 +148,10 @@ const scenarios = [
     return { ok, detail: `${a} → ${b} → ${c}` };
   }],
   ['Recommencer (menu et écran de fin) repart vraiment de zéro', () => {
-    const dirty = () => { gold = 500; wave = 7; __T.buildAt(0, 'tower'); forgeBuilt = true; dmgLevel = 3; };
+    const dirty = () => { gold = 500; wave = 7; __T.buildAt(0, 'tower'); forgeBuilt = true; dmgLevel = 3; soldiersFollow = true; };
     const clean = () => {
       let save = null; try { save = JSON.parse(localStorage.getItem('forgeLineSave')); } catch (e) { /* ignore */ }
-      return wave === 1 && gold === STARTING_GOLD && towers.length === 0 && !forgeBuilt && dmgLevel === 0 && save && save.wave === 1 && save.gold === STARTING_GOLD;
+      return wave === 1 && gold === STARTING_GOLD && towers.length === 0 && !forgeBuilt && dmgLevel === 0 && soldiersFollow === false && save && save.wave === 1 && save.gold === STARTING_GOLD;
     };
     unlockAutoSave(); // la sauvegarde locale n'existe qu'une fois débloquée (après une pub) : c'est là que le bug v17.46 se cachait
     __T.fresh(); dirty(); document.getElementById('menu-restart').click(); const viaMenu = clean();
@@ -181,7 +175,6 @@ const scenarios = [
   }],
 ];
 
-let failures = 0;
 for (const [name, fn] of scenarios){
   pageErrors.length = 0;
   let r;
@@ -192,6 +185,11 @@ for (const [name, fn] of scenarios){
   console.log(`${r.ok ? 'OK    ' : 'ÉCHEC '} ${name} — ${r.detail}`);
 }
 console.log(failures ? `\n${failures} scénario(s) en échec sur ${scenarios.length}` : `\n${scenarios.length} scénarios OK`);
-await browser.close();
-if (server) server.kill();
+} catch (e) {
+  failures++;
+  console.error('ÉCHEC  harnais : ' + String(e).split('\n')[0]);
+} finally {
+  if (browser) await browser.close();
+  if (server) server.kill(); // v18.14 : toujours, même si le navigateur n'a pas démarré
+}
 process.exit(failures ? 1 : 0);

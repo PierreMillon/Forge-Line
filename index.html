@@ -2052,7 +2052,7 @@ const TROJAN_SOLDIER_COUNT = 3;
 // risque), juste déclenché AUTOMATIQUEMENT en plus, passé cette
 // vague — le déclenchement par l'eau reste inchangé et continue de
 // marcher normalement avant ce point.
-const TROJAN_AUTO_START_WAVE = 10; // v18.11 (Pierre, en quiz : "Cheval de Troie au niveau 10") — boss de FIN de carte : mesuré au niveau 9, tous les bots mouraient dessus (3 tours max avec le coût croissant) ; un niveau de plus pour bâtir et renforcer avant lui. v18.02 : climax du niveau 9 de chaque carte ; v17.77 : ramené de 40 à 19 — c'est le climax de la partie, il doit tomber DANS la fenêtre de jeu réelle
+const TROJAN_AUTO_START_WAVE = 10; // v18.14 : ne sert plus qu'aux PV (×TROJAN_LATE_HP_MULT à partir de cette vague) — le boss lui-même est déclenché par levelOfWave(wave) === MAP_WAVES. v18.11 (Pierre, en quiz : "Cheval de Troie au niveau 10") — boss de FIN de carte : mesuré au niveau 9, tous les bots mouraient dessus (3 tours max avec le coût croissant) ; un niveau de plus pour bâtir et renforcer avant lui. v18.02 : climax du niveau 9 de chaque carte ; v17.77 : ramené de 40 à 19 — c'est le climax de la partie, il doit tomber DANS la fenêtre de jeu réelle
 // Sans ce boost, même une défense minimale détruit le cheval ~4,8x plus
 // vite qu'il ne peut atteindre le mur (291 frames pour le tuer contre
 // 1399 pour le trajet) : aucun risque réel. Appliqué SEULEMENT à partir
@@ -2081,6 +2081,7 @@ const TROJAN_LATE_HP_MULT = 6;
 const TROJAN_ENEMY_TYPE = { id: 'trojan', hpMult: 1, speedMult: 0.6, colorA: '#e8dfc8', colorB: '#5c3f26', goldReward: 0, breachDamage: 10, scalesWithWave: false, isTrojan: true };
 let playerInWaterSince = null, trojanWarningShown = false;
 let trojanCooldownUntilWave = 0;
+let trojanBossWave = 0; // v18.14 : vague du dernier boss de fin de carte (un seul par carte)
 let trojanHorse = null; // référence vers l'entité dans `enemies`, tant qu'il est vivant
 let trojanCauseOfDefeat = false;
 function updateTrojanWatch(now){
@@ -2089,8 +2090,14 @@ function updateTrojanWatch(now){
   // respecte le MÊME temps de recharge (trojanCooldownUntilWave) que
   // le déclenchement par l'eau — un seul à la fois, jamais les deux
   // qui se chevauchent, pas de logique de recharge séparée à entretenir
-  if (wave >= TROJAN_AUTO_START_WAVE && wave >= trojanCooldownUntilWave){
+  // v18.14 (revue de code) : le boss est garanti au DERNIER niveau de
+  // chaque carte, une fois par carte — avant, il dépendait du compteur
+  // absolu ET de la recharge partagée : un cheval déclenché par l'eau au
+  // niveau 3 décalait la recharge, le boss du niveau 10 sautait, et un
+  // cheval surgissait au milieu de la carte 2 à la place.
+  if (levelOfWave(wave) === MAP_WAVES && trojanBossWave !== wave){
     spawnTrojanHorse(now);
+    trojanBossWave = wave;
     trojanCooldownUntilWave = wave + TROJAN_COOLDOWN_WAVES;
     return;
   }
@@ -3224,6 +3231,7 @@ document.addEventListener('click', e => {
 // numéro de version : résumé en un coup d'œil de ce qui a changé au
 // dernier push. Chaque nouvelle version pousse une entrée en tête ici.
 const CHANGELOG = [
+  { v: "18.14", text: "Relecture du code. Le cheval de Troie de fin de carte est garanti au niveau 10 de chaque carte, même si tu en avais déjà appelé un par l'eau (avant, ça pouvait le faire sauter, puis surgir au milieu de la carte 2). Recommencer remet les soldats en mode Autonomes. Côté outils : harnais commun au simulateur et aux tests, bot bon qui respecte son plan avant la Forge, tests qui vérifient le boss et libèrent toujours leur serveur." },
   { v: "18.13", text: "Carte 2 : 1,75 fois plus d'ennemis par niveau que la carte 1 (entre le ×1,5 d'origine, où un joueur naïf finissait le jeu une fois sur deux, et le ×2 de la v18.12, où plus personne ne finissait)." },
   { v: "18.12", text: "Carte 2 plus dure : deux fois plus d'ennemis par niveau que sur la carte 1 (au lieu de 1,5 fois). Mesure : avec des tours bien renforcées, même un joueur naïf finissait les deux cartes une fois sur deux." },
   { v: "18.11", text: "Le cheval de Troie arrive au niveau 10, le dernier de chaque carte, au lieu du 9. Mesure : au niveau 9, tous les bots du simulateur mouraient dessus avec 3 tours au plus. Un niveau de plus pour bâtir et renforcer avant le boss." },
@@ -5762,7 +5770,8 @@ function resetGame(startingGold){
   towerGraves = []; playerPrayingSince = null; playerPrayingAt = null;
   deathEffects = [];
   columnStats = Array.from({length:COLUMN_COUNT}, () => ({ deaths:0, successes:0, clusterRisk:0 })); recentSuccesses = [];
-  playerInWaterSince = null; trojanWarningShown = false; trojanCooldownUntilWave = 0; trojanHorse = null; trojanCauseOfDefeat = false;
+  playerInWaterSince = null; trojanWarningShown = false; trojanCooldownUntilWave = 0; trojanBossWave = 0; trojanHorse = null; trojanCauseOfDefeat = false;
+  soldiersFollow = false; // v18.14 (revue de code) : Recommencer gardait le mode Suivent/Autonomes de la partie d'avant, alors qu'un changement de carte le remettait
   // v17.32 (E) : REGEN_ZONE.y a bougé (le mur n'est plus collé au bord
   // bas de l'écran, la forge est maintenant derrière lui) — se caler sur
   // REGEN_ZONE.y comme le fait resizeCanvas, pas sur une valeur fixe
