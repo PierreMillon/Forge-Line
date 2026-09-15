@@ -4959,3 +4959,12 @@ Lecture : plus aucune victoire naïve (0/12), une seule pour correct ;
 tout le monde tombe entre les niveaux 13 et 17 de la carte 2. La carte 1
 se finit toujours (min 10). Si c'est trop sec, la valeur intermédiaire
 0,75 (×1,75) est la prochaine à essayer — à trancher avec Pierre.
+
+## v18.13 — Carte 2 à ×1,75 (quiz : "Intermédiaire ×1,75")
+Pierre a précisé que les réponses derrière la v18.12 (×2) n'étaient pas
+les siennes ; requiz : intermédiaire. MAP_COUNT_MULT 1,0 → 0,75.
+Mesure (12 parties, bots qui renforcent) :
+    naive: moy 15.5 méd 15 min 10 max 20 {'breach': 11, 'victory': 1} | correct: moy 17.17 méd 17 min 13 max 20 {'breach': 8, 'victory': 4} | good: moy 16.42 méd 17 min 10 max 20 {'breach': 12}
+Repères : ×1,5 → naïf 6 victoires/12 ; ×2 → 0-1 victoire ; ×1,75 → naïf 1,
+correct 4, bon 0 (toujours freiné par son détour Forge). Le boss du
+niveau 10 reste intouché (quiz : "on mesure à la main d'abord").
